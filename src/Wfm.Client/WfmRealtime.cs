@@ -119,9 +119,9 @@ public sealed class WfmRealtime(AuthSession session, WfmClientOptions options) :
 public static class ClientServiceCollectionExtensions
 {
     /// <summary>API istemcisi, oturum ve SignalR servislerini kaydeder. <see cref="ITokenStore"/> platform tarafından kaydedilmeli.</summary>
-    public static IServiceCollection AddWfmClient(this IServiceCollection services, string apiBaseUrl, bool singletonSession)
+    public static IServiceCollection AddWfmClient(this IServiceCollection services, string apiBaseUrl, bool singletonSession, string? publicBaseUrl = null)
     {
-        var options = new WfmClientOptions { ApiBaseUrl = apiBaseUrl };
+        var options = new WfmClientOptions { ApiBaseUrl = apiBaseUrl, PublicBaseUrl = publicBaseUrl };
         services.AddSingleton(options);
         if (singletonSession)
         {

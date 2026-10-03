@@ -16,7 +16,8 @@ public static class DbSeeder
     public const string DemoPassword = "Demo123!";
     public const string SuperAdminEmail = "admin@wfm.local";
 
-    public static async Task SeedAsync(WfmDbContext db, UserManager<AppUser> users, RoleManager<AppRole> roles, bool demoData)
+    public static async Task SeedAsync(WfmDbContext db, UserManager<AppUser> users, RoleManager<AppRole> roles, bool demoData,
+        string? adminPassword = null)
     {
         foreach (var r in Roles.All)
             if (!await roles.RoleExistsAsync(r))
@@ -27,7 +28,8 @@ public static class DbSeeder
             var system = new Tenant { Name = "Sistem", Slug = "system" };
             db.Tenants.Add(system);
             await db.SaveChangesAsync();
-            await CreateUser(users, system.Id, SuperAdminEmail, "Sistem Yöneticisi", Roles.SuperAdmin);
+            await CreateUser(users, system.Id, SuperAdminEmail, "Sistem Yöneticisi", Roles.SuperAdmin,
+                password: adminPassword);
         }
 
         if (!demoData || await db.Tenants.AnyAsync(t => t.Slug == "cicek-dunyasi")) return;
@@ -161,10 +163,10 @@ public static class DbSeeder
     }
 
     private static async Task<AppUser> CreateUser(UserManager<AppUser> users, Guid tenantId, string email, string name,
-        string role, string? phone = null)
+        string role, string? phone = null, string? password = null)
     {
         var u = new AppUser { TenantId = tenantId, Email = email, UserName = email, FullName = name, PhoneNumber = phone, EmailConfirmed = true };
-        var res = await users.CreateAsync(u, DemoPassword);
+        var res = await users.CreateAsync(u, password ?? DemoPassword);
         if (!res.Succeeded) throw new InvalidOperationException(string.Join("; ", res.Errors.Select(e => e.Description)));
         await users.AddToRoleAsync(u, role);
         return u;

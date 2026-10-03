@@ -53,6 +53,8 @@ Testler:
 dotnet test
 ```
 
+Canlıya alma (Ubuntu + Docker + Tailscale Funnel): [deploy/README.md](deploy/README.md)
+
 ### Demo hesaplar (parola: `Demo123!`)
 
 | Şirket | E-posta | Rol |

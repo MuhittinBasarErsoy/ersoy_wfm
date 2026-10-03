@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Wfm.Client;
 using Wfm.Shared.UI.Services;
 using Wfm.Web;
@@ -10,7 +12,21 @@ builder.Services.AddRazorComponents()
 
 // Ortak istemci ve UI servisleri (her tarayıcı bağlantısı için ayrı oturum).
 var apiBase = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5211";
-builder.Services.AddWfmClient(apiBase, singletonSession: false);
+// Sunucu API'ye iç adresten gider; tarayıcıdaki dosya bağlantıları için dış adres ayrıca verilebilir.
+builder.Services.AddWfmClient(apiBase, singletonSession: false, builder.Configuration["Api:PublicUrl"]);
+
+// Oturumlar Data Protection ile şifreleniyor; anahtarlar yeniden başlatmada kaybolmasın.
+var keysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(keysPath))
+    builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keysPath)).SetApplicationName("Wfm.Web");
+
+// Ters vekil (tailscale serve/funnel) arkasında gerçek şema ve istemci IP'si.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
 builder.Services.AddWfmUi(singleton: false);
 builder.Services.AddScoped<ITokenStore, BrowserTokenStore>();
 builder.Services.AddScoped<IFieldService, OnlineFieldService>();
@@ -23,6 +39,8 @@ builder.Services.AddScoped<IExternalActions>(sp => sp.GetRequiredService<Browser
 builder.Services.AddScoped<INotificationPresenter>(sp => sp.GetRequiredService<BrowserPlatform>());
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
