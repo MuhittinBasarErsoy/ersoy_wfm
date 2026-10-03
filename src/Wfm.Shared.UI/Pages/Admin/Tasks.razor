@@ -69,7 +69,7 @@
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Görev">
-                <div class="d-flex align-center gap-2">
+                <div class="d-flex align-center gap-2" style="min-width:220px">
                     <TypeIcon Icon="@context.TaskTypeIcon" Color="@context.TaskTypeColor" Title="@context.TaskTypeName" />
                     <div>
                         <MudText Typo="Typo.body2"><b>@context.Title</b></MudText>
@@ -81,7 +81,7 @@
             <MudTd DataLabel="Öncelik"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Ui.PriorityColor(context.Priority)">@Ui.Priority(context.Priority)</MudChip></MudTd>
             <MudTd DataLabel="Atanan">@(context.AssigneeName ?? "—")</MudTd>
             <MudTd DataLabel="Planlanan">@Ui.Local(context.ScheduledStart)</MudTd>
-            <MudTd DataLabel="Adres"><MudText Typo="Typo.caption">@context.Address</MudText></MudTd>
+            <MudTd DataLabel="Adres"><MudText Typo="Typo.caption" Style="display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="@context.Address">@context.Address</MudText></MudTd>
             <MudTd>
                 @if (Me.Can(Policies.ManageTasks) && context.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed))
                 {
