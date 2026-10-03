@@ -1,0 +1,104 @@
+# Üretim: SQL Server + API + Web, Tailscale Funnel ile herkese açık HTTPS.
+# Sunucuda hiçbir port açılmaz; web ve API kendi Tailscale düğümleriyle yayınlanır:
+#   Web : https://${TS_WEB_HOSTNAME}.${TS_TAILNET}
+#   API : https://${TS_API_HOSTNAME}.${TS_TAILNET}   (mobil uygulama buraya bağlanır)
+# Ayarlar deploy/.env dosyasından gelir (.env.example'a bakın).
+name: wfm
+
+x-ts: &ts
+  image: tailscale/tailscale:latest
+  restart: unless-stopped
+
+services:
+  ts-web:
+    <<: *ts
+    container_name: wfm-ts-web
+    depends_on: [web]
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?TS_AUTHKEY gerekli}
+      TS_HOSTNAME: ${TS_WEB_HOSTNAME:-wfm}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      # Kullanıcı alanı ağı: /dev/net/tun ve NET_ADMIN gerektirmez.
+      TS_USERSPACE: "true"
+    volumes:
+      # Düğüm kimliği; silinirse tailnet'e yeni cihaz olarak katılır.
+      - ts-web-state:/var/lib/tailscale
+      - ./tailscale/serve-web.json:/config/serve.json:ro
+
+  ts-api:
+    <<: *ts
+    container_name: wfm-ts-api
+    depends_on: [api]
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?TS_AUTHKEY gerekli}
+      TS_HOSTNAME: ${TS_API_HOSTNAME:-wfm-api}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_USERSPACE: "true"
+    volumes:
+      - ts-api-state:/var/lib/tailscale
+      - ./tailscale/serve-api.json:/config/serve.json:ro
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: wfm-mssql
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD gerekli}
+      TZ: Europe/Istanbul
+    volumes:
+      - db-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args: { PROJECT: Wfm.Api }
+    image: wfm-api
+    container_name: wfm-api
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      ConnectionStrings__Wfm: "Server=db;Database=Wfm;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true"
+      Jwt__Key: ${JWT_KEY:?JWT_KEY gerekli}
+      Cors__Origins__0: https://${TS_WEB_HOSTNAME:-wfm}.${TS_TAILNET:?TS_TAILNET gerekli}
+      Seed__DemoData: ${DEMO_DATA:-false}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?ADMIN_PASSWORD gerekli}
+      TZ: Europe/Istanbul
+    volumes:
+      - uploads:/app/uploads
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args: { PROJECT: Wfm.Web }
+    image: wfm-web
+    container_name: wfm-web
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      # Sunucu tarafı çağrılar Docker ağı içinden; tarayıcıdaki dosya bağlantıları dış adresten.
+      Api__BaseUrl: http://api:8080
+      Api__PublicUrl: https://${TS_API_HOSTNAME:-wfm-api}.${TS_TAILNET}
+      DataProtection__KeysPath: /app/keys
+      TZ: Europe/Istanbul
+    volumes:
+      - web-keys:/app/keys
+
+volumes:
+  db-data:
+  uploads:
+  web-keys:
+  ts-web-state:
+  ts-api-state:

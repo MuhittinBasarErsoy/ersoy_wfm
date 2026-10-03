@@ -9,6 +9,9 @@ public class WfmClientOptions
 {
     /// <summary>API kök adresi, ör. http://localhost:5211 (Android emülatöründe http://10.0.2.2:5211).</summary>
     public string ApiBaseUrl { get; set; } = "http://localhost:5211";
+
+    /// <summary>Tarayıcının dosyalara (ör. &lt;img src&gt;) eriştiği adres; boşsa <see cref="ApiBaseUrl"/> kullanılır.</summary>
+    public string? PublicBaseUrl { get; set; }
 }
 
 /// <summary>Oturum bilgisinin platforma göre saklandığı yer (web: tarayıcı depolama, mobil: SecureStorage).</summary>

@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/uploads/
+.git/
+.vs/
+.claude/
+sunum/
+tests/
+src/Wfm.Mobile/
+deploy/.env

@@ -76,6 +76,10 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
 }));
 
+// Geliştirme dışında sistem yöneticisi demo parolasıyla oluşturulmasın.
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(config["Seed:AdminPassword"]))
+    throw new InvalidOperationException("Seed:AdminPassword tanımlı değil.");
+
 var app = builder.Build();
 
 // ---------- Hata eşleme ----------
@@ -121,7 +125,8 @@ using (var scope = app.Services.CreateScope())
     await DbSeeder.SeedAsync(db,
         scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
         scope.ServiceProvider.GetRequiredService<RoleManager<AppRole>>(),
-        config.GetValue<bool>("Seed:DemoData"));
+        config.GetValue<bool>("Seed:DemoData"),
+        config["Seed:AdminPassword"]);
 }
 
 app.Run();

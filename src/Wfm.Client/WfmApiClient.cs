@@ -33,7 +33,8 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public string BaseUrl => options.ApiBaseUrl.TrimEnd('/');
 
     /// <summary>Sunucunun döndürdüğü göreli dosya URL'ini mutlak yapar.</summary>
-    public string AbsoluteUrl(string relative) => relative.StartsWith("http") ? relative : BaseUrl + relative;
+    public string AbsoluteUrl(string relative) =>
+        relative.StartsWith("http") ? relative : (options.PublicBaseUrl ?? BaseUrl).TrimEnd('/') + relative;
 
     // ---------- Auth ----------
     public Task<AuthResponse> LoginAsync(LoginRequest req) => Post<AuthResponse>("/api/auth/login", req);
