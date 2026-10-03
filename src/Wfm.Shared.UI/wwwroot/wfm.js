@@ -193,3 +193,17 @@ export function getSignature(canvasId) {
 export function openUrl(url) {
     window.open(url, '_blank');
 }
+
+// ---------- Tarayıcı konum takibi (web'den çalışan saha personeli için) ----------
+export function startWatch(dotnetRef) {
+    if (!navigator.geolocation) return -1;
+    return navigator.geolocation.watchPosition(
+        p => dotnetRef.invokeMethodAsync('OnPosition', p.coords.latitude, p.coords.longitude, p.coords.accuracy,
+            p.coords.speed, p.coords.heading),
+        () => { },
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+}
+
+export function stopWatch(id) {
+    if (id >= 0 && navigator.geolocation) navigator.geolocation.clearWatch(id);
+}

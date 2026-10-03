@@ -31,7 +31,7 @@ public sealed class WfmJs(IJSRuntime js) : IAsyncDisposable
 }
 
 /// <summary>Web (tarayıcı) varsayılan platform implementasyonları. Mobil uygulama bunları native olanlarla değiştirir.</summary>
-public class BrowserPlatform(WfmJs js) : IGeolocationService, ICameraService, ILocationTracker, IExternalActions, INotificationPresenter
+public class BrowserPlatform(WfmJs js) : IGeolocationService, ICameraService, IExternalActions, INotificationPresenter
 {
     public async Task<GeoPoint?> GetCurrentAsync()
     {
@@ -41,11 +41,6 @@ public class BrowserPlatform(WfmJs js) : IGeolocationService, ICameraService, IL
 
     public bool IsSupported => false;
     public Task<CapturedFile?> CapturePhotoAsync() => Task.FromResult<CapturedFile?>(null);
-
-    bool ILocationTracker.IsSupported => false;
-    public bool IsRunning => false;
-    public Task<bool> StartAsync() => Task.FromResult(false);
-    public Task StopAsync() => Task.CompletedTask;
 
     public Task OpenDirectionsAsync(double lat, double lng, string label) =>
         js.Run("openUrl", $"https://www.google.com/maps/dir/?api=1&destination={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)},{lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}").AsTask();

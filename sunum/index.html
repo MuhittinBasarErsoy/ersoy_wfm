@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WFM – Saha Ekibi Yönetimi · Ürün Sunumu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root { --blue:#1565c0; --teal:#00897b; --ink:#1c2533; --muted:#5b6b7f; --line:#e3e8ef; --bg:#f6f8fb; --orange:#ff5722; --card:#fff; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:Inter, Segoe UI, Arial, sans-serif; color:var(--ink); background:var(--bg); line-height:1.55; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+main { max-width:1180px; margin:0 auto; padding:0 24px 80px; }
+h1,h2,h3 { line-height:1.2; margin:0; }
+h2 { font-size:30px; font-weight:800; letter-spacing:-.5px; }
+h3 { font-size:22px; font-weight:700; margin-bottom:8px; }
+p { margin:0 0 12px; }
+.muted { color:var(--muted); }
+
+.cover { position:relative; margin:0 -24px; padding:64px 48px 56px; color:#fff; overflow:hidden;
+         background:radial-gradient(1200px 500px at 85% -10%, rgba(255,255,255,.18), transparent 60%), linear-gradient(135deg,#0d47a1,#1565c0 45%,#00897b); }
+.cover .tag { display:inline-block; padding:6px 14px; border-radius:99px; background:rgba(255,255,255,.16); font-weight:600; font-size:14px; letter-spacing:.3px; }
+.cover h1 { font-size:46px; font-weight:800; letter-spacing:-1.5px; margin:18px 0 12px; }
+.cover .sub { font-size:20px; max-width:620px; opacity:.95; }
+.cover-grid { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; }
+.hero { position:relative; height:430px; }
+.hero .hero-web { position:absolute; right:56px; top:10px; width:calc(100% - 56px); border-radius:12px; box-shadow:0 30px 60px rgba(0,0,0,.35); border:6px solid rgba(255,255,255,.9); }
+.hero .hero-phone { position:absolute; right:0; top:110px; width:150px; border-radius:26px; border:7px solid #111; box-shadow:0 30px 60px rgba(0,0,0,.45); }
+.cover-meta { display:flex; gap:28px; margin-top:28px; flex-wrap:wrap; }
+.cover-meta div { font-size:14px; opacity:.9; } .cover-meta b { display:block; font-size:22px; }
+
+section { margin-top:56px; }
+.chapter-head { display:flex; gap:18px; align-items:flex-start; padding:28px 0 18px; border-bottom:2px solid var(--line); margin-bottom:24px; }
+.chapter-num { flex:none; width:52px; height:52px; border-radius:14px; background:var(--blue); color:#fff; font-weight:800; font-size:24px; display:flex; align-items:center; justify-content:center; }
+.chapter-head p { color:var(--muted); font-size:17px; margin:6px 0 0; max-width:820px; }
+
+.cards { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
+.card .ic { font-size:30px; margin-bottom:6px; }
+.card h4 { margin:0 0 6px; font-size:17px; }
+.card p { margin:0; color:var(--muted); font-size:15px; }
+
+table.tbl { width:100%; border-collapse:separate; border-spacing:0; background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; font-size:15px; }
+.tbl th, .tbl td { padding:12px 14px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
+.tbl th { background:#eef3fa; font-weight:700; }
+.tbl tr:last-child td { border-bottom:none; }
+.yes { color:#2e7d32; font-weight:700; } .no { color:#b0b8c4; }
+
+.diagram { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; }
+.diagram svg { width:100%; height:auto; display:block; }
+
+.shot { background:#fff; border:1px solid var(--line); border-radius:18px; padding:28px; margin:0 0 28px; box-shadow:0 2px 10px rgba(20,40,80,.04); }
+.shot-no { display:inline-block; font-weight:700; font-size:13px; color:var(--teal); background:#e0f2f1; border-radius:99px; padding:3px 12px; margin-bottom:10px; }
+.intro { color:#37465a; font-size:16.5px; max-width:900px; }
+.browser { margin:18px 0 20px; border-radius:12px; overflow:hidden; border:1px solid #d6dde7; box-shadow:0 12px 30px rgba(20,40,80,.12); }
+.browser-bar { display:flex; align-items:center; gap:7px; padding:9px 12px; background:#eceff4; border-bottom:1px solid #d6dde7; }
+.browser-bar i { width:11px; height:11px; border-radius:50%; background:#ff5f57; } .browser-bar i:nth-child(2){ background:#febc2e; } .browser-bar i:nth-child(3){ background:#28c840; }
+.browser-bar span { margin-left:12px; font-size:12px; color:#6b778a; background:#fff; padding:3px 12px; border-radius:6px; }
+.browser img { width:100%; display:block; }
+
+.points { list-style:none; padding:0; margin:0; display:grid; gap:12px; }
+.points.cols { grid-template-columns:1fr 1fr; column-gap:28px; }
+.points li { display:flex; gap:12px; align-items:flex-start; font-size:15.5px; }
+.badge { flex:none; width:28px; height:28px; border-radius:50%; background:var(--orange); color:#fff; font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(255,87,34,.35); margin-top:-2px; }
+
+.shot.mobile { display:grid; grid-template-columns:330px 1fr; gap:40px; align-items:start; }
+.phone { position:relative; width:330px; border-radius:46px; background:#111; padding:38px 14px 30px; box-shadow:0 20px 50px rgba(0,0,0,.25); }
+.phone img { width:100%; display:block; border-radius:10px; }
+.phone-notch { position:absolute; top:16px; left:50%; transform:translateX(-50%); width:70px; height:7px; background:#3a3a3a; border-radius:4px; }
+.shot.mobile .points li { font-size:16px; }
+
+.callout { border-left:4px solid var(--blue); background:#e8f0fb; padding:14px 18px; border-radius:8px; margin:16px 0; }
+.callout.warn { border-color:#f57c00; background:#fff3e0; }
+.checklist { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
+.checklist li { display:flex; gap:12px; align-items:flex-start; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.box { flex:none; width:22px; height:22px; border:2px solid #90a4ae; border-radius:5px; margin-top:1px; }
+.sign { display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-top:28px; }
+.sign div { border-top:2px solid #90a4ae; padding-top:8px; color:var(--muted); font-size:14px; }
+footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
+
+@media (max-width: 900px) {
+  .cover-grid, .shot.mobile, .points.cols, .cards { grid-template-columns:1fr; }
+  .hero { display:none; } .phone { margin:0 auto; width:100%; max-width:330px; }
+}
+@media print {
+  body { background:#fff; } main { padding:0; max-width:none; }
+  .cover { margin:0; page-break-after:always; }
+  section.chapter > .chapter-head, .shot, .diagram, .cards, table { page-break-inside:avoid; }
+  .shot { box-shadow:none; page-break-before:always; }
+  .chapter { page-break-before:always; }
+  .chapter .shot:first-of-type { page-break-before:avoid; }
+  .browser { box-shadow:none; }
+}
+</style></head><body><main><header class="cover">
+  <div class="cover-grid">
+    <div>
+      <span class="tag">Ürün Sunumu · Onay Dokümanı</span>
+      <h1>WFM<br>Saha Ekibi Yönetimi</h1>
+      <p class="sub">Şirketlerin saha çalışanlarına görev atadığı, işi harita üzerinden canlı takip ettiği ve teslimi fotoğraf + imza ile kanıtladığı web paneli ve iOS/Android mobil uygulama.</p>
+      <div class="cover-meta">
+        <div><b>Web</b>Yönetim paneli</div>
+        <div><b>iOS + Android</b>Saha uygulaması</div>
+        <div><b>Çok şirketli</b>Her sektöre uyarlanır</div>
+        <div><b>03.10.2026</b>Sürüm 1.0</div>
+      </div>
+    </div>
+    <div class="hero">
+      <img class="hero-web" src="img/w02-genel-bakis.jpg" alt="">
+      <img class="hero-phone" src="img/m02-gorevlerim.jpg" alt="">
+    </div>
+  </div>
+</header><section>
+  <div class="chapter-head"><span class="chapter-num">1</span><div><h2>Ne sunuyoruz?</h2>
+  <p>Bir çiçekçi siparişi alıcıya teslim ettirebilir; bir tamir firması teknisyenini arızalı cihazın adresine gönderebilir. Görev türleri sabit değildir: her şirket kendi iş türlerini, formlarını ve tamamlama kurallarını tanımlar.</p></div></div>
+  <div class="cards">
+    <div class="card"><div class="ic">🗺️</div><h4>Canlı harita</h4><p>Sahadaki tüm ekip ve açık görevler tek haritada. Çalışanın gün içindeki rotası geriye dönük izlenebilir.</p></div>
+    <div class="card"><div class="ic">🧩</div><h4>Esnek görev tipleri</h4><p>Her iş türü için özel form alanları ve kurallar: imza, fotoğraf sayısı, not, adrese mesafe kontrolü.</p></div>
+    <div class="card"><div class="ic">📸</div><h4>Kanıtlı teslim</h4><p>Fotoğraf, müşteri imzası, teslim alan kişi ve her adımın saat + konum kaydı.</p></div>
+    <div class="card"><div class="ic">🔔</div><h4>Anlık bildirim</h4><p>Görev atanınca kuryeye, kurye reddedince veya iş yapılamayınca dispeçere anında haber.</p></div>
+    <div class="card"><div class="ic">📶</div><h4>İnternetsiz çalışma</h4><p>Bodrum katta, asansörde çekmese bile kurye işine devam eder; veriler bağlantı gelince gönderilir.</p></div>
+    <div class="card"><div class="ic">👥</div><h4>Rol bazlı erişim</h4><p>Yönetici, dispeçer, saha çalışanı ve izleyici yalnızca yetkili oldukları ekranları görür.</p></div>
+    <div class="card"><div class="ic">📊</div><h4>Raporlar</h4><p>Çalışan performansı, başarı oranı, ortalama tamamlama süresi, günlük iş hacmi.</p></div>
+    <div class="card"><div class="ic">🏢</div><h4>Çok şirketli altyapı</h4><p>Tek platformda birden fazla şirket; her şirketin verisi diğerlerinden tamamen ayrı.</p></div>
+    <div class="card"><div class="ic">🔒</div><h4>Güvenlik</h4><p>Şifreli oturum, kısa ömürlü erişim anahtarı, imzalı ve süreli dosya bağlantıları.</p></div>
+  </div>
+</section><section>
+  <div class="chapter-head"><span class="chapter-num">2</span><div><h2>Sistem nasıl çalışır?</h2>
+  <p>Web paneli ve mobil uygulama aynı sunucuya bağlanır. Sunucu görevleri, konumları ve kanıtları saklar ve değişiklikleri ilgili ekranlara anlık iletir.</p></div></div>
+  <div class="diagram">
+  <svg viewBox="0 0 1100 430" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, Arial" font-size="15">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/></marker>
+    </defs>
+    <!-- Web -->
+    <rect x="20" y="40" width="270" height="150" rx="16" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+    <text x="155" y="78" text-anchor="middle" font-weight="800" font-size="19" fill="#0d47a1">💻 Web Yönetim Paneli</text>
+    <text x="155" y="108" text-anchor="middle" fill="#37465a">Şirket yöneticisi · Dispeçer · İzleyici</text>
+    <text x="155" y="134" text-anchor="middle" fill="#37465a">Görev oluştur, ata, izle</text>
+    <text x="155" y="160" text-anchor="middle" fill="#37465a">Canlı harita · Raporlar</text>
+    <!-- Mobil -->
+    <rect x="20" y="240" width="270" height="160" rx="16" fill="#e0f2f1" stroke="#00897b" stroke-width="2"/>
+    <text x="155" y="278" text-anchor="middle" font-weight="800" font-size="19" fill="#00695c">📱 Mobil Uygulama</text>
+    <text x="155" y="308" text-anchor="middle" fill="#37465a">iOS + Android · Saha çalışanı</text>
+    <text x="155" y="334" text-anchor="middle" fill="#37465a">Görevler · Fotoğraf · İmza</text>
+    <text x="155" y="360" text-anchor="middle" fill="#37465a">Arka planda konum · Offline</text>
+    <!-- Server -->
+    <rect x="410" y="70" width="300" height="300" rx="18" fill="#fff" stroke="#1c2533" stroke-width="2"/>
+    <text x="560" y="108" text-anchor="middle" font-weight="800" font-size="19">☁️ WFM Sunucusu</text>
+    <rect x="440" y="128" width="240" height="44" rx="10" fill="#f1f4f9"/><text x="560" y="156" text-anchor="middle">Güvenli API (giriş, roller)</text>
+    <rect x="440" y="182" width="240" height="44" rx="10" fill="#f1f4f9"/><text x="560" y="210" text-anchor="middle">Canlı bağlantı (anlık iletim)</text>
+    <rect x="440" y="236" width="240" height="44" rx="10" fill="#f1f4f9"/><text x="560" y="264" text-anchor="middle">Görev kuralları · Raporlar</text>
+    <rect x="440" y="290" width="240" height="44" rx="10" fill="#f1f4f9"/><text x="560" y="318" text-anchor="middle">Şirket bazlı veri ayrımı</text>
+    <!-- Storage -->
+    <rect x="830" y="70" width="250" height="130" rx="16" fill="#fff8e1" stroke="#f9a825" stroke-width="2"/>
+    <text x="955" y="108" text-anchor="middle" font-weight="800" font-size="18" fill="#8d6e00">🗄️ Veritabanı</text>
+    <text x="955" y="138" text-anchor="middle" fill="#37465a">Görevler · Kullanıcılar</text>
+    <text x="955" y="162" text-anchor="middle" fill="#37465a">Konum geçmişi · Bildirimler</text>
+    <rect x="830" y="240" width="250" height="130" rx="16" fill="#fce4ec" stroke="#d81b60" stroke-width="2"/>
+    <text x="955" y="278" text-anchor="middle" font-weight="800" font-size="18" fill="#ad1457">🖼️ Dosya deposu</text>
+    <text x="955" y="308" text-anchor="middle" fill="#37465a">Teslim fotoğrafları</text>
+    <text x="955" y="332" text-anchor="middle" fill="#37465a">Müşteri imzaları</text>
+    <!-- arrows -->
+    <line x1="292" y1="115" x2="405" y2="160" stroke="#5b6b7f" stroke-width="2.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+    <line x1="292" y1="320" x2="405" y2="280" stroke="#5b6b7f" stroke-width="2.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+    <line x1="712" y1="150" x2="826" y2="135" stroke="#5b6b7f" stroke-width="2.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+    <line x1="712" y1="290" x2="826" y2="305" stroke="#5b6b7f" stroke-width="2.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+    <text x="300" y="215" fill="#5b6b7f" font-size="13">anlık güncelleme</text>
+    <text x="300" y="232" fill="#5b6b7f" font-size="13">konum · bildirim</text>
+    <text x="560" y="410" text-anchor="middle" fill="#5b6b7f" font-size="13">Harita: OpenStreetMap · Yol tarifi: telefonun kendi harita uygulaması</text>
+  </svg>
+  </div>
+</section><section>
+  <div class="chapter-head"><span class="chapter-num">3</span><div><h2>Roller, görev tipleri ve görev akışı</h2>
+  <p>Her kullanıcının bir rolü vardır; ekranlar ve izinler role göre belirlenir. Kurallar hem sunucuda hem uygulamada uygulanır.</p></div></div>
+  <table class="tbl">
+    <tr><th>Yetki</th><th>Sistem yöneticisi</th><th>Şirket yöneticisi</th><th>Dispeçer</th><th>Saha çalışanı</th><th>İzleyici</th></tr>
+    <tr><td>Şirket ekleme / pasifleştirme</td><td class="yes">✔</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Kullanıcı ve ekip yönetimi</td><td class="no">—</td><td class="yes">✔</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Görev tipi tasarlama</td><td class="no">—</td><td class="yes">✔</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Görev oluşturma, atama, iptal</td><td class="no">—</td><td class="yes">✔</td><td class="yes">✔</td><td class="no">—</td><td class="no">—</td></tr>
+    <tr><td>Canlı harita, görev listesi, raporlar</td><td class="no">—</td><td class="yes">✔</td><td class="yes">✔</td><td class="no">—</td><td class="yes">✔ (salt okunur)</td></tr>
+    <tr><td>Kendine atanan görevi yürütme, kanıt yükleme</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✔</td><td class="no">—</td></tr>
+    <tr><td>Mesai süresince konum paylaşımı</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✔</td><td class="no">—</td></tr>
+  </table>
+
+  <h3 style="margin-top:32px">Görev tipi örnekleri</h3>
+  <table class="tbl">
+    <tr><th></th><th>🌸 Çiçek Teslimatı (Çiçek Dünyası)</th><th>🔧 Arıza Onarımı (Hızlı Tamir)</th></tr>
+    <tr><td><b>Dispeçerin girdiği alanlar</b></td><td>Alıcı adı, çiçek türü (liste), kart notu</td><td>Cihaz (liste), arıza kodu, arıza açıklaması</td></tr>
+    <tr><td><b>Sahada doldurulan alanlar</b></td><td>Teslim alan kişi</td><td>Kullanılan parçalar, işçilik saati, garanti kapsamında mı</td></tr>
+    <tr><td><b>Tamamlama kuralları</b></td><td>Müşteri imzası + en az 1 fotoğraf</td><td>Müşteri imzası + en az 2 fotoğraf (önce/sonra) + not</td></tr>
+  </table>
+
+  <h3 style="margin-top:32px">Görev yaşam döngüsü</h3>
+  <div class="diagram">
+  <svg viewBox="0 0 1100 250" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="700">
+    <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/></marker></defs>
+    <g fill="#fff" text-anchor="middle">
+      <rect x="10" y="70" width="140" height="54" rx="27" fill="#9e9e9e"/><text x="80" y="102">Taslak</text>
+      <rect x="190" y="70" width="140" height="54" rx="27" fill="#0288d1"/><text x="260" y="102">Atandı</text>
+      <rect x="370" y="70" width="150" height="54" rx="27" fill="#3949ab"/><text x="445" y="102">Kabul edildi</text>
+      <rect x="560" y="70" width="140" height="54" rx="27" fill="#8e24aa"/><text x="630" y="102">Yolda</text>
+      <rect x="740" y="70" width="140" height="54" rx="27" fill="#f57c00"/><text x="810" y="102">Yerinde</text>
+      <rect x="920" y="70" width="160" height="54" rx="27" fill="#2e7d32"/><text x="1000" y="102">Tamamlandı ✔</text>
+      <rect x="190" y="180" width="140" height="50" rx="25" fill="#c62828"/><text x="260" y="210">Reddedildi</text>
+      <rect x="640" y="180" width="160" height="50" rx="25" fill="#c62828"/><text x="720" y="210">Yapılamadı</text>
+      <rect x="10" y="180" width="140" height="50" rx="25" fill="#424242"/><text x="80" y="210">İptal</text>
+    </g>
+    <g stroke="#5b6b7f" stroke-width="2.5" fill="none" marker-end="url(#a2)">
+      <line x1="150" y1="97" x2="186" y2="97"/><line x1="330" y1="97" x2="366" y2="97"/><line x1="520" y1="97" x2="556" y2="97"/>
+      <line x1="700" y1="97" x2="736" y2="97"/><line x1="880" y1="97" x2="916" y2="97"/>
+      <line x1="260" y1="126" x2="260" y2="176"/><path d="M630 126 L700 176"/><path d="M810 126 L740 176"/>
+    </g>
+    <g font-weight="500" font-size="13" fill="#5b6b7f" text-anchor="middle">
+      <text x="168" y="60">dispeçer atar</text><text x="350" y="60">kurye kabul eder</text><text x="540" y="60">“Yola çıktım”</text>
+      <text x="718" y="60">“Vardım”</text><text x="898" y="60">kanıt + “Tamamla”</text>
+      <text x="355" y="160">gerekçe ile</text><text x="900" y="215">gerekçe ile (ör. alıcı yok)</text>
+      <text x="80" y="160">dispeçer her an iptal edebilir</text>
+    </g>
+  </svg>
+  </div>
+  <div class="callout">Her adım; kimin yaptığı, saati ve yapıldığı konumla birlikte kaydedilir. Reddedilen bir görev dispeçer tarafından başka bir çalışana atanabilir.</div>
+</section><section class="chapter"><div class="chapter-head"><span class="chapter-num">4</span><div><h2>Web Y&#246;netim Paneli</h2><p>Şirket y&#246;neticisi ve dispe&#231;erlerin bilgisayardan kullandığı panel. G&#246;revler burada oluşturulur, atanır ve sahadaki ekip canlı izlenir.</p></div></div><article class="shot web">
+  <div class="shot-no">Ekran 4.1</div>
+  <h3>Giriş ekranı</h3>
+  <p class="intro">Web paneli ve mobil uygulama aynı hesapla a&#231;ılır. Sistem, giriş yapan kişinin rol&#252;ne g&#246;re doğru ekrana y&#246;nlendirir: y&#246;netici ve dispe&#231;er paneli, saha &#231;alışanı ise g&#246;rev listesini g&#246;r&#252;r.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w01-giris.jpg" alt="Giriş ekranı"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>E-posta ve parola ile g&#252;venli giriş. Oturum, tarayıcıda şifrelenmiş olarak saklanır; kısa &#246;m&#252;rl&#252; erişim anahtarı otomatik yenilenir.</span></li><li><span class="badge">2</span><span>Girişten sonra kullanıcı rol&#252;ne g&#246;re y&#246;nlendirilir: Y&#246;netici/Dispe&#231;er → Genel bakış, Saha &#231;alışanı → G&#246;revlerim, Sistem y&#246;neticisi → Şirketler.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.2</div>
+  <h3>Genel bakış (dashboard)</h3>
+  <p class="intro">Dispe&#231;erin g&#252;n&#252; bu ekranda başlar. Sahadaki durum, g&#252;n i&#231;indeki iş y&#252;k&#252; ve son hareketler tek bakışta g&#246;r&#252;l&#252;r. Veriler canlıdır: bir kurye g&#246;rev durumunu değiştirdiğinde ya da konum g&#246;nderdiğinde ekran sayfa yenilenmeden g&#252;ncellenir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w02-genel-bakis.jpg" alt="Genel bakış (dashboard)"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Rol bazlı men&#252;. Dispe&#231;er yalnızca yetkili olduğu sayfaları g&#246;r&#252;r; G&#246;rev tipleri ve Kullanıcılar men&#252;leri yalnızca şirket y&#246;neticisinde &#231;ıkar.</span></li><li><span class="badge">2</span><span>Anlık &#246;zet kartları: a&#231;ık g&#246;revler, sahadaki (yolda/yerinde) g&#246;revler ve mesaideki &#231;alışan sayısı, bug&#252;n tamamlananlar, ortalama tamamlama s&#252;resi.</span></li><li><span class="badge">3</span><span>Canlı harita: g&#246;revler durum rengine g&#246;re (mavi: atandı, mor: yolda, turuncu: yerinde), &#231;alışanlar baş harfleriyle g&#246;sterilir. İşarete tıklanınca detay a&#231;ılır.</span></li><li><span class="badge">4</span><span>Son hareketler: en son g&#252;ncellenen g&#246;revler, kim tarafından ve ne zaman. Tıklayınca g&#246;rev detayına gider.</span></li><li><span class="badge">5</span><span>Tek tıkla yeni g&#246;rev oluşturma.</span></li><li><span class="badge">6</span><span>Bildirimler: kurye bir g&#246;revi reddettiğinde veya &#39;yapılamadı&#39; dediğinde dispe&#231;ere anında bildirim d&#252;şer.</span></li><li><span class="badge">7</span><span>Son 7 g&#252;nde oluşturulan ve tamamlanan g&#246;revler.</span></li><li><span class="badge">8</span><span>T&#252;m g&#246;revlerin duruma g&#246;re dağılımı.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.3</div>
+  <h3>Canlı harita ve rota ge&#231;mişi</h3>
+  <p class="intro">Sahadaki t&#252;m ekip harita &#252;zerinde canlı izlenir. Mobil uygulama mesai s&#252;resince konumu arka planda g&#246;nderir; bu ekran sayfa yenilenmeden g&#252;ncellenir. Bir &#231;alışan se&#231;ildiğinde o g&#252;n&#252;n rotası haritaya &#231;izilir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w03-canli-harita.jpg" alt="Canlı harita ve rota ge&#231;mişi"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>&#199;alışan listesi: mesai durumu, son konum zamanı, pil seviyesi ve &#252;zerinde &#231;alıştığı aktif g&#246;rev.</span></li><li><span class="badge">2</span><span>A&#231;ık g&#246;revleri haritada g&#246;ster/gizle.</span></li><li><span class="badge">3</span><span>Rota ge&#231;mişi: se&#231;ilen &#231;alışanın se&#231;ilen g&#252;ndeki t&#252;m konum noktaları. Ge&#231;miş g&#252;nler de se&#231;ilebilir.</span></li><li><span class="badge">4</span><span>&#199;alışanın g&#252;n i&#231;indeki rotası (mavi &#231;izgi).</span></li><li><span class="badge">5</span><span>&#199;alışan işaretine tıklayınca: mesai durumu, son g&#252;ncelleme, pil ve aktif g&#246;rev. Yeşil yanıp s&#246;nen işaret = mesaide ve konumu g&#252;ncel; gri = mesai dışı.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.4</div>
+  <h3>G&#246;rev listesi</h3>
+  <p class="intro">Şirketin t&#252;m g&#246;revleri tek listede. Arama ve filtrelerle istenen g&#246;reve hızla ulaşılır. Liste canlıdır; sahadan gelen durum değişiklikleri anında yansır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w04-gorevler.jpg" alt="G&#246;rev listesi"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Filtreler: başlık/adres/m&#252;şteri araması, &#231;oklu durum se&#231;imi, g&#246;rev tipi, &#231;alışan ve &#39;yalnız a&#231;ık g&#246;revler&#39;.</span></li><li><span class="badge">2</span><span>G&#246;rev tipi simgesi ve rengiyle g&#246;rev adı. &#199;i&#231;ek&#231;i i&#231;in &#231;i&#231;ek, tamirci i&#231;in anahtar gibi her şirket kendi simgesini se&#231;er.</span></li><li><span class="badge">3</span><span>G&#246;revin anlık durumu (Taslak, Atandı, Kabul edildi, Yolda, Yerinde, Tamamlandı…).</span></li><li><span class="badge">4</span><span>&#214;ncelik: D&#252;ş&#252;k, Normal, Y&#252;ksek, Acil. Acil g&#246;revler listede ve haritada &#246;ne &#231;ıkar.</span></li><li><span class="badge">5</span><span>Yeni g&#246;rev oluşturma.</span></li><li><span class="badge">6</span><span>Sayfalama ve toplam kayıt sayısı.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.5</div>
+  <h3>Yeni g&#246;rev: adres arama</h3>
+  <p class="intro">G&#246;rev adresi yazılarak aranır (OpenStreetMap). Sonu&#231; se&#231;ildiğinde konum haritaya otomatik işlenir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w05a-adres-arama.jpg" alt="Yeni g&#246;rev: adres arama"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Adres arama kutusu: mahalle, cadde veya yer adı yazmak yeterli.</span></li><li><span class="badge">2</span><span>&#214;nerilen adresler. Se&#231;ilen adresin koordinatı kaydedilir; kurye &#39;Yol tarifi&#39; ile doğrudan buraya y&#246;nlendirilir.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.6</div>
+  <h3>Yeni g&#246;rev oluşturma</h3>
+  <p class="intro">Dispe&#231;er g&#246;revi tek ekranda oluşturur: g&#246;rev tipi, kime atanacağı, zamanı, m&#252;şteri ve adres. G&#246;rev tipine &#246;zel alanlar (bu &#246;rnekte &#231;i&#231;ek siparişi bilgileri) otomatik olarak forma eklenir. Kaydedildiğinde atanan kuryenin telefonuna anında bildirim gider.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w05-yeni-gorev.jpg" alt="Yeni g&#246;rev oluşturma"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>G&#246;rev tipi se&#231;imi. Se&#231;ilen tipe g&#246;re formdaki &#246;zel alanlar değişir.</span></li><li><span class="badge">2</span><span>G&#246;rev tipine &#246;zel alanlar: alıcı adı, &#231;i&#231;ek t&#252;r&#252; (se&#231;im listesi), kart notu. Zorunlu alanlar * ile işaretlidir ve doldurulmadan kayıt yapılamaz.</span></li><li><span class="badge">3</span><span>G&#246;revi bir saha &#231;alışanına atama (isteğe bağlı; atanmayan g&#246;rev &#39;Taslak&#39; kalır).</span></li><li><span class="badge">4</span><span>Planlanan tarih ve saat aralığı.</span></li><li><span class="badge">5</span><span>Konum: adres aramasından otomatik gelir veya haritaya tıklanarak se&#231;ilir; tıklanan noktanın adresi otomatik doldurulur.</span></li><li><span class="badge">6</span><span>Kaydet: kurala uymayan alan varsa kayıt yapılmaz ve hatalar listelenir.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.7</div>
+  <h3>G&#246;rev detayı: teslim kanıtı</h3>
+  <p class="intro">Tamamlanan bir g&#246;revin t&#252;m kanıtı tek sayfada: kim teslim aldı, fotoğraf, m&#252;şteri imzası ve adım adım zaman &#231;izelgesi. Her adımın yapıldığı konum da kaydedilir. Olası m&#252;şteri itirazlarında bu sayfa referans olur.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w06-gorev-detay-tamamlandi.jpg" alt="G&#246;rev detayı: teslim kanıtı"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>G&#246;revin durumu ve &#246;nceliği.</span></li><li><span class="badge">2</span><span>Atanan kurye, planlanan zaman, m&#252;şteri, ger&#231;ekleşen başlama/tamamlanma saatleri ve adres.</span></li><li><span class="badge">3</span><span>G&#246;rev oluşturulurken girilen bilgiler (solda) ve kuryenin teslimde doldurduğu bilgiler (sağda, &#246;r. &#39;Teslim alan kişi&#39;).</span></li><li><span class="badge">4</span><span>Teslim fotoğrafı (&#231;ekim saatiyle) ve m&#252;şterinin ekranda attığı imza. Tıklanınca tam boyut a&#231;ılır.</span></li><li><span class="badge">5</span><span>G&#246;rev konumu ve her durum değişikliğinin yapıldığı nokta.</span></li><li><span class="badge">6</span><span>Zaman &#231;izelgesi: atandı → kabul edildi → yolda → yerinde → tamamlandı; kim, ne zaman.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.8</div>
+  <h3>G&#246;rev detayı: devam eden iş</h3>
+  <p class="intro">Devam eden bir g&#246;revde dispe&#231;er kuryenin canlı konumunu g&#246;revin hedef noktasıyla birlikte izler. Gerekirse g&#246;revi başka bir kuryeye aktarır, d&#252;zenler veya iptal eder; ilgili kuryeye anında bildirim gider.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w07-gorev-detay-yolda.jpg" alt="G&#246;rev detayı: devam eden iş"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Yeniden atama: listeden başka bir kurye se&#231;mek yeterli. Eski ve yeni kurye bilgilendirilir.</span></li><li><span class="badge">2</span><span>D&#252;zenle / İptal et (kapanmış g&#246;revlerde gizlenir).</span></li><li><span class="badge">3</span><span>Hedef adres ve kuryenin canlı konumu aynı haritada.</span></li><li><span class="badge">4</span><span>G&#246;revin şu ana kadarki adımları.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.9</div>
+  <h3>G&#246;rev tipleri</h3>
+  <p class="intro">Sistemin esnekliği buradan gelir: her şirket kendi iş t&#252;rlerini tanımlar. &#199;i&#231;ek&#231;i &#39;&#199;i&#231;ek Teslimatı&#39;, tamirci &#39;Arıza Onarımı&#39;, temizlik firması &#39;Ev Temizliği&#39; tanımlayabilir. Yazılım değişikliği gerekmez.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w08-gorev-tipleri.jpg" alt="G&#246;rev tipleri"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>G&#246;rev tipi kartı: ad, simge, renk ve a&#231;ıklama.</span></li><li><span class="badge">2</span><span>Tamamlama kuralları: bu tipte g&#246;rev kapatılırken imza ve en az 1 fotoğraf zorunlu.</span></li><li><span class="badge">3</span><span>Yeni g&#246;rev tipi ekleme.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.10</div>
+  <h3>G&#246;rev tipi d&#252;zenleyici</h3>
+  <p class="intro">Şirket y&#246;neticisi g&#246;rev tipine &#246;zel form alanlarını ve tamamlama kurallarını kendisi tasarlar. Alt kısımdaki &#246;nizleme, formun dispe&#231;ere ve sahadaki &#231;alışana nasıl g&#246;r&#252;neceğini g&#246;sterir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w09-gorev-tipi-editor.jpg" alt="G&#246;rev tipi d&#252;zenleyici"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Ad, a&#231;ıklama, simge ve renk. Simge ve renk listede, haritada ve mobilde g&#246;revi tanıtır.</span></li><li><span class="badge">2</span><span>Tamamlama kuralları: m&#252;şteri imzası, fotoğraf (en az ka&#231; adet), not zorunluluğu, g&#246;rev adresine en fazla uzaklık (&#246;r. 200 m; kurye adrese gitmeden &#39;tamamlandı&#39; diyemez).</span></li><li><span class="badge">3</span><span>&#214;zel alan: etiket, anahtar ve t&#252;r (metin, sayı, se&#231;im listesi, tarih, onay kutusu, uzun metin, telefon). Sıralama okları ve silme.</span></li><li><span class="badge">4</span><span>Alanı kim doldurur? İşaretliyse alan teslim anında saha &#231;alışanından istenir (&#246;r. &#39;Teslim alan kişi&#39;); değilse dispe&#231;er g&#246;rev oluştururken doldurur.</span></li><li><span class="badge">5</span><span>Yeni alan ekleme.</span></li><li><span class="badge">6</span><span>Canlı &#246;nizleme: dispe&#231;erin formu (solda) ve sahada &#231;alışanın tamamlama formu (sağda).</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.11</div>
+  <h3>Kullanıcılar ve ekipler</h3>
+  <p class="intro">Şirket y&#246;neticisi &#231;alışanları ekler, rollerini belirler ve ekiplere ayırır. Pasif yapılan kullanıcının oturumu hemen sonlandırılır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w10-kullanicilar.jpg" alt="Kullanıcılar ve ekipler"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Kullanıcı listesi: ad, telefon, e-posta, rol, ekip ve durum.</span></li><li><span class="badge">2</span><span>Rol: Şirket Y&#246;neticisi, Dispe&#231;er, Saha &#199;alışanı veya İzleyici. Her rol farklı ekran ve yetkiye sahiptir.</span></li><li><span class="badge">3</span><span>Ekipler (&#246;r. Kadık&#246;y Kuryeleri, Ataşehir Kuryeleri).</span></li><li><span class="badge">4</span><span>Yeni kullanıcı ekleme.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.12</div>
+  <h3>Kullanıcı ekleme ve rol se&#231;imi</h3>
+  <p class="intro">Rol se&#231;ildiğinde o rol&#252;n neler yapabileceği a&#231;ıklanır. Saha &#231;alışanı rol&#252; verilen kişi mobil uygulamaya bu e-posta ve parolayla giriş yapar.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w11-kullanici-ekle.jpg" alt="Kullanıcı ekleme ve rol se&#231;imi"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Rol se&#231;imi.</span></li><li><span class="badge">2</span><span>Se&#231;ilen rol&#252;n yetki a&#231;ıklaması.</span></li><li><span class="badge">3</span><span>Ekip ataması.</span></li><li><span class="badge">4</span><span>İlk parola (en az 6 karakter; b&#252;y&#252;k/k&#252;&#231;&#252;k harf ve rakam).</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.13</div>
+  <h3>Raporlar</h3>
+  <p class="intro">Ekip performansı ve iş hacmi. D&#246;nem se&#231;ilerek son 7, 30 veya 90 g&#252;n incelenir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w12-raporlar.jpg" alt="Raporlar"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>D&#246;nem se&#231;imi.</span></li><li><span class="badge">2</span><span>&#199;alışan bazında tamamlanan, başarısız ve a&#231;ık g&#246;rev sayıları ile ortalama tamamlama s&#252;resi.</span></li><li><span class="badge">3</span><span>Başarı oranı (tamamlanan / tamamlanan + başarısız).</span></li><li><span class="badge">4</span><span>G&#252;nl&#252;k oluşturulan ve tamamlanan g&#246;rev grafiği.</span></li><li><span class="badge">5</span><span>Genel &#246;zet ve durum bazında g&#246;rev sayıları.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 4.14</div>
+  <h3>Dispe&#231;er bildirimleri</h3>
+  <p class="intro">Sahadan gelen &#246;nemli olaylar dispe&#231;ere anında bildirim olarak d&#252;şer. Ekranın altında da kısa bir uyarı g&#246;r&#252;n&#252;r.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w13-bildirimler.jpg" alt="Dispe&#231;er bildirimleri"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Kurye g&#246;revi reddetti; gerek&#231;esiyle birlikte bildirim. Dispe&#231;er g&#246;revi başka kuryeye aktarabilir.</span></li><li><span class="badge">2</span><span>Kurye g&#246;revi tamamlayamadı (&#246;r. alıcı adreste yok). Tıklayınca g&#246;rev detayı a&#231;ılır.</span></li></ol>
+</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">5</span><div><h2>Mobil Uygulama (Saha &#199;alışanı)</h2><p>Kurye, teknisyen gibi saha &#231;alışanlarının iOS ve Android telefonlarda kullandığı uygulama. Sade, b&#252;y&#252;k butonlu ve internet olmadan da &#231;alışır.</p></div></div><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m01-giris.jpg" alt="Mobil giriş"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.1</div>
+    <h3>Mobil giriş</h3>
+    <p class="intro">Saha &#231;alışanı, y&#246;neticisinin verdiği e-posta ve parolayla giriş yapar. Oturum telefonun g&#252;venli deposunda (iOS Keychain / Android Keystore) saklanır; her a&#231;ılışta yeniden giriş gerekmez.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Giriş formu.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m02-gorevlerim.jpg" alt="G&#246;revlerim"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.2</div>
+    <h3>G&#246;revlerim</h3>
+    <p class="intro">Kuryenin ana ekranı: bug&#252;nk&#252; g&#246;revleri &#246;ncelik ve saat sırasıyla. Yerinde olunan g&#246;rev en &#252;stte gelir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Mesai anahtarı. A&#231;ıldığında konum arka planda y&#246;neticiyle paylaşılır (Android&#39;de kalıcı bildirimle), kapatılınca durur. Mesai dışında konum izlenmez.</span></li><li><span class="badge">2</span><span>Aktif g&#246;revler ve son iki g&#252;nde bitenler.</span></li><li><span class="badge">3</span><span>G&#246;rev kartı: tip simgesi, başlık, adres, planlanan saat, &#246;ncelik ve durum. Dokununca detay a&#231;ılır.</span></li><li><span class="badge">4</span><span>Durum etiketi.</span></li><li><span class="badge">5</span><span>Bildirimler (okunmamış sayısıyla).</span></li><li><span class="badge">6</span><span>Elle yenileme. Uygulama ayrıca dakikada bir ve internet geri geldiğinde kendiliğinden eşitlenir.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m03-gorev-detay.jpg" alt="Yeni atanan g&#246;rev"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.3</div>
+    <h3>Yeni atanan g&#246;rev</h3>
+    <p class="intro">Kurye g&#246;revin t&#252;m bilgilerini g&#246;r&#252;r, kabul eder veya gerek&#231;esiyle reddeder.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Harita: g&#246;rev noktası ve kuryenin kendi konumu (&#39;Ben&#39;).</span></li><li><span class="badge">2</span><span>Yol tarifi: telefonun harita uygulamasını (Google Maps / Apple Haritalar) hedef adresle a&#231;ar.</span></li><li><span class="badge">3</span><span>M&#252;şteriyi tek dokunuşla arama.</span></li><li><span class="badge">4</span><span>Dispe&#231;erin girdiği sipariş bilgileri: alıcı, &#231;i&#231;ek t&#252;r&#252;, kart notu.</span></li><li><span class="badge">5</span><span>Kabul et / Reddet. Reddedince gerek&#231;e sorulur ve dispe&#231;ere bildirim gider.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m04-reddet.jpg" alt="G&#246;revi reddetme"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.4</div>
+    <h3>G&#246;revi reddetme</h3>
+    <p class="intro">Kurye g&#246;revi yapamayacaksa gerek&#231;e yazarak reddeder. Dispe&#231;ere anında bildirim d&#252;şer ve g&#246;rev başka kuryeye aktarılabilir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Ret gerek&#231;esi (zorunlu).</span></li><li><span class="badge">2</span><span>G&#246;nder: g&#246;rev &#39;Reddedildi&#39; olur, dispe&#231;er bilgilendirilir.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m05-eksik-kanit.jpg" alt="Kanıt olmadan tamamlanamaz"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.5</div>
+    <h3>Kanıt olmadan tamamlanamaz</h3>
+    <p class="intro">G&#246;rev tipi kuralları telefonda da uygulanır (internet olmasa bile). Kurye eksik bilgiyle &#39;Tamamla&#39;ya basarsa neyin eksik olduğu a&#231;ık&#231;a listelenir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Eksikler: teslim alan kişi, m&#252;şteri imzası, en az 1 fotoğraf.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m06-tamamlama.jpg" alt="Teslim ve tamamlama"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.6</div>
+    <h3>Teslim ve tamamlama</h3>
+    <p class="intro">Kurye adrese vardığında &#39;Vardım&#39; der ve tamamlama formu a&#231;ılır. Form, g&#246;rev tipinde tanımlanan kurallara g&#246;re oluşur. Fotoğraflar telefonda k&#252;&#231;&#252;lt&#252;lerek y&#252;klenir; internet yoksa telefonda bekletilip bağlantı gelince g&#246;nderilir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Sahada doldurulan alan (g&#246;rev tipinde tanımlı).</span></li><li><span class="badge">2</span><span>&#199;ekilen fotoğraflar; saatiyle birlikte. Yanlışsa &#231;arpıdan silinir.</span></li><li><span class="badge">3</span><span>Mobil uygulamada &#39;Fotoğraf &#231;ek&#39; telefonun kamerasını a&#231;ar; galeriden se&#231;mek de m&#252;mk&#252;n.</span></li><li><span class="badge">4</span><span>M&#252;şteri imzası: parmakla ekrana atılır.</span></li><li><span class="badge">5</span><span>Tamamlama notu.</span></li><li><span class="badge">6</span><span>Tamamla / Yapılamadı. Tamamlanınca dispe&#231;erin ekranı anında g&#252;ncellenir.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m07-teslim-kaniti.jpg" alt="Tamamlanan g&#246;rev"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.7</div>
+    <h3>Tamamlanan g&#246;rev</h3>
+    <p class="intro">Kurye tamamladığı g&#246;revin kanıtını ve ge&#231;mişini g&#246;rebilir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Teslim kanıtı: teslim alan kişi, fotoğraf ve imza.</span></li><li><span class="badge">2</span><span>G&#246;revin adım adım ge&#231;mişi.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m08-yeni-gorev-bildirimi.jpg" alt="Anlık g&#246;rev bildirimi"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.8</div>
+    <h3>Anlık g&#246;rev bildirimi</h3>
+    <p class="intro">Dispe&#231;er g&#246;rev atadığı anda kuryeye bildirim gelir ve g&#246;rev listesi kendiliğinden g&#252;ncellenir. Uygulama arka plandaysa telefonun bildirim alanında g&#246;r&#252;n&#252;r.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Yeni g&#246;rev bildirimi; &#39;A&#231;&#39; ile doğrudan g&#246;reve gidilir.</span></li><li><span class="badge">2</span><span>Okunmamış bildirim sayısı.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m09-bildirimler.jpg" alt="Bildirim ge&#231;mişi"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 5.9</div>
+    <h3>Bildirim ge&#231;mişi</h3>
+    <p class="intro">Kuryeye gelen t&#252;m bildirimler. Uygulama kapalıyken ka&#231;ırılanlar a&#231;ılışta buraya gelir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Bildirim; dokununca ilgili g&#246;rev a&#231;ılır.</span></li></ol>
+  </div>
+</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">6</span><div><h2>Aynı Sistem, Farklı Sekt&#246;r</h2><p>Sistem tek bir sekt&#246;re bağlı değildir. Aynı platformda &#231;i&#231;ek&#231;i, tamirci, temizlik veya kargo firması kendi iş t&#252;rleriyle &#231;alışabilir.</p></div></div><article class="shot web">
+  <div class="shot-no">Ekran 6.1</div>
+  <h3>Tamirci firması: arıza onarımı</h3>
+  <p class="intro">Aynı yazılım, farklı bir şirket ve iş t&#252;r&#252;. &#39;Hızlı Tamir&#39; firmasının teknisyeni kombi arızasına g&#246;nderildi. Formdaki alanlar ve kanıtlar bu firmanın tanımladığı &#39;Arıza Onarımı&#39; tipine g&#246;re oluştu. Şirketlerin verileri birbirinden tamamen ayrıdır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w14-tamir-gorev.jpg" alt="Tamirci firması: arıza onarımı"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Şirket adı: her şirket yalnızca kendi verisini g&#246;r&#252;r. &#199;i&#231;ek&#231;i tamircinin g&#246;revlerini, &#231;alışanlarını veya konumlarını g&#246;remez.</span></li><li><span class="badge">2</span><span>Bu tipe &#246;zel alanlar: cihaz, arıza kodu, arıza a&#231;ıklaması; teknisyenin doldurduğu kullanılan par&#231;alar, iş&#231;ilik s&#252;resi ve garanti durumu.</span></li><li><span class="badge">3</span><span>Bu tipte en az 2 fotoğraf zorunlu: onarım &#246;ncesi ve sonrası. Ayrıca m&#252;şteri imzası.</span></li><li><span class="badge">4</span><span>Bu tipte tamamlama notu zorunlu: teknisyenin yaptığı işin a&#231;ıklaması.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 6.2</div>
+  <h3>Tamirci firmasının g&#246;rev tipleri</h3>
+  <p class="intro">Tamirci kendi iş t&#252;rlerini tanımladı: &#39;Arıza Onarımı&#39; (2 fotoğraf, imza ve not zorunlu) ve &#39;Montaj&#39; (yalnızca imza).</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w15-tamir-tipleri.jpg" alt="Tamirci firmasının g&#246;rev tipleri"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Arıza Onarımı: 6 &#246;zel alan; imza, en az 2 fotoğraf ve not zorunlu.</span></li><li><span class="badge">2</span><span>Montaj: daha basit bir iş t&#252;r&#252;, yalnızca imza zorunlu.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 6.3</div>
+  <h3>Sistem y&#246;neticisi: şirketler</h3>
+  <p class="intro">Platformu işleten taraf yeni m&#252;şteri şirketleri buradan ekler. Her şirket kendi y&#246;neticisiyle başlar; o y&#246;netici &#231;alışanlarını, iş t&#252;rlerini ve g&#246;revlerini kendisi y&#246;netir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w16-sirketler.jpg" alt="Sistem y&#246;neticisi: şirketler"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Platformdaki şirketler. Pasif yapılan şirketin kullanıcıları giriş yapamaz.</span></li><li><span class="badge">2</span><span>Yeni şirket ve ilk y&#246;neticisinin oluşturulması.</span></li></ol>
+</article></section><section>
+  <div class="chapter-head"><span class="chapter-num">7</span><div><h2>Konum takibi, bildirimler ve internetsiz çalışma</h2>
+  <p>Ekranlarda görünmeyen ama sahada işin sorunsuz yürümesini sağlayan altyapı.</p></div></div>
+  <div class="cards" style="grid-template-columns:1fr 1fr">
+    <div class="card"><div class="ic">📍</div><h4>Konum takibi yalnızca mesaide</h4>
+      <p>Çalışan "Mesai" anahtarını açtığında konum paylaşımı başlar, kapattığında durur. Telefon cebindeyken ve uygulama arka plandayken de devam eder (Android'de bildirim çubuğunda "Mesaidesiniz" uyarısı görünür, iOS'ta konum göstergesi yanar). Konum en sık 30 saniyede bir veya 20 metre harekette gönderilir; pil seviyesi de iletilir. Eski konum kayıtları şirketin belirlediği süre sonunda (varsayılan 30 gün) otomatik silinir.</p></div>
+    <div class="card"><div class="ic">🔔</div><h4>Anlık bildirimler</h4>
+      <p>Görev atandığında, geri alındığında veya iptal edildiğinde çalışana; görev reddedildiğinde veya yapılamadığında dispeçere anında bildirim gider. Uygulama açıkken ekranda, arka plandayken telefonun bildirim alanında görünür. Uygulama tamamen kapalıyken kaçırılan bildirimler, uygulama açıldığında listeye gelir.</p></div>
+  </div>
+  <h3 style="margin-top:28px">İnternet yokken ne olur?</h3>
+  <div class="diagram">
+  <svg viewBox="0 0 1100 230" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, Arial" font-size="15">
+    <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/></marker></defs>
+    <g text-anchor="middle">
+      <rect x="10" y="40" width="230" height="140" rx="16" fill="#fff3e0" stroke="#f57c00" stroke-width="2"/>
+      <text x="125" y="78" font-weight="800" font-size="17">📵 Bağlantı yok</text>
+      <text x="125" y="106" fill="#37465a">Kurye "Vardım" der,</text><text x="125" y="128" fill="#37465a">fotoğraf çeker, imza alır,</text><text x="125" y="150" fill="#37465a">"Tamamla"ya basar</text>
+      <rect x="300" y="40" width="230" height="140" rx="16" fill="#ede7f6" stroke="#5e35b1" stroke-width="2"/>
+      <text x="415" y="78" font-weight="800" font-size="17">📦 Telefonda sıra</text>
+      <text x="415" y="106" fill="#37465a">İşlemler sırasıyla</text><text x="415" y="128" fill="#37465a">telefonda saklanır;</text><text x="415" y="150" fill="#37465a">ekranda hemen görünür</text>
+      <rect x="590" y="40" width="230" height="140" rx="16" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+      <text x="705" y="78" font-weight="800" font-size="17">📶 Bağlantı geldi</text>
+      <text x="705" y="106" fill="#37465a">Sıradaki işlemler aynı</text><text x="705" y="128" fill="#37465a">sırayla otomatik gönderilir</text><text x="705" y="150" fill="#37465a">(çift kayıt oluşmaz)</text>
+      <rect x="880" y="40" width="210" height="140" rx="16" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+      <text x="985" y="78" font-weight="800" font-size="17">💻 Dispeçer</text>
+      <text x="985" y="106" fill="#37465a">Görev "Tamamlandı"</text><text x="985" y="128" fill="#37465a">olarak görünür; saat</text><text x="985" y="150" fill="#37465a">işlemin yapıldığı an</text>
+    </g>
+    <g stroke="#5b6b7f" stroke-width="2.5" marker-end="url(#a3)"><line x1="242" y1="110" x2="296" y2="110"/><line x1="532" y1="110" x2="586" y2="110"/><line x1="822" y1="110" x2="876" y2="110"/></g>
+    <text x="550" y="215" text-anchor="middle" fill="#5b6b7f" font-size="13">Görev bu arada dispeçer tarafından iptal edildiyse işlem uygulanmaz ve kurye bilgilendirilir.</text>
+  </svg>
+  </div>
+  <div class="callout">İnternet yokken de görev tipinin kuralları telefonda kontrol edilir: imza veya fotoğraf eksikse görev kapatılamaz.</div>
+</section><section>
+  <div class="chapter-head"><span class="chapter-num">8</span><div><h2>Kapsam, sınırlar ve onay</h2>
+  <p>Bu sürümde teslim edilenler ve dikkat edilmesi gereken noktalar.</p></div></div>
+  <table class="tbl">
+    <tr><th>Konu</th><th>Bu sürümde</th></tr>
+    <tr><td>Platformlar</td><td>Web paneli (tüm modern tarayıcılar), iOS ve Android uygulaması. Saha ekranları web'den de kullanılabilir (bu durumda konum yalnızca sayfa açıkken paylaşılır).</td></tr>
+    <tr><td>Harita</td><td>OpenStreetMap haritası ve adres araması. Yol tarifi için telefonun kendi harita uygulaması açılır (Google Maps / Apple Haritalar).</td></tr>
+    <tr><td>Bildirimler</td><td>Uygulama içi canlı bildirim + uygulama arka plandayken telefon bildirimi.</td></tr>
+    <tr><td>Veri ayrımı</td><td>Her şirketin görevleri, kullanıcıları, konumları ve dosyaları birbirinden ayrıdır.</td></tr>
+  </table>
+  <div class="callout warn"><b>Bilinmesi gereken sınırlar</b><br>
+    • Uygulama telefonda <b>tamamen kapatılmışsa</b> (özellikle iPhone'da) anlık bildirim ulaşmaz; uygulama açıldığında kaçırılan görevler ve bildirimler listelenir. Kapalı uygulamaya da bildirim istenirse Apple/Google bildirim servisleri ek geliştirme olarak eklenebilir.<br>
+    • Arka planda konum için çalışanın telefonda <b>"Her zaman" konum izni</b> vermesi gerekir; vermezse konum yalnızca uygulama açıkken paylaşılır.<br>
+    • Yoğun kullanımda harita ve adres araması için ücretli bir harita sağlayıcısına veya kendi harita sunucunuza geçilmesi önerilir.</div>
+
+  <h3 style="margin-top:28px">Onay listesi</h3>
+  <ul class="checklist">
+    <li><span class="box"></span><span>Web paneli ekranları ve menü yapısı (Bölüm 4)</span></li>
+    <li><span class="box"></span><span>Mobil uygulama akışı: kabul → yola çıktım → vardım → kanıt → tamamla (Bölüm 5)</span></li>
+    <li><span class="box"></span><span>Roller ve yetkiler tablosu (Bölüm 3)</span></li>
+    <li><span class="box"></span><span>Görev tiplerinin şirket tarafından tanımlanması ve tamamlama kuralları (Bölüm 3, 4 ve 6)</span></li>
+    <li><span class="box"></span><span>Konum takibinin yalnızca mesai süresince yapılması (Bölüm 7)</span></li>
+    <li><span class="box"></span><span>İnternetsiz çalışma davranışı (Bölüm 7)</span></li>
+    <li><span class="box"></span><span>Bilinen sınırlar (yukarıda)</span></li>
+  </ul>
+  <div class="sign"><div>Ad Soyad</div><div>Tarih</div><div>İmza</div></div>
+
+  <footer class="note">Ekran görüntüleri geliştirme ortamında, demo verilerle (örnek şirketler “Çiçek Dünyası” ve “Hızlı Tamir”) alınmıştır; kişi, adres ve fotoğraflar temsilidir. Mobil ekranlar, uygulamanın telefon ekran boyutundaki görünümüdür; telefonun kendi izin pencereleri ve sistem bildirimleri görüntülerde yer almaz. Turuncu numaralar sunum için eklenmiştir, uygulamada görünmez.</footer>
+</section></main></body></html>

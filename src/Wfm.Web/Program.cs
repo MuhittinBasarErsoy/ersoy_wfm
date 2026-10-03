@@ -18,7 +18,7 @@ builder.Services.AddSingleton<IPlatformInfo, WebPlatformInfo>();
 builder.Services.AddScoped<BrowserPlatform>();
 builder.Services.AddScoped<IGeolocationService>(sp => sp.GetRequiredService<BrowserPlatform>());
 builder.Services.AddScoped<ICameraService>(sp => sp.GetRequiredService<BrowserPlatform>());
-builder.Services.AddScoped<ILocationTracker>(sp => sp.GetRequiredService<BrowserPlatform>());
+builder.Services.AddScoped<ILocationTracker, BrowserLocationTracker>();
 builder.Services.AddScoped<IExternalActions>(sp => sp.GetRequiredService<BrowserPlatform>());
 builder.Services.AddScoped<INotificationPresenter>(sp => sp.GetRequiredService<BrowserPlatform>());
 

@@ -19,7 +19,7 @@
             <MudText Typo="Typo.caption" Color="Color.Secondary">
                 @if (_shift is not null)
                 {
-                    <span>@Ui.Local(_shift.StartedAt, "HH:mm")'den beri · @(Tracker.IsRunning ? "konum paylaşılıyor" : Tracker.IsSupported ? "konum servisi kapalı" : "konum takibi mobil uygulamada")</span>
+                    <span>@Ui.Local(_shift.StartedAt, "HH:mm")'den beri · @(Tracker.IsRunning ? "konum paylaşılıyor" : "konum izni bekleniyor")</span>
                 }
                 else
                 {
