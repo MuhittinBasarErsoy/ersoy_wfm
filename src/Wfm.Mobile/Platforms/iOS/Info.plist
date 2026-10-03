@@ -26,6 +26,25 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Görev konumuna yol tarifi ve teslim noktasının doğrulanması için konumunuz kullanılır.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Mesaideyken konumunuz, uygulama arka plandayken de yöneticinizle paylaşılır.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Teslim ve iş kanıtı fotoğrafı çekmek için kamera kullanılır.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Galeriden kanıt fotoğrafı seçmek için kullanılır.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+        <string>fetch</string>
+    </array>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- Geliştirmede yerel http API'ye erişim; üretimde HTTPS kullanın. -->
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
     <key>XSAppIconAssets</key>
     <string>Assets.xcassets/appicon.appiconset</string>
 </dict>

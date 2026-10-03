@@ -1,0 +1,348 @@
+@page "/field/tasks/{Id:guid}"
+@implements IDisposable
+@inject IFieldService Field
+@inject IGeolocationService Geo
+@inject ICameraService Camera
+@inject IExternalActions External
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_task?.Title ?? "Görev") · WFM</PageTitle>
+
+<SyncBanner />
+
+@if (_task is null)
+{
+    @if (_loaded)
+    {
+        <MudAlert Severity="Severity.Warning">Görev bulunamadı veya size atanmış değil.</MudAlert>
+    }
+    else
+    {
+        <MudProgressLinear Indeterminate />
+    }
+}
+else
+{
+    var t = _task;
+    <div class="d-flex align-center gap-2 mb-2">
+        <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" />
+        <div style="flex:1;min-width:0">
+            <MudText Typo="Typo.h6" Style="line-height:1.2">@t.Title</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName</MudText>
+        </div>
+        <StatusChip Status="t.Status" />
+    </div>
+
+    <MudPaper Elevation="1" Class="pa-2 mb-3" Style="height:200px">
+        <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-3 mb-3">
+        <MudText Typo="Typo.body1">📍 @t.Address</MudText>
+        @if (t.CustomerName is not null)
+        {
+            <MudText Typo="Typo.body2" Class="mt-1">👤 @t.CustomerName</MudText>
+        }
+        @if (t.ScheduledStart is not null)
+        {
+            <MudText Typo="Typo.body2" Class="mt-1">🕑 @Ui.Local(t.ScheduledStart)@(t.ScheduledEnd is null ? "" : " – " + Ui.Local(t.ScheduledEnd, "HH:mm"))</MudText>
+        }
+        <div class="d-flex gap-2 mt-3">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Directions" FullWidth
+                       OnClick="@(() => External.OpenDirectionsAsync(t.Latitude, t.Longitude, t.Title))">Yol tarifi</MudButton>
+            @if (!string.IsNullOrEmpty(t.CustomerPhone))
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Phone" FullWidth
+                           OnClick="@(() => External.CallAsync(t.CustomerPhone))">Ara</MudButton>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(t.Description))
+        {
+            <MudText Typo="Typo.body2" Class="mt-3" Style="white-space:pre-wrap">@t.Description</MudText>
+        }
+        @if (Type is { } type && type.Fields.Any(f => !f.FilledOnCompletion))
+        {
+            <MudDivider Class="my-3" />
+            <DynamicFieldForm Fields="type.Fields.Where(f => !f.FilledOnCompletion)" Values="t.CustomFieldValues" ReadOnly />
+        }
+    </MudPaper>
+
+    @if (t.Status == WorkTaskStatus.OnSite && Type is { } ct)
+    {
+        @* ---------- Tamamlama ---------- *@
+        <MudPaper Elevation="1" Class="pa-3 mb-3">
+            <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Görevi tamamla</b></MudText>
+
+            @if (ct.Fields.Any(f => f.FilledOnCompletion))
+            {
+                <DynamicFieldForm Fields="ct.Fields.Where(f => f.FilledOnCompletion)" Values="_completionValues" />
+            }
+
+            <MudText Typo="Typo.subtitle2" Class="mt-2">
+                Fotoğraflar @(MinPhotos > 0 ? $"(en az {MinPhotos})" : "")
+            </MudText>
+            <AttachmentGallery Attachments="t.Attachments.Where(a => a.Kind == AttachmentKind.Photo).ToList()" OnRemove="RemoveAttachmentAsync" Empty="Henüz fotoğraf yok." />
+            <div class="d-flex gap-2 mt-2 mb-3">
+                @if (Camera.IsSupported)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PhotoCamera" OnClick="TakePhotoAsync" Disabled="_busy">Fotoğraf çek</MudButton>
+                }
+                <InputFile id="@_fileId" accept="image/*" OnChange="@(e => UploadPhotoAsync(e.File))" hidden />
+                <MudButton HtmlTag="label" for="@_fileId" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.AddPhotoAlternate" Disabled="_busy">@(Camera.IsSupported ? "Galeriden" : "Fotoğraf ekle")</MudButton>
+            </div>
+
+            @if (ct.Completion.RequireSignature || HasSignature)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Müşteri imzası @(ct.Completion.RequireSignature ? "*" : "")</MudText>
+                @if (HasSignature)
+                {
+                    <AttachmentGallery Attachments="t.Attachments.Where(a => a.Kind == AttachmentKind.Signature).ToList()" OnRemove="RemoveAttachmentAsync" />
+                }
+                else
+                {
+                    <SignaturePad @ref="_signature" />
+                }
+            }
+
+            <MudTextField T="string" @bind-Value="_note" Label="@(ct.Completion.RequireNote ? "Not *" : "Not")" Variant="Variant.Outlined" Lines="3" Class="mt-3" />
+
+            @if (_errors.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Dense Class="mt-2">@foreach (var e in _errors) { <div>@e</div> }</MudAlert>
+            }
+        </MudPaper>
+    }
+
+    @if (t.Status is WorkTaskStatus.Completed or WorkTaskStatus.Failed && Type is { } done)
+    {
+        <MudPaper Elevation="1" Class="pa-3 mb-3">
+            <MudText Typo="Typo.subtitle1" Class="mb-2"><b>@(t.Status == WorkTaskStatus.Completed ? "Teslim kanıtı" : "Yapılamadı")</b> · @Ui.Local(t.CompletedAt)</MudText>
+            @if (done.Fields.Any(f => f.FilledOnCompletion))
+            {
+                <DynamicFieldForm Fields="done.Fields.Where(f => f.FilledOnCompletion)" Values="t.CustomFieldValues" ReadOnly />
+            }
+            @if (!string.IsNullOrWhiteSpace(t.CompletionNote))
+            {
+                <MudText Typo="Typo.body2" Class="mb-2" Style="white-space:pre-wrap">📝 @t.CompletionNote</MudText>
+            }
+            <AttachmentGallery Attachments="t.Attachments" Empty="Kanıt eklenmemiş." />
+        </MudPaper>
+    }
+
+    <div class="wfm-bottom-actions d-flex flex-wrap gap-2">
+        @foreach (var next in Actions)
+        {
+            var target = next;
+            <MudButton Variant="@(IsPrimary(target) ? Variant.Filled : Variant.Outlined)" Color="@ActionColor(target)" Size="Size.Large"
+                       Style="flex:1;min-width:140px" Disabled="_busy" OnClick="@(() => ChangeAsync(target))">
+                @if (_busy && IsPrimary(target))
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                }
+                @TaskStatusFlow.ActionName(target)
+            </MudButton>
+        }
+    </div>
+
+    <MudPaper Elevation="0" Outlined Class="pa-3 mt-3">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Geçmiş</MudText>
+        <TaskTimeline Events="t.Events" />
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private WorkTaskDetailDto? _task;
+    private TaskTypeDto? Type;
+    private LeafletMap? _map;
+    private SignaturePad? _signature;
+    private readonly Dictionary<string, string?> _completionValues = [];
+    private string? _note;
+    private List<string> _errors = [];
+    private bool _busy, _loaded;
+    private readonly string _fileId = "file-" + Guid.NewGuid().ToString("N")[..8];
+
+    private bool HasSignature => _task?.Attachments.Any(a => a.Kind == AttachmentKind.Signature) == true;
+    private int MinPhotos => Type is null ? 0 : Math.Max(Type.Completion.RequirePhoto ? 1 : 0, Type.Completion.MinPhotoCount);
+
+    private IEnumerable<WorkTaskStatus> Actions => _task is null ? [] :
+        TaskStatusFlow.NextStatuses(_task.Status).Where(TaskStatusFlow.IsFieldWorkerTransition)
+            .OrderBy(s => s is WorkTaskStatus.Rejected or WorkTaskStatus.Failed ? 1 : 0);
+
+    private static bool IsPrimary(WorkTaskStatus s) => s is not (WorkTaskStatus.Rejected or WorkTaskStatus.Failed);
+    private static Color ActionColor(WorkTaskStatus s) => s switch
+    {
+        WorkTaskStatus.Completed => Color.Success,
+        WorkTaskStatus.Rejected or WorkTaskStatus.Failed => Color.Error,
+        _ => Color.Primary
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Field.Changed += OnChanged;
+        await LoadAsync();
+        _loaded = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        _task = await Field.GetTaskAsync(Id);
+        if (_task is null) return;
+        Type = _task.TaskType ?? await Field.GetTaskTypeAsync(_task.TaskTypeId);
+        foreach (var f in Type?.Fields.Where(f => f.FilledOnCompletion) ?? [])
+            if (!_completionValues.ContainsKey(f.Key)) _completionValues[f.Key] = _task.CustomFieldValues.GetValueOrDefault(f.Key);
+    }
+
+    private async Task DrawMapAsync()
+    {
+        if (_map is null || _task is null) return;
+        await _map.SetMarkersAsync("task", [MapMarker.ForTask(_task)]);
+        if (await Geo.GetCurrentAsync() is { } me)
+        {
+            await _map.SetMarkersAsync("me", [new MapMarker("me", me.Latitude, me.Longitude, "#00897b", "Ben", Pulse: true)]);
+            await _map.FitAllAsync();
+        }
+    }
+
+    private async Task ChangeAsync(WorkTaskStatus target)
+    {
+        if (_task is null) return;
+        _errors.Clear();
+        string? note = null;
+
+        if (target is WorkTaskStatus.Rejected or WorkTaskStatus.Failed)
+        {
+            note = await AskReasonAsync(target == WorkTaskStatus.Rejected ? "Görevi reddet" : "Görev yapılamadı");
+            if (note is null) return;
+        }
+
+        _busy = true;
+        try
+        {
+            var location = await Geo.GetCurrentAsync();
+            if (target == WorkTaskStatus.Completed)
+            {
+                if (!await PrepareCompletionAsync(location)) return;
+                note = _note;
+            }
+
+            await Field.ChangeStatusAsync(_task.Id, new ChangeStatusRequest
+            {
+                Status = target,
+                Note = note,
+                Latitude = location?.Latitude,
+                Longitude = location?.Longitude,
+                CustomFieldValues = target == WorkTaskStatus.Completed ? new(_completionValues) : null,
+                ClientTimestamp = DateTime.UtcNow
+            });
+            Snackbar.Add(Field.IsOnline ? $"{TaskStatusFlow.DisplayName(target)} olarak işaretlendi." : "Kaydedildi; bağlantı gelince gönderilecek.",
+                Field.IsOnline ? Severity.Success : Severity.Info);
+            await LoadAsync();
+            if (_map is not null && _task is not null) await _map.SetMarkersAsync("task", [MapMarker.ForTask(_task)]);
+        }
+        catch (ApiException ex)
+        {
+            _errors.Add(ex.Message);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>İmzayı yükler ve görev tipinin tamamlama kurallarını cihazda doğrular (offline'da da çalışsın diye).</summary>
+    private async Task<bool> PrepareCompletionAsync(GeoPoint? location)
+    {
+        if (_task is null || Type is null) return false;
+
+        if (!HasSignature && _signature is not null && await _signature.GetPngAsync() is { } png)
+        {
+            await Field.AddAttachmentAsync(_task.Id, new CapturedFile(png, "imza.png", "image/png"), AttachmentKind.Signature, location);
+            await LoadAsync();
+        }
+
+        double? distance = location is null ? null : Geo_Distance(location);
+        _errors = TaskRules.ValidateCompletion(new TaskType { Fields = Type.Fields, Completion = Type.Completion }, _completionValues,
+            _task.Attachments.Count(a => a.Kind == AttachmentKind.Photo), HasSignature, _note, distance);
+        return _errors.Count == 0;
+    }
+
+    private double Geo_Distance(GeoPoint p) => Wfm.Domain.Entities.Geo.DistanceMeters(p.Latitude, p.Longitude, _task!.Latitude, _task.Longitude);
+
+    private async Task<string?> AskReasonAsync(string title)
+    {
+        var parameters = new DialogParameters<ReasonDialog> { { x => x.Title, title } };
+        var dialog = await Dialogs.ShowAsync<ReasonDialog>(title, parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        return result is { Canceled: false, Data: string s } ? s : null;
+    }
+
+    private async Task TakePhotoAsync()
+    {
+        if (_task is null) return;
+        try
+        {
+            if (await Camera.CapturePhotoAsync() is not { } photo) return;
+            _busy = true;
+            await Field.AddAttachmentAsync(_task.Id, photo, AttachmentKind.Photo, await Geo.GetCurrentAsync());
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is ApiException or InvalidOperationException)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task UploadPhotoAsync(IBrowserFile? file)
+    {
+        if (file is null || _task is null) return;
+        if (file.Size > 10 * 1024 * 1024)
+        {
+            Snackbar.Add("Fotoğraf 10 MB'tan büyük olamaz.", Severity.Warning);
+            return;
+        }
+        _busy = true;
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(10 * 1024 * 1024).CopyToAsync(ms);
+            await Field.AddAttachmentAsync(_task.Id, new CapturedFile(ms.ToArray(), file.Name, file.ContentType), AttachmentKind.Photo, await Geo.GetCurrentAsync());
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveAttachmentAsync(AttachmentDto a)
+    {
+        if (_task is null) return;
+        try
+        {
+            await Field.RemoveAttachmentAsync(_task.Id, a.Id);
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        if (_busy) return;
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Field.Changed -= OnChanged;
+}

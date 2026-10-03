@@ -1,0 +1,23 @@
+@implements IDisposable
+@inject IFieldService Field
+
+@if (!Field.IsOnline)
+{
+    <MudAlert Severity="Severity.Warning" Dense Class="mb-2 wfm-offline-banner" Icon="@Icons.Material.Filled.CloudOff">
+        Çevrimdışısınız. @(Field.PendingCount > 0 ? $"{Field.PendingCount} işlem cihazda bekliyor; " : "")bağlantı gelince otomatik gönderilecek.
+    </MudAlert>
+}
+else if (Field.PendingCount > 0)
+{
+    <MudAlert Severity="Severity.Info" Dense Class="mb-2" Icon="@Icons.Material.Filled.CloudUpload">@Field.PendingCount işlem gönderiliyor…</MudAlert>
+}
+@if (Field.LastError is { } err && Field.IsOnline)
+{
+    <MudAlert Severity="Severity.Error" Dense Class="mb-2">@err</MudAlert>
+}
+
+@code {
+    protected override void OnInitialized() => Field.Changed += Refresh;
+    private void Refresh() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Field.Changed -= Refresh;
+}

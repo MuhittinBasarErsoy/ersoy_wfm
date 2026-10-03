@@ -1,0 +1,74 @@
+@page "/login"
+@layout BlankLayout
+@inject WfmApiClient Api
+@inject AuthSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Giriş · WFM</PageTitle>
+
+<div class="d-flex align-center justify-center" style="min-height:100vh;background:linear-gradient(135deg,#1565c0,#00897b)">
+    <MudPaper Elevation="8" Class="pa-6 ma-4" Style="width:100%;max-width:400px">
+        <div class="d-flex align-center mb-4 gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Engineering" Color="Color.Primary" Size="Size.Large" />
+            <div>
+                <MudText Typo="Typo.h5">Saha Yönetimi</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Hesabınızla giriş yapın</MudText>
+            </div>
+        </div>
+        <EditForm Model="_model" OnValidSubmit="LoginAsync">
+            <MudTextField T="string" @bind-Value="_model.Email" Label="E-posta" Variant="Variant.Outlined" InputType="InputType.Email"
+                          Required RequiredError="E-posta gerekli" Class="mb-3" autocomplete="username" />
+            <MudTextField T="string" @bind-Value="_model.Password" Label="Parola" Variant="Variant.Outlined" InputType="InputType.Password"
+                          Required RequiredError="Parola gerekli" Class="mb-3" autocomplete="current-password" />
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense Class="mb-3">@_error</MudAlert>
+            }
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth Size="Size.Large" Disabled="_busy">
+                @if (_busy)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                }
+                Giriş yap
+            </MudButton>
+        </EditForm>
+    </MudPaper>
+</div>
+
+@code {
+    private readonly LoginModel _model = new();
+    private string? _error;
+    private bool _busy;
+
+    private sealed class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Session.GetAsync() is not null) Nav.NavigateTo("/", replace: true);
+    }
+
+    private async Task LoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Email) || string.IsNullOrWhiteSpace(_model.Password)) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var auth = await Api.LoginAsync(new LoginRequest(_model.Email.Trim(), _model.Password));
+            await Session.SetAsync(auth);
+            Nav.NavigateTo("/", replace: true);
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,0 +1,88 @@
+@page "/reports"
+@inject WfmApiClient Api
+
+<PageTitle>Raporlar · WFM</PageTitle>
+
+<RequirePolicy Policy="@Policies.ViewReports">
+    <div class="d-flex align-center mb-3 gap-3">
+        <MudText Typo="Typo.h5">Raporlar</MudText>
+        <MudSpacer />
+        <MudSelect T="int" @bind-Value="_days" @bind-Value:after="LoadAsync" Label="Dönem" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px">
+            <MudSelectItem T="int" Value="7">Son 7 gün</MudSelectItem>
+            <MudSelectItem T="int" Value="30">Son 30 gün</MudSelectItem>
+            <MudSelectItem T="int" Value="90">Son 90 gün</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    @if (_report is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        <MudPaper Elevation="1" Class="pa-4 mb-3">
+            <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Çalışan performansı</b></MudText>
+            <MudTable T="WorkerStatsDto" Items="_report.Workers" Dense Hover Elevation="0" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Çalışan</MudTh>
+                    <MudTh Style="text-align:right">Tamamlanan</MudTh>
+                    <MudTh Style="text-align:right">Başarısız</MudTh>
+                    <MudTh Style="text-align:right">Açık</MudTh>
+                    <MudTh Style="text-align:right">Ort. süre</MudTh>
+                    <MudTh Style="width:30%">Başarı oranı</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    @{ var total = context.Completed + context.Failed; var rate = total == 0 ? 0 : context.Completed * 100.0 / total; }
+                    <MudTd DataLabel="Çalışan">@context.FullName</MudTd>
+                    <MudTd DataLabel="Tamamlanan" Style="text-align:right">@context.Completed</MudTd>
+                    <MudTd DataLabel="Başarısız" Style="text-align:right">@context.Failed</MudTd>
+                    <MudTd DataLabel="Açık" Style="text-align:right">@context.Open</MudTd>
+                    <MudTd DataLabel="Ort. süre" Style="text-align:right">@(context.AvgCompletionMinutes is { } m ? $"{m:0} dk" : "-")</MudTd>
+                    <MudTd DataLabel="Başarı oranı">
+                        @if (total > 0)
+                        {
+                            <div class="d-flex align-center gap-2">
+                                <MudProgressLinear Value="rate" Color="@(rate >= 90 ? Color.Success : rate >= 70 ? Color.Warning : Color.Error)" Rounded Size="Size.Medium" />
+                                <MudText Typo="Typo.caption">%@rate.ToString("0")</MudText>
+                            </div>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Class="pa-3">Saha çalışanı yok.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Günlük görevler (son 7 gün)</b></MudText>
+                    <BarChart Data="@_report.Last7Days.Select(d => new BarChart.Point(d.Day.ToString("dd.MM"), d.Created, d.Completed)).ToList()" LabelA="Oluşturulan" LabelB="Tamamlanan" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Özet</b></MudText>
+                    <MudSimpleTable Dense Elevation="0">
+                        <tbody>
+                            <tr><td>Ortalama tamamlama süresi (yola çıkış → tamamlama)</td><td style="text-align:right"><b>@(_report.AvgCompletionMinutes is { } a ? $"{a:0} dk" : "-")</b></td></tr>
+                            <tr><td>Şu an mesaide olan çalışan</td><td style="text-align:right"><b>@_report.ActiveWorkers</b></td></tr>
+                            @foreach (var (s, c) in _report.CountsByStatus.OrderBy(kv => kv.Key))
+                            {
+                                <tr><td>@Ui.Status(s)</td><td style="text-align:right">@c</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    private ReportSummaryDto? _report;
+    private int _days = 30;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() => _report = await Api.GetReportAsync(_days);
+}

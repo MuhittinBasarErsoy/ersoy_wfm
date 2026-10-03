@@ -1,0 +1,27 @@
+@inject WfmJs Js
+
+<div>
+    <canvas id="@_id" class="wfm-signature"></canvas>
+    <div class="d-flex justify-space-between align-center mt-1">
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Parmağınızla veya fareyle imzalayın</MudText>
+        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Clear" OnClick="ClearAsync">Temizle</MudButton>
+    </div>
+</div>
+
+@code {
+    private readonly string _id = "sig-" + Guid.NewGuid().ToString("N")[..8];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await Js.Run("initSignature", _id);
+    }
+
+    public async Task ClearAsync() => await Js.Run("clearSignature", _id);
+
+    /// <summary>İmza PNG baytları; boşsa null.</summary>
+    public async Task<byte[]?> GetPngAsync()
+    {
+        var b64 = await Js.Invoke<string?>("getSignature", _id);
+        return b64 is null ? null : Convert.FromBase64String(b64);
+    }
+}

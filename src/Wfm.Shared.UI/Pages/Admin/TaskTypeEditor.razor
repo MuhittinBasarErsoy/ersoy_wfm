@@ -1,0 +1,210 @@
+@page "/task-types/new"
+@page "/task-types/{Id:guid}"
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Görev tipi · WFM</PageTitle>
+
+<RequirePolicy Policy="@Policies.ManageTaskTypes">
+    <div class="d-flex align-center gap-2 mb-3">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/task-types" aria-label="Geri" />
+        <MudText Typo="Typo.h5">@(Id is null ? "Yeni görev tipi" : _name)</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+    </div>
+
+    @if (!_loaded)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Genel</b></MudText>
+                    <MudTextField T="string" @bind-Value="_name" Label="Ad *" Variant="Variant.Outlined" Class="mb-3" Placeholder="ör. Çiçek Teslimatı" />
+                    <MudTextField T="string" @bind-Value="_description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+                    <MudText Typo="Typo.caption">Simge</MudText>
+                    <div class="d-flex flex-wrap gap-1 mb-3">
+                        @foreach (var icon in Ui.IconChoices)
+                        {
+                            <span class="wfm-clickable" style="@(icon == _icon ? "outline:2px solid #1565c0;border-radius:10px" : "")" @onclick="@(() => _icon = icon)">
+                                <TypeIcon Icon="@icon" Color="@_color" Title="@icon" />
+                            </span>
+                        }
+                    </div>
+                    <MudText Typo="Typo.caption">Renk</MudText>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @foreach (var c in Ui.ColorChoices)
+                        {
+                            <span class="wfm-clickable" role="button" aria-label="@c" @onclick="@(() => _color = c)"
+                                  style="width:28px;height:28px;border-radius:50%;background:@c;@(c == _color ? "outline:3px solid #222;outline-offset:2px" : "")"></span>
+                        }
+                    </div>
+                    <MudSwitch T="bool" @bind-Value="_active" Color="Color.Primary" Label="Aktif (yeni görevlerde seçilebilir)" />
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-1"><b>Tamamlama kuralları</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Saha çalışanı görevi tamamlarken bunlar zorunlu olur.</MudText>
+                    <MudCheckBox T="bool" @bind-Value="_completion.RequireSignature" Label="Müşteri imzası" Color="Color.Primary" />
+                    <MudCheckBox T="bool" @bind-Value="_completion.RequirePhoto" Label="Fotoğraf" Color="Color.Primary" />
+                    <MudNumericField T="int" @bind-Value="_completion.MinPhotoCount" Label="En az fotoğraf sayısı" Min="0" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                    <MudCheckBox T="bool" @bind-Value="_completion.RequireNote" Label="Tamamlama notu" Color="Color.Primary" />
+                    <MudNumericField T="int" @bind-Value="_completion.MaxDistanceMeters" Label="Görev konumuna en fazla uzaklık (m, 0 = kontrol yok)" Min="0" Max="100000"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <div class="d-flex align-center mb-2">
+                        <MudText Typo="Typo.subtitle1"><b>Özel alanlar</b></MudText>
+                        <MudSpacer />
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="AddField">Alan ekle</MudButton>
+                    </div>
+                    @if (_fields.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Henüz alan yok. Ör. "Alıcı adı", "Arıza kodu", "Kullanılan parçalar".</MudText>
+                    }
+                    @for (var i = 0; i < _fields.Count; i++)
+                    {
+                        var index = i;
+                        var f = _fields[i];
+                        <MudPaper Outlined Class="pa-3 mb-2">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="4">
+                                    <MudTextField T="string" Value="f.Label" ValueChanged="@(v => LabelChanged(f, v))" Label="Etiket" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="6" sm="3">
+                                    <MudTextField T="string" @bind-Value="f.Key" Label="Anahtar" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="harf, rakam, _" />
+                                </MudItem>
+                                <MudItem xs="6" sm="3">
+                                    <MudSelect T="FieldType" @bind-Value="f.Type" Label="Tür" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                        @foreach (var ft in Enum.GetValues<FieldType>())
+                                        {
+                                            <MudSelectItem T="FieldType" Value="ft">@Ui.FieldTypeName(ft)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="2" Class="d-flex align-center justify-end">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="index == 0" OnClick="@(() => Move(index, -1))" aria-label="Yukarı" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="index == _fields.Count - 1" OnClick="@(() => Move(index, 1))" aria-label="Aşağı" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => _fields.RemoveAt(index))" aria-label="Sil" />
+                                </MudItem>
+                                @if (f.Type == FieldType.Select)
+                                {
+                                    <MudItem xs="12">
+                                        <MudTextField T="string" Value="@string.Join(", ", f.Options)" ValueChanged="@(v => f.Options = (v ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList())"
+                                                      Label="Seçenekler (virgülle ayırın)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    </MudItem>
+                                }
+                                <MudItem xs="12" Class="d-flex flex-wrap gap-4">
+                                    <MudCheckBox T="bool" @bind-Value="f.Required" Label="Zorunlu" Dense Color="Color.Primary" />
+                                    <MudCheckBox T="bool" @bind-Value="f.FilledOnCompletion" Label="Saha çalışanı tamamlarken doldurur" Dense Color="Color.Primary" />
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                </MudPaper>
+
+                @if (_fields.Count > 0)
+                {
+                    <MudPaper Elevation="1" Class="pa-4 mt-3">
+                        <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Önizleme</b></MudText>
+                        <MudGrid>
+                            <MudItem xs="12" sm="6">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Dispeçer görev oluştururken</MudText>
+                                <DynamicFieldForm Fields="_fields.Where(f => !f.FilledOnCompletion)" Values="_preview" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Saha çalışanı tamamlarken</MudText>
+                                <DynamicFieldForm Fields="_fields.Where(f => f.FilledOnCompletion)" Values="_preview" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (_errors.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-3">@foreach (var e in _errors) { <div>@e</div> }</MudAlert>
+                }
+            </MudItem>
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private string _name = "";
+    private string? _description;
+    private string _icon = "assignment";
+    private string _color = "#1976d2";
+    private bool _active = true;
+    private CompletionRequirements _completion = new();
+    private List<FieldDefinition> _fields = [];
+    private readonly Dictionary<string, string?> _preview = [];
+    private List<string> _errors = [];
+    private bool _loaded, _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is { } id)
+        {
+            var t = (await Api.GetTaskTypesAsync(includeInactive: true)).FirstOrDefault(x => x.Id == id);
+            if (t is null) { Nav.NavigateTo("/task-types"); return; }
+            (_name, _description, _icon, _color, _active) = (t.Name, t.Description, t.Icon, t.Color, t.IsActive);
+            _completion = t.Completion;
+            _fields = t.Fields.OrderBy(f => f.Order).ToList();
+        }
+        _loaded = true;
+    }
+
+    private void AddField() => _fields.Add(new FieldDefinition { Key = $"field_{_fields.Count + 1}", Label = "Yeni alan", Order = _fields.Count });
+
+    private void LabelChanged(FieldDefinition f, string? label)
+    {
+        // Anahtar hâlâ otomatik üretilmiş haldeyse etikete göre güncelle.
+        if (f.Key.StartsWith("field_") || f.Key == Slug(f.Label)) f.Key = Slug(label ?? "");
+        f.Label = label ?? "";
+    }
+
+    private static string Slug(string s)
+    {
+        var map = new Dictionary<char, char> { ['ç'] = 'c', ['ğ'] = 'g', ['ı'] = 'i', ['ö'] = 'o', ['ş'] = 's', ['ü'] = 'u' };
+        var chars = s.ToLowerInvariant().Select(c => map.GetValueOrDefault(c, c)).Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_');
+        return string.Join('_', new string(chars.ToArray()).Split('_', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private void Move(int index, int delta)
+    {
+        var f = _fields[index];
+        _fields.RemoveAt(index);
+        _fields.Insert(index + delta, f);
+    }
+
+    private async Task SaveAsync()
+    {
+        _errors = TaskRules.ValidateTaskType(_name, _fields);
+        if (_errors.Count > 0) return;
+        _busy = true;
+        try
+        {
+            var req = new SaveTaskTypeRequest(_name, _description, _icon, _color, _active, _fields, _completion);
+            if (Id is { } id) await Api.UpdateTaskTypeAsync(id, req);
+            else await Api.CreateTaskTypeAsync(req);
+            Snackbar.Add("Görev tipi kaydedildi.", Severity.Success);
+            Nav.NavigateTo("/task-types");
+        }
+        catch (ApiException ex)
+        {
+            _errors = [ex.Message];
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

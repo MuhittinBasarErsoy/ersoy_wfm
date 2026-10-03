@@ -1,0 +1,16 @@
+@inject UserContext Me
+
+@* Sayfa içeriğini rol politikasına göre gösterir. API de aynı kontrolü yapar; bu yalnızca UI tarafıdır. *@
+@if (Me.Can(Policy))
+{
+    @ChildContent
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-4">Bu sayfayı görüntüleme yetkiniz yok.</MudAlert>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Policy { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

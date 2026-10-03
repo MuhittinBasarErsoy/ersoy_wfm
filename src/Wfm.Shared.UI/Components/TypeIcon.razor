@@ -1,0 +1,7 @@
+<span class="wfm-type-icon" style="background:@Color" title="@Title"><span class="material-icons">@Icon</span></span>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "assignment";
+    [Parameter] public string Color { get; set; } = "#1976d2";
+    [Parameter] public string? Title { get; set; }
+}

@@ -1,14 +1,30 @@
-﻿namespace Wfm.Mobile;
+using Wfm.Mobile.Services;
 
-public partial class App : Application
+namespace Wfm.Mobile;
+
+public partial class App : Microsoft.Maui.Controls.Application
 {
-	public App()
-	{
-		InitializeComponent();
-	}
+    private readonly OfflineFieldService _field;
 
-	protected override Window CreateWindow(IActivationState? activationState)
-	{
-		return new Window(new MainPage()) { Title = "Wfm.Mobile" };
-	}
+    public App(OfflineFieldService field)
+    {
+        InitializeComponent();
+        _field = field;
+    }
+
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        var window = new Window(new MainPage()) { Title = "WFM Saha" };
+        // Uygulama ön plana geldiğinde bekleyen işlemleri gönder ve görevleri tazele.
+        window.Resumed += (_, _) => { AppState.IsInBackground = false; _ = _field.SyncAsync(); };
+        window.Activated += (_, _) => AppState.IsInBackground = false;
+        window.Stopped += (_, _) => AppState.IsInBackground = true;
+        return window;
+    }
+}
+
+public static class AppState
+{
+    /// <summary>Uygulama arka plandayken yeni bildirimler sistem bildirimi olarak gösterilir.</summary>
+    public static volatile bool IsInBackground;
 }

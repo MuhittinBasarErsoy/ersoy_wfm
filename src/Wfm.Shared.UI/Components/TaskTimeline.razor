@@ -1,0 +1,30 @@
+@if (Events.Count == 0)
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary">Henüz hareket yok.</MudText>
+}
+else
+{
+    <ul class="wfm-timeline">
+        @foreach (var e in Events.OrderByDescending(e => e.CreatedAt))
+        {
+            <li style="--dot:@Ui.StatusHex(e.ToStatus)">
+                <MudText Typo="Typo.body2"><b>@Ui.Status(e.ToStatus)</b> · @(e.UserName ?? "Sistem")</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @Ui.Local(e.CreatedAt)
+                    @if (e.Latitude is not null)
+                    {
+                        <span> · 📍 @e.Latitude?.ToString("0.0000"), @e.Longitude?.ToString("0.0000")</span>
+                    }
+                </MudText>
+                @if (!string.IsNullOrEmpty(e.Note))
+                {
+                    <MudText Typo="Typo.caption" Style="display:block">“@e.Note”</MudText>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<TaskEventDto> Events { get; set; } = [];
+}

@@ -1,0 +1,84 @@
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">@(Existing is null ? "Yeni kullanıcı" : Existing.FullName)</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_name" Label="Ad soyad *" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField T="string" @bind-Value="_email" Label="E-posta *" Variant="Variant.Outlined" Class="mb-3" Disabled="Existing is not null" InputType="InputType.Email" />
+        <MudTextField T="string" @bind-Value="_phone" Label="Telefon" Variant="Variant.Outlined" Class="mb-3" InputType="InputType.Telephone" />
+        <MudSelect T="string" @bind-Value="_role" Label="Rol *" Variant="Variant.Outlined" Class="mb-3" Disabled="IsSelf">
+            @foreach (var r in Roles.TenantAssignable)
+            {
+                <MudSelectItem T="string" Value="r">@Roles.DisplayName(r)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">@RoleHelp</MudText>
+        <MudSelect T="Guid?" @bind-Value="_teamId" Label="Ekip" Variant="Variant.Outlined" Class="mb-3" Clearable>
+            @foreach (var t in Teams)
+            {
+                <MudSelectItem T="Guid?" Value="t.Id">@t.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField T="string" @bind-Value="_password" Label="@(Existing is null ? "Parola *" : "Yeni parola (değiştirmek için)")" Variant="Variant.Outlined"
+                      InputType="InputType.Password" Class="mb-3" HelperText="En az 6 karakter, büyük/küçük harf ve rakam" />
+        @if (Existing is not null)
+        {
+            <MudSwitch T="bool" @bind-Value="_active" Color="Color.Primary" Label="Hesap aktif" Disabled="IsSelf" />
+        }
+        @if (_error is not null) { <MudAlert Severity="Severity.Error" Dense Class="mt-2">@_error</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public UserDto? Existing { get; set; }
+    [Parameter] public List<TeamDto> Teams { get; set; } = [];
+    [Parameter] public bool IsSelf { get; set; }
+
+    private string _name = "", _email = "", _role = Roles.FieldWorker;
+    private string? _phone, _password, _error;
+    private Guid? _teamId;
+    private bool _active = true, _busy;
+
+    private string RoleHelp => _role switch
+    {
+        Roles.TenantAdmin => "Tüm yetkiler: kullanıcılar, görev tipleri, görevler, raporlar.",
+        Roles.Dispatcher => "Görev oluşturur, atar ve sahayı canlı izler.",
+        Roles.FieldWorker => "Mobil uygulamadan kendisine atanan görevleri yürütür; mesaideyken konumu izlenir.",
+        Roles.Viewer => "Harita, görevler ve raporları yalnızca görüntüler.",
+        _ => ""
+    };
+
+    protected override void OnInitialized()
+    {
+        if (Existing is { } u)
+        {
+            (_name, _email, _phone, _teamId, _active) = (u.FullName, u.Email, u.Phone, u.TeamId, u.IsActive);
+            _role = u.Roles.FirstOrDefault() ?? Roles.FieldWorker;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_email)) { _error = "Ad ve e-posta zorunlu."; return; }
+        if (Existing is null && string.IsNullOrWhiteSpace(_password)) { _error = "Parola zorunlu."; return; }
+        _busy = true;
+        try
+        {
+            if (Existing is null)
+                await Api.CreateUserAsync(new CreateUserRequest(_email, _password!, _name, _phone, _role, _teamId));
+            else
+                await Api.UpdateUserAsync(Existing.Id, new UpdateUserRequest(_name, _phone, _role, _active, _teamId, _password));
+            Snackbar.Add("Kullanıcı kaydedildi.", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

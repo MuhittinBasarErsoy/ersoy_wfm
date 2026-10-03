@@ -1,0 +1,5 @@
+<MudChip T="string" Size="Size.Small" Color="Ui.StatusColor(Status)" Variant="Variant.Filled" Class="ma-0">@Ui.Status(Status)</MudChip>
+
+@code {
+    [Parameter, EditorRequired] public WorkTaskStatus Status { get; set; }
+}

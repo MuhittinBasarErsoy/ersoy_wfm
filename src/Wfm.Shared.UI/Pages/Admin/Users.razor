@@ -1,0 +1,104 @@
+@page "/users"
+@inject WfmApiClient Api
+@inject UserContext Me
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Kullanıcılar · WFM</PageTitle>
+
+<RequirePolicy Policy="@Policies.ManageUsers">
+    <MudText Typo="Typo.h5" Class="mb-3">Kullanıcılar ve ekipler</MudText>
+    <MudTabs Elevation="1" Rounded ApplyEffectsToContainer TabPanelsClass="pa-4">
+        <MudTabPanel Text="Kullanıcılar" Icon="@Icons.Material.Filled.People">
+            <div class="d-flex mb-3 gap-2 flex-wrap">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Ara" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Style="max-width:300px" />
+                <MudSpacer />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => EditUserAsync(null))">Yeni kullanıcı</MudButton>
+            </div>
+            <MudTable T="UserDto" Items="FilteredUsers" Hover Dense Elevation="0" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Ad</MudTh><MudTh>E-posta</MudTh><MudTh>Rol</MudTh><MudTh>Ekip</MudTh><MudTh>Durum</MudTh><MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Ad">
+                        <div class="d-flex align-center gap-2">
+                            <MudAvatar Size="Size.Small" Color="Color.Primary">@Ui.Initials(context.FullName)</MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body2">@context.FullName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Phone</MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="E-posta">@context.Email</MudTd>
+                    <MudTd DataLabel="Rol">@string.Join(", ", context.Roles.Select(Roles.DisplayName))</MudTd>
+                    <MudTd DataLabel="Ekip">@(_teams.FirstOrDefault(t => t.Id == context.TeamId)?.Name ?? "—")</MudTd>
+                    <MudTd DataLabel="Durum">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Aktif" : "Pasif")</MudChip>
+                    </MudTd>
+                    <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditUserAsync(context))" aria-label="Düzenle" /></MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+        <MudTabPanel Text="Ekipler" Icon="@Icons.Material.Filled.Groups">
+            <div class="d-flex gap-2 mb-3 flex-wrap">
+                <MudTextField T="string" @bind-Value="_teamName" Label="Ekip adı" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:260px" />
+                <MudTextField T="string" @bind-Value="_teamDesc" Label="Açıklama" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:360px" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddTeamAsync" Disabled="string.IsNullOrWhiteSpace(_teamName)">Ekle</MudButton>
+            </div>
+            @foreach (var t in _teams)
+            {
+                <MudPaper Outlined Class="pa-3 mb-2 d-flex align-center gap-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Groups" Color="Color.Primary" />
+                    <div style="flex:1">
+                        <MudText><b>@t.Name</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@t.Description · @_users.Count(u => u.TeamId == t.Id) üye</MudText>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteTeamAsync(t))" aria-label="Sil" />
+                </MudPaper>
+            }
+        </MudTabPanel>
+    </MudTabs>
+</RequirePolicy>
+
+@code {
+    private List<UserDto> _users = [];
+    private List<TeamDto> _teams = [];
+    private string? _search, _teamName, _teamDesc;
+
+    private IEnumerable<UserDto> FilteredUsers => string.IsNullOrWhiteSpace(_search) ? _users :
+        _users.Where(u => u.FullName.Contains(_search, StringComparison.CurrentCultureIgnoreCase) || u.Email.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _users = await Api.GetUsersAsync();
+        _teams = await Api.GetTeamsAsync();
+    }
+
+    private async Task EditUserAsync(UserDto? user)
+    {
+        var parameters = new DialogParameters<UserDialog> { { x => x.Existing, user }, { x => x.Teams, _teams }, { x => x.IsSelf, user?.Id == Me.User?.Id } };
+        var dialog = await Dialogs.ShowAsync<UserDialog>(null, parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (await dialog.Result is { Canceled: false }) await LoadAsync();
+    }
+
+    private async Task AddTeamAsync()
+    {
+        try
+        {
+            await Api.CreateTeamAsync(new SaveTeamRequest(_teamName!, _teamDesc));
+            _teamName = _teamDesc = null;
+            _teams = await Api.GetTeamsAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteTeamAsync(TeamDto t)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Ekibi sil", $"'{t.Name}' silinecek; üyeler ekipsiz kalacak.", "Sil", cancelText: "Vazgeç") != true) return;
+        await Api.DeleteTeamAsync(t.Id);
+        await LoadAsync();
+    }
+}

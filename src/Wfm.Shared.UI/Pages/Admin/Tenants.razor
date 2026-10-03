@@ -1,0 +1,60 @@
+@page "/tenants"
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Şirketler · WFM</PageTitle>
+
+<RequirePolicy Policy="@Policies.ManageTenants">
+    <MudText Typo="Typo.h5" Class="mb-3">Şirketler</MudText>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="1">
+                <MudTable T="TenantDto" Items="_tenants" Dense Hover Elevation="0">
+                    <HeaderContent><MudTh>Şirket</MudTh><MudTh>Kısa ad</MudTh><MudTh>Durum</MudTh></HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd>@context.Slug</MudTd>
+                        <MudTd><MudSwitch T="bool" Value="context.IsActive" ValueChanged="@(v => ToggleAsync(context, v))" Color="Color.Success" /></MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Yeni şirket</b></MudText>
+                <MudTextField T="string" @bind-Value="_name" Label="Şirket adı" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField T="string" @bind-Value="_slug" Label="Kısa ad (ör. cicekci-ali)" Variant="Variant.Outlined" Class="mb-3" />
+                <MudText Typo="Typo.subtitle2" Class="mb-2">İlk yönetici</MudText>
+                <MudTextField T="string" @bind-Value="_adminName" Label="Ad soyad" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField T="string" @bind-Value="_adminEmail" Label="E-posta" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField T="string" @bind-Value="_adminPassword" Label="Parola" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" FullWidth>Oluştur</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</RequirePolicy>
+
+@code {
+    private List<TenantDto> _tenants = [];
+    private string _name = "", _slug = "", _adminName = "", _adminEmail = "", _adminPassword = "";
+
+    protected override async Task OnInitializedAsync() => _tenants = await Api.GetTenantsAsync();
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            await Api.CreateTenantAsync(new CreateTenantRequest(_name, _slug, _adminEmail, _adminPassword, _adminName));
+            Snackbar.Add("Şirket oluşturuldu.", Severity.Success);
+            _name = _slug = _adminName = _adminEmail = _adminPassword = "";
+            _tenants = await Api.GetTenantsAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ToggleAsync(TenantDto t, bool active)
+    {
+        await Api.SetTenantActiveAsync(t.Id, active);
+        _tenants = await Api.GetTenantsAsync();
+    }
+}

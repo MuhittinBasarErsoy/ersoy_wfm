@@ -27,6 +27,9 @@ public class AuthSession(ITokenStore store, WfmClientOptions options)
 
     public event Action<AuthResponse?>? Changed;
 
+    /// <summary>Bellekteki oturum (yüklendiyse). UI'da senkron erişim için.</summary>
+    public AuthResponse? Current => _current;
+
     public async Task<AuthResponse?> GetAsync()
     {
         if (!_loaded)

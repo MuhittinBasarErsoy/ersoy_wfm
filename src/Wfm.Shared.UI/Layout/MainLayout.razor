@@ -1,0 +1,185 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthSession Session
+@inject UserContext Me
+@inject NotificationCenter Notifications
+@inject WfmRealtime Realtime
+@inject IFieldService Field
+@inject INotificationPresenter Presenter
+@inject IPlatformInfo Platform
+@inject WfmApiClient Api
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudThemeProvider Theme="Ui.Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!_ready || Me.User is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else if (Me.IsFieldWorker)
+{
+    @* Saha çalışanı arayüzü: sade, mobil öncelikli. *@
+    <MudLayout>
+        <MudAppBar Elevation="1" Dense>
+            @if (!IsFieldHome)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => Nav.NavigateTo("/field"))" aria-label="Geri" />
+            }
+            <MudText Typo="Typo.h6" Class="ml-2">Görevlerim</MudText>
+            <MudSpacer />
+            <MudTooltip Text="@(Realtime.IsConnected ? "Canlı bağlantı aktif" : $"Canlı bağlantı yok {Realtime.LastError}")">
+                <MudIcon Icon="@(Realtime.IsConnected ? Icons.Material.Filled.CloudDone : Icons.Material.Filled.CloudOff)" Size="Size.Small" Class="mr-2" />
+            </MudTooltip>
+            <MudBadge Content="Notifications.Unread" Visible="Notifications.Unread > 0" Color="Color.Error" Overlap Bordered>
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="/notifications" aria-label="Bildirimler" />
+            </MudBadge>
+            <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem Disabled>@Me.User.FullName</MudMenuItem>
+                <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Filled.Logout">Çıkış yap</MudMenuItem>
+            </MudMenu>
+        </MudAppBar>
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.Small" Class="pa-3">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+}
+else
+{
+    @* Yönetici / dispeçer dashboard arayüzü. *@
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => _drawer = !_drawer)" aria-label="Menü" />
+            <MudText Typo="Typo.h6" Class="ml-2">WFM</MudText>
+            <MudText Typo="Typo.body2" Class="ml-3 d-none d-sm-flex" Style="opacity:.85">@Me.User.TenantName</MudText>
+            <MudSpacer />
+            <MudTooltip Text="@(Realtime.IsConnected ? "Canlı bağlantı aktif" : $"Canlı bağlantı yok {Realtime.LastError}")">
+                <MudIcon Icon="@(Realtime.IsConnected ? Icons.Material.Filled.CloudDone : Icons.Material.Filled.CloudOff)" Size="Size.Small" Class="mr-2" />
+            </MudTooltip>
+            <MudBadge Content="Notifications.Unread" Visible="Notifications.Unread > 0" Color="Color.Error" Overlap Bordered>
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="/notifications" aria-label="Bildirimler" />
+            </MudBadge>
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <ActivatorContent>
+                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Class="ml-2 wfm-clickable" @onclick="@(e => context.ToggleAsync(e))">@Ui.Initials(Me.User.FullName)</MudAvatar>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Disabled>@Me.User.FullName · @Me.RoleName</MudMenuItem>
+                    <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Filled.Logout">Çıkış yap</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </MudAppBar>
+        <MudDrawer @bind-Open="_drawer" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="@DrawerVariant.Responsive">
+            <MudNavMenu Class="mt-2">
+                @if (Me.IsSuperAdmin)
+                {
+                    <MudNavLink Href="/tenants" Icon="@Icons.Material.Filled.Business">Şirketler</MudNavLink>
+                }
+                else
+                {
+                    <MudNavLink Href="/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">Genel bakış</MudNavLink>
+                    @if (Me.Can(Policies.ViewTracking))
+                    {
+                        <MudNavLink Href="/map" Icon="@Icons.Material.Filled.Map">Canlı harita</MudNavLink>
+                        <MudNavLink Href="/tasks" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Assignment">Görevler</MudNavLink>
+                    }
+                    @if (Me.Can(Policies.ViewReports))
+                    {
+                        <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.BarChart">Raporlar</MudNavLink>
+                    }
+                    @if (Me.Can(Policies.ManageTaskTypes))
+                    {
+                        <MudNavLink Href="/task-types" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Category">Görev tipleri</MudNavLink>
+                    }
+                    @if (Me.Can(Policies.ManageUsers))
+                    {
+                        <MudNavLink Href="/users" Icon="@Icons.Material.Filled.People">Kullanıcılar ve ekipler</MudNavLink>
+                    }
+                }
+            </MudNavMenu>
+        </MudDrawer>
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="pa-4">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private bool _ready;
+    private bool _drawer = true;
+
+    private bool IsFieldHome => Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0] is "" or "field";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += OnSessionChanged;
+        var auth = await Session.GetAsync();
+        if (auth is null)
+        {
+            Nav.NavigateTo("/login", replace: true);
+            return;
+        }
+        _drawer = !Platform.IsMobile;
+        Notifications.Changed += Refresh;
+        Notifications.Received += OnNotification;
+        Realtime.TaskChanged += OnTaskChanged;
+        Field.Changed += Refresh;
+        _ready = true;
+        // Canlı bağlantı arka planda kurulur; sayfa beklemez.
+        _ = Notifications.StartAsync().ContinueWith(_ => InvokeAsync(StateHasChanged));
+    }
+
+    private void OnNotification(NotificationDto n)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            Snackbar.Add($"{n.Title}: {n.Body}", Severity.Info, o =>
+            {
+                if (n.WorkTaskId is not { } id) return;
+                o.Action = "Aç";
+                o.OnClick = _ => { Nav.NavigateTo(Me.IsFieldWorker ? $"/field/tasks/{id}" : $"/tasks/{id}"); return Task.CompletedTask; };
+            });
+            await Presenter.ShowAsync(n.Title, n.Body, n.WorkTaskId);
+        });
+    }
+
+    private void OnTaskChanged(WorkTaskDto task)
+    {
+        if (Me.IsFieldWorker) _ = InvokeAsync(() => Field.OnServerTaskChangedAsync(task));
+    }
+
+    private void OnSessionChanged(AuthResponse? auth)
+    {
+        if (auth is null) _ = InvokeAsync(() => Nav.NavigateTo("/login", replace: true));
+    }
+
+    private void Refresh() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task LogoutAsync()
+    {
+        var refresh = Session.Current?.RefreshToken;
+        await Notifications.StopAsync();
+        await Field.ClearAsync();
+        if (refresh is not null)
+        {
+            try { await Api.LogoutAsync(refresh); } catch (ApiException) { }
+        }
+        await Session.SetAsync(null);
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Notifications.Changed -= Refresh;
+        Notifications.Received -= OnNotification;
+        Realtime.TaskChanged -= OnTaskChanged;
+        Field.Changed -= Refresh;
+    }
+}

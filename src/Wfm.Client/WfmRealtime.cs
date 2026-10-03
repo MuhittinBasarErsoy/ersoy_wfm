@@ -89,11 +89,22 @@ public sealed class WfmRealtime(AuthSession session, WfmClientOptions options) :
         return conn;
     }
 
-    private static async Task StartIfNeeded(HubConnection c)
+    /// <summary>Son bağlantı hatası (tanı amaçlı).</summary>
+    public string? LastError { get; private set; }
+
+    private async Task StartIfNeeded(HubConnection c)
     {
         if (c.State != HubConnectionState.Disconnected) return;
-        try { await c.StartAsync(); }
-        catch { /* çevrimdışı; bir sonraki StartAsync çağrısında tekrar denenir */ }
+        try
+        {
+            await c.StartAsync();
+            LastError = null;
+        }
+        catch (Exception ex)
+        {
+            // Çevrimdışı; bir sonraki StartAsync çağrısında tekrar denenir.
+            LastError = ex.Message;
+        }
     }
 
     public async ValueTask DisposeAsync() => await StopAsync();

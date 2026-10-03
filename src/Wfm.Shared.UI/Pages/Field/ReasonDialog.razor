@@ -1,0 +1,17 @@
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">@Title</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_reason" Label="Neden? *" Variant="Variant.Outlined" Lines="3" Immediate AutoFocus />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" Disabled="string.IsNullOrWhiteSpace(_reason)"
+                   OnClick="@(() => Dialog.Close(DialogResult.Ok(_reason!.Trim())))">Gönder</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = "";
+    private string? _reason;
+}

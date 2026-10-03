@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Wfm.Api", "--launch-profile", "http"],
+      "port": 5211
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Wfm.Web", "--launch-profile", "http"],
+      "port": 5277
+    }
+  ]
+}

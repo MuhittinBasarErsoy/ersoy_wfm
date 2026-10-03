@@ -1,0 +1,51 @@
+@page "/notifications"
+@implements IDisposable
+@inject NotificationCenter Center
+@inject UserContext Me
+@inject NavigationManager Nav
+
+<PageTitle>Bildirimler · WFM</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudText Typo="Typo.h5">Bildirimler</MudText>
+    <MudSpacer />
+    @if (Center.Unread > 0)
+    {
+        <MudButton Size="Size.Small" OnClick="Center.MarkAllReadAsync">Tümünü okundu say</MudButton>
+    }
+</div>
+
+@if (Center.Items.Count == 0)
+{
+    <MudText Color="Color.Secondary">Bildirim yok.</MudText>
+}
+@foreach (var n in Center.Items)
+{
+    <MudPaper Elevation="@(n.ReadAt is null ? 2 : 0)" Outlined="n.ReadAt is not null" Class="pa-3 mb-2 wfm-clickable" @onclick="@(() => Open(n))">
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="@(n.ReadAt is null ? Color.Primary : Color.Default)" />
+            <div style="flex:1">
+                <MudText Typo="Typo.body1"><b>@n.Title</b></MudText>
+                <MudText Typo="Typo.body2">@n.Body</MudText>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@Ui.Ago(n.CreatedAt)</MudText>
+        </div>
+    </MudPaper>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Center.Changed += Refresh;
+        await Center.RefreshAsync();
+    }
+
+    private void Open(NotificationDto n)
+    {
+        if (n.WorkTaskId is { } id) Nav.NavigateTo(Me.IsFieldWorker ? $"/field/tasks/{id}" : $"/tasks/{id}");
+    }
+
+    private void Refresh() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Center.Changed -= Refresh;
+}

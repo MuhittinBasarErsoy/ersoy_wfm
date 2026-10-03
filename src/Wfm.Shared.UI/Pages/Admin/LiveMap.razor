@@ -1,0 +1,141 @@
+@page "/map"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject ISnackbar Snackbar
+
+<PageTitle>Canlı harita · WFM</PageTitle>
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="3">
+            <MudPaper Elevation="1" Class="pa-3" Style="height:calc(100vh - 120px);overflow:auto">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Saha çalışanları</b></MudText>
+                <MudSwitch T="bool" @bind-Value="_showTasks" @bind-Value:after="DrawTasksAsync" Color="Color.Primary" Label="Açık görevleri göster" Class="mb-2" />
+                @if (_workers.Count == 0 && _loaded)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Son 24 saatte konum gönderen çalışan yok.</MudText>
+                }
+                @foreach (var w in _workers.OrderByDescending(w => w.OnShift).ThenBy(w => w.FullName))
+                {
+                    var selected = _selected == w.UserId;
+                    <MudPaper Elevation="0" Outlined Class="@($"pa-2 mb-2 wfm-clickable {(selected ? "mud-theme-primary" : "")}")" @onclick="@(() => SelectAsync(w))">
+                        <div class="d-flex align-center gap-2">
+                            <MudAvatar Size="Size.Small" Style="@($"background:{MapMarker.ForWorker(w).Color};color:#fff")">@Ui.Initials(w.FullName)</MudAvatar>
+                            <div style="flex:1;min-width:0">
+                                <MudText Typo="Typo.body2"><b>@w.FullName</b></MudText>
+                                <MudText Typo="Typo.caption">@(w.OnShift ? "Mesaide" : "Mesai dışı") · @Ui.Ago(w.RecordedAt)@(w.BatteryLevel is { } b ? $" · 🔋%{b}" : "")</MudText>
+                                @if (w.ActiveTaskTitle is not null)
+                                {
+                                    <MudText Typo="Typo.caption" Style="display:block">📋 @w.ActiveTaskTitle</MudText>
+                                }
+                            </div>
+                        </div>
+                    </MudPaper>
+                }
+                @if (_selected is not null)
+                {
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.subtitle2">Rota geçmişi</MudText>
+                    <MudDatePicker Label="Tarih" @bind-Date="_historyDate" @bind-Date:after="LoadHistoryAsync" DateFormat="dd.MM.yyyy" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudText Typo="Typo.caption">@_historyCount konum noktası</MudText>
+                    <MudButton Size="Size.Small" OnClick="ClearSelectionAsync" Class="mt-1">Seçimi temizle</MudButton>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="9">
+            <MudPaper Elevation="1" Class="pa-2" Style="height:calc(100vh - 120px)">
+                <LeafletMap @ref="_map" Height="100%" Latitude="_center.Latitude" Longitude="_center.Longitude" Zoom="12" OnReady="DrawAsync" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</RequirePolicy>
+
+@code {
+    private LeafletMap? _map;
+    private List<WorkerLocationDto> _workers = [];
+    private List<WorkTaskDto> _tasks = [];
+    private bool _showTasks = true;
+    private bool _loaded;
+    private Guid? _selected;
+    private DateTime? _historyDate = DateTime.Today;
+    private int _historyCount;
+    private GeoPoint _center = new(41.0082, 28.9784);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tenant = await Api.MyTenantAsync();
+        _center = new GeoPoint(tenant.DefaultLatitude, tenant.DefaultLongitude);
+        _workers = await Api.GetLiveLocationsAsync();
+        _tasks = (await Api.GetTasksAsync(new TaskQuery { OnlyOpen = true, PageSize = 500 })).Items;
+        _loaded = true;
+        Realtime.LocationUpdated += OnLocation;
+        Realtime.TaskChanged += OnTaskChanged;
+        // Harita veriden önce hazır olduysa şimdi çiz.
+        if (_map?.IsReady == true) await DrawAsync();
+    }
+
+    private async Task DrawAsync()
+    {
+        if (_map is null) return;
+        await _map.SetMarkersAsync("workers", _workers.Select(MapMarker.ForWorker));
+        await DrawTasksAsync();
+        await _map.FitAllAsync();
+    }
+
+    private async Task DrawTasksAsync()
+    {
+        if (_map is null) return;
+        await _map.SetMarkersAsync("tasks", _showTasks ? _tasks.Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")) : []);
+    }
+
+    private async Task SelectAsync(WorkerLocationDto w)
+    {
+        _selected = w.UserId;
+        await LoadHistoryAsync();
+        if (_historyCount == 0 && _map is not null) await _map.OpenPopupAsync("workers", w.UserId.ToString());
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        if (_selected is not { } id || _map is null) return;
+        var day = (_historyDate ?? DateTime.Today).Date;
+        try
+        {
+            var points = await Api.GetHistoryAsync(id, day, day.AddDays(1));
+            _historyCount = points.Count;
+            await _map.SetPolylineAsync("history", points.Select(p => new GeoPoint(p.Latitude, p.Longitude)), "#1565c0");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        _selected = null;
+        if (_map is not null) await _map.SetPolylineAsync("history", []);
+    }
+
+    private void OnLocation(WorkerLocationDto w) => _ = InvokeAsync(async () =>
+    {
+        _workers.RemoveAll(x => x.UserId == w.UserId);
+        _workers.Add(w);
+        if (_map is not null) await _map.UpsertMarkerAsync("workers", MapMarker.ForWorker(w));
+        StateHasChanged();
+    });
+
+    private void OnTaskChanged(WorkTaskDto t) => _ = InvokeAsync(async () =>
+    {
+        _tasks.RemoveAll(x => x.Id == t.Id);
+        if (t.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)) _tasks.Add(t);
+        await DrawTasksAsync();
+    });
+
+    public void Dispose()
+    {
+        Realtime.LocationUpdated -= OnLocation;
+        Realtime.TaskChanged -= OnTaskChanged;
+    }
+}

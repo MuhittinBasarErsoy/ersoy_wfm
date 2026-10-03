@@ -1,0 +1,87 @@
+@using System.Globalization
+
+@* Görev tipinin alan tanımlarından form üretir. Değerler string olarak Values sözlüğüne yazılır. *@
+@foreach (var f in Fields.OrderBy(f => f.Order))
+{
+    var key = f.Key;
+    var label = f.Required ? f.Label + " *" : f.Label;
+    @if (ReadOnly)
+    {
+        <div class="mb-2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@f.Label</MudText>
+            <MudText Typo="Typo.body1">@Display(f)</MudText>
+        </div>
+        continue;
+    }
+    @switch (f.Type)
+    {
+        case FieldType.Number:
+            <MudNumericField T="double?" Label="@label" Variant="Variant.Outlined" Class="mb-3" Placeholder="@f.Placeholder"
+                             Value="@ParseNumber(Get(key))" ValueChanged="@(v => Set(key, v?.ToString(CultureInfo.InvariantCulture)))" />
+            break;
+        case FieldType.Select:
+            <MudSelect T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Clearable="!f.Required"
+                       Value="@Get(key)" ValueChanged="@(v => Set(key, v))" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var o in f.Options)
+                {
+                    <MudSelectItem T="string" Value="@o">@o</MudSelectItem>
+                }
+            </MudSelect>
+            break;
+        case FieldType.Date:
+            <MudDatePicker Label="@label" Variant="Variant.Outlined" Class="mb-3" DateFormat="dd.MM.yyyy" Culture="@Tr"
+                           Date="@ParseDate(Get(key))" DateChanged="@(d => Set(key, d?.ToString("yyyy-MM-dd")))" />
+            break;
+        case FieldType.Checkbox:
+            <MudCheckBox T="bool" Label="@label" Class="mb-2" Color="Color.Primary"
+                         Value="@(Get(key) == "true")" ValueChanged="@(v => Set(key, v ? "true" : "false"))" />
+            break;
+        case FieldType.TextArea:
+            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Lines="3" Placeholder="@f.Placeholder"
+                          Value="@Get(key)" ValueChanged="@(v => Set(key, v))" />
+            break;
+        case FieldType.Phone:
+            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" InputType="InputType.Telephone" Placeholder="@f.Placeholder"
+                          Value="@Get(key)" ValueChanged="@(v => Set(key, v))" />
+            break;
+        default:
+            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Placeholder="@f.Placeholder"
+                          Value="@Get(key)" ValueChanged="@(v => Set(key, v))" />
+            break;
+    }
+}
+
+@code {
+    private static readonly CultureInfo Tr = new("tr-TR");
+
+    [Parameter, EditorRequired] public IEnumerable<FieldDefinition> Fields { get; set; } = [];
+    [Parameter, EditorRequired] public Dictionary<string, string?> Values { get; set; } = [];
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public EventCallback ValuesChanged { get; set; }
+
+    private string? Get(string key) => Values.TryGetValue(key, out var v) ? v : null;
+
+    private async Task Set(string key, string? value)
+    {
+        Values[key] = value;
+        await ValuesChanged.InvokeAsync();
+    }
+
+    private static double? ParseNumber(string? v) =>
+        double.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null;
+
+    private static DateTime? ParseDate(string? v) =>
+        DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+
+    private string Display(FieldDefinition f)
+    {
+        var v = Get(f.Key);
+        if (string.IsNullOrWhiteSpace(v)) return "-";
+        return f.Type switch
+        {
+            FieldType.Checkbox => v == "true" ? "Evet" : "Hayır",
+            FieldType.Date => ParseDate(v)?.ToString("dd.MM.yyyy") ?? v,
+            _ => v
+        };
+    }
+}

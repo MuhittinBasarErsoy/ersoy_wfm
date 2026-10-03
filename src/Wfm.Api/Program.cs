@@ -96,6 +96,9 @@ app.UseExceptionHandler(e => e.Run(async ctx =>
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
+if (app.Environment.IsDevelopment() && config.GetValue<bool>("Debug:LogRequests"))
+    app.Use(async (ctx, next) => { app.Logger.LogInformation("{Method} {Path}{Query}", ctx.Request.Method, ctx.Request.Path, ctx.Request.QueryString); await next(); });
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

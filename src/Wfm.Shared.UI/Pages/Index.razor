@@ -1,0 +1,11 @@
+@page "/"
+@inject UserContext Me
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (Me.User is null) return; // MainLayout giriş sayfasına yönlendirir
+        Nav.NavigateTo(Me.IsSuperAdmin ? "/tenants" : Me.IsFieldWorker ? "/field" : "/dashboard", replace: true);
+    }
+}

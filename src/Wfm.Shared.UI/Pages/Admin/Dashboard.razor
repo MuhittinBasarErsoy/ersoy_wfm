@@ -1,0 +1,160 @@
+@page "/dashboard"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject NavigationManager Nav
+
+<PageTitle>Genel bakış · WFM</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Genel bakış</MudText>
+
+@if (_report is null)
+{
+    <MudProgressLinear Indeterminate />
+}
+else
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="6" md="3">
+            <MudPaper Class="wfm-kpi" Elevation="1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Açık görev</MudText>
+                <div class="wfm-kpi-value">@OpenCount</div>
+                <MudText Typo="Typo.caption">@(_report.CountsByStatus.GetValueOrDefault(WorkTaskStatus.Draft)) atanmamış</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="wfm-kpi" Elevation="1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Sahada (yolda / yerinde)</MudText>
+                <div class="wfm-kpi-value">@(_report.CountsByStatus.GetValueOrDefault(WorkTaskStatus.EnRoute) + _report.CountsByStatus.GetValueOrDefault(WorkTaskStatus.OnSite))</div>
+                <MudText Typo="Typo.caption">@_report.ActiveWorkers çalışan mesaide</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="wfm-kpi" Elevation="1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Bugün tamamlanan</MudText>
+                <div class="wfm-kpi-value" style="color:#2e7d32">@_report.CompletedToday</div>
+                <MudText Typo="Typo.caption">@_report.CreatedToday yeni görev</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="wfm-kpi" Elevation="1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Ort. tamamlama süresi</MudText>
+                <div class="wfm-kpi-value">@(_report.AvgCompletionMinutes is { } m ? $"{m:0} dk" : "-")</div>
+                <MudText Typo="Typo.caption">son 30 gün</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" lg="8">
+            <MudPaper Elevation="1" Class="pa-2" Style="height:480px">
+                <LeafletMap @ref="_map" Height="100%" Latitude="_center.Latitude" Longitude="_center.Longitude" Zoom="12" OnReady="DrawMapAsync" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" lg="4">
+            <MudPaper Elevation="1" Class="pa-3" Style="height:480px;overflow:auto">
+                <div class="d-flex align-center mb-2">
+                    <MudText Typo="Typo.subtitle1"><b>Son hareketler</b></MudText>
+                    <MudSpacer />
+                    @if (Me.Can(Policies.ManageTasks))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/tasks?new=1">Görev</MudButton>
+                    }
+                </div>
+                @if (_tasks.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Açık görev yok.</MudText>
+                }
+                @foreach (var t in _tasks.OrderByDescending(t => t.UpdatedAt).Take(25))
+                {
+                    <div class="d-flex align-center gap-2 py-2 wfm-clickable" style="border-bottom:1px solid #eee" @onclick="@(() => Nav.NavigateTo($"/tasks/{t.Id}"))">
+                        <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" Title="@t.TaskTypeName" />
+                        <div style="min-width:0;flex:1">
+                            <MudText Typo="Typo.body2" Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>@t.Title</b></MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@(t.AssigneeName ?? "Atanmadı") · @Ui.Ago(t.UpdatedAt)</MudText>
+                        </div>
+                        <StatusChip Status="t.Status" />
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Son 7 gün</b></MudText>
+                <BarChart Data="@_report.Last7Days.Select(d => new BarChart.Point(d.Day.ToString("dd.MM"), d.Created, d.Completed)).ToList()"
+                          LabelA="Oluşturulan" LabelB="Tamamlanan" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Durum dağılımı</b></MudText>
+                @foreach (var (status, count) in _report.CountsByStatus.Where(kv => kv.Value > 0).OrderBy(kv => kv.Key))
+                {
+                    <div class="d-flex align-center gap-2 mb-1">
+                        <div style="width:110px"><StatusChip Status="status" /></div>
+                        <MudProgressLinear Value="@(count * 100.0 / Math.Max(1, _report.CountsByStatus.Values.Sum()))" Style="@($"flex:1;--mud-palette-primary:{Ui.StatusHex(status)}")" Rounded Size="Size.Medium" />
+                        <MudText Typo="Typo.body2" Style="width:36px;text-align:right">@count</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private ReportSummaryDto? _report;
+    private List<WorkTaskDto> _tasks = [];
+    private List<WorkerLocationDto> _workers = [];
+    private LeafletMap? _map;
+    private GeoPoint _center = new(41.0082, 28.9784);
+
+    private int OpenCount => _report is null ? 0 :
+        _report.CountsByStatus.Where(kv => kv.Key is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)).Sum(kv => kv.Value);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tenant = await Api.MyTenantAsync();
+        _center = new GeoPoint(tenant.DefaultLatitude, tenant.DefaultLongitude);
+        await LoadAsync();
+        Realtime.TaskChanged += OnTaskChanged;
+        Realtime.LocationUpdated += OnLocation;
+    }
+
+    private async Task LoadAsync()
+    {
+        var reportTask = Api.GetReportAsync();
+        var tasksTask = Api.GetTasksAsync(new TaskQuery { OnlyOpen = true, PageSize = 500 });
+        var liveTask = Me.Can(Policies.ViewTracking) ? Api.GetLiveLocationsAsync() : Task.FromResult(new List<WorkerLocationDto>());
+        _report = await reportTask;
+        _tasks = (await tasksTask).Items;
+        _workers = await liveTask;
+    }
+
+    private async Task DrawMapAsync()
+    {
+        if (_map is null) return;
+        await _map.SetMarkersAsync("tasks", _tasks.Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")));
+        await _map.SetMarkersAsync("workers", _workers.Select(MapMarker.ForWorker));
+        await _map.FitAllAsync();
+    }
+
+    private void OnTaskChanged(WorkTaskDto t) => _ = InvokeAsync(async () =>
+    {
+        _tasks.RemoveAll(x => x.Id == t.Id);
+        if (t.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)) _tasks.Add(t);
+        _report = await Api.GetReportAsync();
+        if (_map is not null) await _map.SetMarkersAsync("tasks", _tasks.Select(x => MapMarker.ForTask(x, $"/tasks/{x.Id}")));
+        StateHasChanged();
+    });
+
+    private void OnLocation(WorkerLocationDto w) => _ = InvokeAsync(async () =>
+    {
+        if (_map is not null) await _map.UpsertMarkerAsync("workers", MapMarker.ForWorker(w));
+    });
+
+    public void Dispose()
+    {
+        Realtime.TaskChanged -= OnTaskChanged;
+        Realtime.LocationUpdated -= OnLocation;
+    }
+}

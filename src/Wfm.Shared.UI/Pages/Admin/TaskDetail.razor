@@ -1,0 +1,254 @@
+@page "/tasks/{Id:guid}"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>@(_task?.Title ?? "Görev") · WFM</PageTitle>
+
+@if (_task is null)
+{
+    @if (_notFound)
+    {
+        <MudAlert Severity="Severity.Warning">Görev bulunamadı.</MudAlert>
+    }
+    else
+    {
+        <MudProgressLinear Indeterminate />
+    }
+}
+else
+{
+    var t = _task;
+    <div class="d-flex align-center gap-3 mb-3 flex-wrap">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/tasks" aria-label="Görevlere dön" />
+        <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" Title="@t.TaskTypeName" />
+        <div>
+            <MudText Typo="Typo.h5">@t.Title</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName · oluşturuldu @Ui.Local(t.CreatedAt)</MudText>
+        </div>
+        <StatusChip Status="t.Status" />
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Ui.PriorityColor(t.Priority)">@Ui.Priority(t.Priority)</MudChip>
+        <MudSpacer />
+        @if (Me.Can(Policies.ManageTasks))
+        {
+            @if (IsOpen)
+            {
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit" OnClick="EditAsync">Düzenle</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Cancel" OnClick="CancelTaskAsync">İptal et</MudButton>
+            }
+            @if (t.Status is WorkTaskStatus.Draft or WorkTaskStatus.Cancelled)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="DeleteAsync" aria-label="Sil" />
+            }
+        }
+    </div>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="1" Class="pa-4 mb-3">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Atanan çalışan</MudText>
+                        @if (Me.Can(Policies.ManageTasks) && IsOpen)
+                        {
+                            <MudSelect T="Guid?" Value="t.AssigneeId" ValueChanged="AssignAsync" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Placeholder="Atanmadı">
+                                @foreach (var w in _workers.Where(w => w.IsActive))
+                                {
+                                    <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                        else
+                        {
+                            <MudText>@(t.AssigneeName ?? "—")</MudText>
+                        }
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Planlanan</MudText>
+                        <MudText>@Ui.Local(t.ScheduledStart)@(t.ScheduledEnd is null ? "" : " – " + Ui.Local(t.ScheduledEnd, "HH:mm"))</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Müşteri</MudText>
+                        <MudText>@(t.CustomerName ?? "—") @(t.CustomerPhone is null ? "" : $"· {t.CustomerPhone}")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Başlama / tamamlanma</MudText>
+                        <MudText>@Ui.Local(t.StartedAt) / @Ui.Local(t.CompletedAt)</MudText>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Adres</MudText>
+                        <MudText>@t.Address</MudText>
+                    </MudItem>
+                    @if (!string.IsNullOrWhiteSpace(t.Description))
+                    {
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Açıklama</MudText>
+                            <MudText Style="white-space:pre-wrap">@t.Description</MudText>
+                        </MudItem>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(t.CompletionNote))
+                    {
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Saha notu</MudText>
+                            <MudText Style="white-space:pre-wrap">@t.CompletionNote</MudText>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudPaper>
+
+            @if (t.TaskType is { } type && type.Fields.Count > 0)
+            {
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>@type.Name bilgileri</b></MudText>
+                    <MudGrid Spacing="1">
+                        <MudItem xs="12" sm="6"><DynamicFieldForm Fields="type.Fields.Where(f => !f.FilledOnCompletion)" Values="t.CustomFieldValues" ReadOnly /></MudItem>
+                        <MudItem xs="12" sm="6">
+                            @if (type.Fields.Any(f => f.FilledOnCompletion))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Primary" Class="mb-1">Sahada doldurulan</MudText>
+                                <DynamicFieldForm Fields="type.Fields.Where(f => f.FilledOnCompletion)" Values="t.CustomFieldValues" ReadOnly />
+                            }
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            <MudPaper Elevation="1" Class="pa-4 mb-3">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Fotoğraflar ve imza</b></MudText>
+                <AttachmentGallery Attachments="t.Attachments" Empty="Henüz kanıt yüklenmedi." />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="1" Class="pa-2 mb-3" Style="height:320px">
+                <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+            </MudPaper>
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Görev geçmişi</b></MudText>
+                <TaskTimeline Events="t.Events" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private WorkTaskDetailDto? _task;
+    private List<UserDto> _workers = [];
+    private List<TaskTypeDto> _types = [];
+    private LeafletMap? _map;
+    private bool _notFound;
+
+    private bool IsOpen => _task?.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.TaskChanged += OnTaskChanged;
+        Realtime.LocationUpdated += OnLocation;
+        if (Me.Can(Policies.ManageTasks))
+        {
+            _workers = await Api.GetUsersAsync(Roles.FieldWorker);
+            _types = await Api.GetTaskTypesAsync();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _task = await Api.GetTaskAsync(Id);
+            if (_map is not null) await DrawMapAsync();
+        }
+        catch (ApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            _notFound = true;
+        }
+    }
+
+    private async Task DrawMapAsync()
+    {
+        if (_map is null || _task is null) return;
+        await _map.SetMarkersAsync("task", [MapMarker.ForTask(_task)]);
+        // Çalışanın son konumu ve tamamlama/ilerleme noktaları
+        var evPoints = _task.Events.Where(e => e.Latitude is not null)
+            .Select(e => new MapMarker(e.Id.ToString(), e.Latitude!.Value, e.Longitude!.Value, Ui.StatusHex(e.ToStatus), "•",
+                Popup: $"{MapMarker.E(Ui.Status(e.ToStatus))} · {MapMarker.E(Ui.Local(e.CreatedAt))}"));
+        await _map.SetMarkersAsync("events", evPoints);
+        if (_task.AssigneeId is { } a && IsOpen)
+        {
+            var live = (await Api.GetLiveLocationsAsync()).FirstOrDefault(w => w.UserId == a);
+            if (live is not null) await _map.SetMarkersAsync("worker", [MapMarker.ForWorker(live)]);
+        }
+        await _map.FitAllAsync();
+    }
+
+    private async Task AssignAsync(Guid? assignee)
+    {
+        try
+        {
+            await Api.AssignTaskAsync(Id, assignee);
+            Snackbar.Add(assignee is null ? "Atama kaldırıldı." : "Görev atandı, çalışana bildirim gönderildi.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task EditAsync()
+    {
+        var tenant = await Api.MyTenantAsync();
+        var parameters = new DialogParameters<TaskEditDialog>
+        {
+            { x => x.Existing, _task },
+            { x => x.Types, _types },
+            { x => x.Workers, _workers },
+            { x => x.Center, new GeoPoint(tenant.DefaultLatitude, tenant.DefaultLongitude) }
+        };
+        var dialog = await Dialogs.ShowAsync<TaskEditDialog>(null, parameters, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+        if (await dialog.Result is { Canceled: false }) await LoadAsync();
+    }
+
+    private async Task CancelTaskAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Görevi iptal et", "Görev iptal edilecek ve çalışana bildirim gidecek. Emin misiniz?", "İptal et", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.ChangeStatusAsync(Id, new ChangeStatusRequest { Status = WorkTaskStatus.Cancelled, Note = "Dispeçer tarafından iptal edildi" });
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Görevi sil", "Görev ve ekleri kalıcı olarak silinecek.", "Sil", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeleteTaskAsync(Id);
+            Nav.NavigateTo("/tasks");
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void OnTaskChanged(WorkTaskDto t)
+    {
+        if (t.Id == Id) _ = InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+    }
+
+    private void OnLocation(WorkerLocationDto w)
+    {
+        if (_task?.AssigneeId == w.UserId && _map is not null)
+            _ = InvokeAsync(() => _map.UpsertMarkerAsync("worker", MapMarker.ForWorker(w)).AsTask());
+    }
+
+    public void Dispose()
+    {
+        Realtime.TaskChanged -= OnTaskChanged;
+        Realtime.LocationUpdated -= OnLocation;
+    }
+}

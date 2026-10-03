@@ -1,0 +1,30 @@
+@* Basit iki seriden oluşan sütun grafik (oluşturulan / tamamlanan). *@
+<div class="d-flex gap-4 mb-1">
+    <span class="d-flex align-center gap-1"><span style="width:10px;height:10px;border-radius:2px;background:@ColorA"></span><MudText Typo="Typo.caption">@LabelA</MudText></span>
+    <span class="d-flex align-center gap-1"><span style="width:10px;height:10px;border-radius:2px;background:@ColorB"></span><MudText Typo="Typo.caption">@LabelB</MudText></span>
+</div>
+<div class="wfm-bars" role="img" aria-label="@($"{LabelA} ve {LabelB} grafiği")">
+    @foreach (var d in Data)
+    {
+        <div class="wfm-bar-col">
+            <div class="wfm-bar-pair">
+                <div class="wfm-bar" style="height:@Pct(d.A)%;background:@ColorA" title="@($"{LabelA}: {d.A}")"></div>
+                <div class="wfm-bar" style="height:@Pct(d.B)%;background:@ColorB" title="@($"{LabelB}: {d.B}")"></div>
+            </div>
+            <span class="wfm-bar-label">@d.Label</span>
+        </div>
+    }
+</div>
+
+@code {
+    public record Point(string Label, int A, int B);
+
+    [Parameter, EditorRequired] public List<Point> Data { get; set; } = [];
+    [Parameter] public string LabelA { get; set; } = "A";
+    [Parameter] public string LabelB { get; set; } = "B";
+    [Parameter] public string ColorA { get; set; } = "#90caf9";
+    [Parameter] public string ColorB { get; set; } = "#2e7d32";
+
+    private int Max => Math.Max(1, Data.Count == 0 ? 1 : Data.Max(d => Math.Max(d.A, d.B)));
+    private string Pct(int v) => (v * 100.0 / Max).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+}

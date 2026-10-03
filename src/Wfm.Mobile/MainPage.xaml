@@ -1,13 +1,12 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:local="clr-namespace:Wfm.Mobile"
-             xmlns:components="clr-namespace:Wfm.Mobile.Components"
+             xmlns:ui="clr-namespace:Wfm.Shared.UI;assembly=Wfm.Shared.UI"
              x:Class="Wfm.Mobile.MainPage">
 
     <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>
-            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
+            <RootComponent Selector="#app" ComponentType="{x:Type ui:Routes}" />
         </BlazorWebView.RootComponents>
     </BlazorWebView>
 

@@ -1,0 +1,179 @@
+@page "/tasks"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject IDialogService Dialogs
+@inject NavigationManager Nav
+
+<PageTitle>Görevler · WFM</PageTitle>
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    <div class="d-flex align-center mb-3 flex-wrap gap-2">
+        <MudText Typo="Typo.h5">Görevler</MudText>
+        <MudSpacer />
+        @if (Me.Can(Policies.ManageTasks))
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => EditAsync(null))">Yeni görev</MudButton>
+        }
+    </div>
+
+    <MudPaper Elevation="1" Class="pa-3 mb-3">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField T="string" @bind-Value="_query.Search" @bind-Value:after="ReloadAsync" Label="Ara (başlık, adres, müşteri)" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" DebounceInterval="400" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="WorkTaskStatus" Label="Durum" MultiSelection Variant="Variant.Outlined" Margin="Margin.Dense"
+                           SelectedValues="_statuses" SelectedValuesChanged="StatusesChanged" Clearable
+                           MultiSelectionTextFunc="@(l => l.Count == 0 ? "" : string.Join(", ", _statuses.Select(Ui.Status)))">
+                    @foreach (var s in Enum.GetValues<WorkTaskStatus>())
+                    {
+                        <MudSelectItem T="WorkTaskStatus" Value="s">@Ui.Status(s)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudSelect T="Guid?" @bind-Value="_query.TaskTypeId" @bind-Value:after="ReloadAsync" Label="Tip" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
+                    @foreach (var t in _types)
+                    {
+                        <MudSelectItem T="Guid?" Value="t.Id">@t.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudSelect T="Guid?" @bind-Value="_query.AssigneeId" @bind-Value:after="ReloadAsync" Label="Çalışan" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
+                    @foreach (var w in _workers)
+                    {
+                        <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4" md="2" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="_query.OnlyOpen" @bind-Value:after="ReloadAsync" Color="Color.Primary" Label="Yalnız açık" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTable T="WorkTaskDto" Items="_items" Hover Dense Loading="_loading" Elevation="1" OnRowClick="@(e => Nav.NavigateTo($"/tasks/{e.Item!.Id}"))"
+              RowClass="wfm-clickable" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Görev</MudTh>
+            <MudTh>Durum</MudTh>
+            <MudTh>Öncelik</MudTh>
+            <MudTh>Atanan</MudTh>
+            <MudTh>Planlanan</MudTh>
+            <MudTh>Adres</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Görev">
+                <div class="d-flex align-center gap-2">
+                    <TypeIcon Icon="@context.TaskTypeIcon" Color="@context.TaskTypeColor" Title="@context.TaskTypeName" />
+                    <div>
+                        <MudText Typo="Typo.body2"><b>@context.Title</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.TaskTypeName@(context.CustomerName is null ? "" : " · " + context.CustomerName)</MudText>
+                    </div>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Durum"><StatusChip Status="context.Status" /></MudTd>
+            <MudTd DataLabel="Öncelik"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Ui.PriorityColor(context.Priority)">@Ui.Priority(context.Priority)</MudChip></MudTd>
+            <MudTd DataLabel="Atanan">@(context.AssigneeName ?? "—")</MudTd>
+            <MudTd DataLabel="Planlanan">@Ui.Local(context.ScheduledStart)</MudTd>
+            <MudTd DataLabel="Adres"><MudText Typo="Typo.caption">@context.Address</MudText></MudTd>
+            <MudTd>
+                @if (Me.Can(Policies.ManageTasks) && context.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Düzenle" />
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Class="pa-4">Kriterlere uyan görev yok.</MudText></NoRecordsContent>
+        <PagerContent>
+            <div class="d-flex align-center justify-end pa-2 gap-2">
+                <MudText Typo="Typo.caption">@_total kayıt</MudText>
+                <MudPagination Count="@Math.Max(1, (int)Math.Ceiling(_total / (double)_query.PageSize))" Selected="_query.Page" SelectedChanged="PageChanged" Size="Size.Small" />
+            </div>
+        </PagerContent>
+    </MudTable>
+</RequirePolicy>
+
+@code {
+    private readonly TaskQuery _query = new() { PageSize = 25 };
+    private IReadOnlyCollection<WorkTaskStatus> _statuses = [];
+    private List<WorkTaskDto> _items = [];
+    private List<TaskTypeDto> _types = [];
+    private List<UserDto> _workers = [];
+    private GeoPoint _center = new(41.0082, 28.9784);
+    private int _total;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var typesTask = Api.GetTaskTypesAsync();
+        var workersTask = Api.GetUsersAsync(Roles.FieldWorker);
+        var tenantTask = Api.MyTenantAsync();
+        _types = await typesTask;
+        _workers = await workersTask;
+        var tenant = await tenantTask;
+        _center = new GeoPoint(tenant.DefaultLatitude, tenant.DefaultLongitude);
+        await ReloadAsync();
+        Realtime.TaskChanged += OnTaskChanged;
+
+        if (Nav.Uri.Contains("new=1") && Me.Can(Policies.ManageTasks)) await EditAsync(null);
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _query.Statuses = _statuses.ToList();
+        var res = await Api.GetTasksAsync(_query);
+        _items = res.Items;
+        _total = res.Total;
+        _loading = false;
+    }
+
+    private async Task StatusesChanged(IReadOnlyCollection<WorkTaskStatus>? values)
+    {
+        _statuses = values ?? [];
+        _query.Page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task PageChanged(int page)
+    {
+        _query.Page = page;
+        await ReloadAsync();
+    }
+
+    private async Task EditAsync(WorkTaskDto? task)
+    {
+        if (_types.Count == 0)
+        {
+            await Dialogs.ShowMessageBoxAsync("Görev tipi yok", "Önce 'Görev tipleri' sayfasından en az bir görev tipi tanımlayın.");
+            return;
+        }
+        var parameters = new DialogParameters<TaskEditDialog>
+        {
+            { x => x.Existing, task },
+            { x => x.Types, _types },
+            { x => x.Workers, _workers },
+            { x => x.Center, _center }
+        };
+        var dialog = await Dialogs.ShowAsync<TaskEditDialog>(null, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await ReloadAsync();
+    }
+
+    private void OnTaskChanged(WorkTaskDto t) => _ = InvokeAsync(async () =>
+    {
+        var i = _items.FindIndex(x => x.Id == t.Id);
+        if (i >= 0) _items[i] = t;
+        else await ReloadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Realtime.TaskChanged -= OnTaskChanged;
+}

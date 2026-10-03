@@ -1,0 +1,39 @@
+@inject WfmApiClient Api
+
+@if (Attachments.Count == 0)
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary">@Empty</MudText>
+}
+else
+{
+    <div class="wfm-thumbs">
+        @foreach (var a in Attachments)
+        {
+            <div class="wfm-thumb" style="@(a.Kind == AttachmentKind.Signature ? "width:160px;background:#fff;border:1px solid #e0e0e0" : "")">
+                @if (a.ContentType.StartsWith("image/"))
+                {
+                    <a href="@Src(a)" target="_blank"><img src="@Src(a)" alt="@a.FileName" style="@(a.Kind == AttachmentKind.Signature ? "object-fit:contain" : "")" /></a>
+                }
+                else
+                {
+                    <a href="@Src(a)" target="_blank" class="d-flex align-center justify-center" style="height:100%"><MudIcon Icon="@Icons.Material.Filled.Description" /></a>
+                }
+                <span class="wfm-thumb-badge">@(a.Kind == AttachmentKind.Signature ? "İmza" : Ui.Local(a.CapturedAt, "HH:mm"))</span>
+                @if (OnRemove.HasDelegate)
+                {
+                    <MudIconButton Class="wfm-thumb-remove" Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error"
+                                   Style="background:rgba(255,255,255,.85)" OnClick="@(() => OnRemove.InvokeAsync(a))" aria-label="Kaldır" />
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<AttachmentDto> Attachments { get; set; } = [];
+    [Parameter] public EventCallback<AttachmentDto> OnRemove { get; set; }
+    [Parameter] public string Empty { get; set; } = "Ek yok.";
+
+    // Offline eklenen dosyalar data: URL'idir; sunucudakiler göreli imzalı URL.
+    private string Src(AttachmentDto a) => a.Url.StartsWith("data:") ? a.Url : Api.AbsoluteUrl(a.Url);
+}

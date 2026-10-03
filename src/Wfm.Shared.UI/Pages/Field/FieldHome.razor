@@ -1,0 +1,151 @@
+@page "/field"
+@implements IDisposable
+@inject IFieldService Field
+@inject ILocationTracker Tracker
+@inject UserContext Me
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Görevlerim · WFM</PageTitle>
+
+<SyncBanner />
+
+<MudPaper Elevation="1" Class="pa-3 mb-3">
+    <div class="d-flex align-center gap-3">
+        <MudIcon Icon="@(_shift is not null ? Icons.Material.Filled.MyLocation : Icons.Material.Filled.LocationDisabled)"
+                 Color="@(_shift is not null ? Color.Success : Color.Default)" Size="Size.Large" />
+        <div style="flex:1">
+            <MudText Typo="Typo.subtitle1"><b>@(_shift is not null ? "Mesaidesiniz" : "Mesai dışı")</b></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                @if (_shift is not null)
+                {
+                    <span>@Ui.Local(_shift.StartedAt, "HH:mm")'den beri · @(Tracker.IsRunning ? "konum paylaşılıyor" : Tracker.IsSupported ? "konum servisi kapalı" : "konum takibi mobil uygulamada")</span>
+                }
+                else
+                {
+                    <span>Mesaiye başladığınızda konumunuz yöneticinizle paylaşılır.</span>
+                }
+            </MudText>
+        </div>
+        <MudSwitch T="bool" Value="_shift is not null" ValueChanged="ToggleShiftAsync" Color="Color.Success" Disabled="_busy" aria-label="Mesai" />
+    </div>
+</MudPaper>
+
+<div class="d-flex align-center mb-2">
+    <MudText Typo="Typo.h6">Merhaba, @Me.User?.FullName.Split(' ')[0]</MudText>
+    <MudSpacer />
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="RefreshAsync" Disabled="_busy" aria-label="Yenile" />
+</div>
+
+<MudTabs Elevation="0" ApplyEffectsToContainer Class="mb-2" @bind-ActivePanelIndex="_tab">
+    <MudTabPanel Text="@($"Aktif ({Active.Count()})")" />
+    <MudTabPanel Text="@($"Biten ({Done.Count()})")" />
+</MudTabs>
+
+@if (_tasks is null)
+{
+    <MudProgressLinear Indeterminate />
+}
+else
+{
+    var list = (_tab == 0 ? Active : Done).ToList();
+    @if (list.Count == 0)
+    {
+        <MudText Color="Color.Secondary" Class="pa-4" Align="Align.Center">@(_tab == 0 ? "Şu an atanmış göreviniz yok 🎉" : "Son iki günde biten görev yok.")</MudText>
+    }
+    @foreach (var t in list)
+    {
+        <MudCard Elevation="1" Class="mb-2 wfm-field-card" Style="@($"--accent:{t.TaskTypeColor}")" @onclick="@(() => Nav.NavigateTo($"/field/tasks/{t.Id}"))">
+            <MudCardContent Class="pa-3">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" />
+                    <div style="flex:1;min-width:0">
+                        <MudText Typo="Typo.subtitle1" Style="line-height:1.2"><b>@t.Title</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName</MudText>
+                    </div>
+                    <StatusChip Status="t.Status" />
+                </div>
+                <MudText Typo="Typo.body2" Class="mt-1">📍 @t.Address</MudText>
+                <div class="d-flex gap-3 mt-1">
+                    @if (t.ScheduledStart is not null)
+                    {
+                        <MudText Typo="Typo.caption">🕑 @Ui.Local(t.ScheduledStart, "dd.MM HH:mm")</MudText>
+                    }
+                    @if (t.Priority >= TaskPriority.High)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error"><b>@Ui.Priority(t.Priority)</b></MudText>
+                    }
+                </div>
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    private IReadOnlyList<WorkTaskDetailDto>? _tasks;
+    private ShiftDto? _shift;
+    private bool _busy;
+    private int _tab;
+
+    private static readonly WorkTaskStatus[] ActiveStatuses =
+        [WorkTaskStatus.OnSite, WorkTaskStatus.EnRoute, WorkTaskStatus.Accepted, WorkTaskStatus.Assigned];
+
+    private IEnumerable<WorkTaskDetailDto> Active => (_tasks ?? []).Where(t => ActiveStatuses.Contains(t.Status))
+        .OrderBy(t => Array.IndexOf(ActiveStatuses, t.Status)).ThenByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt);
+
+    private IEnumerable<WorkTaskDetailDto> Done => (_tasks ?? []).Where(t => !ActiveStatuses.Contains(t.Status))
+        .OrderByDescending(t => t.CompletedAt ?? t.UpdatedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Field.Changed += OnChanged;
+        _tasks = await Field.GetTasksAsync();
+        _shift = await Field.GetShiftAsync();
+        // Uygulama kapanıp açıldıysa ve mesai açıksa takibi sürdür.
+        if (_shift is not null && Tracker.IsSupported && !Tracker.IsRunning) await Tracker.StartAsync();
+        _ = RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _busy = true;
+        await Field.SyncAsync();
+        _tasks = await Field.GetTasksAsync();
+        _shift = await Field.GetShiftAsync();
+        _busy = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleShiftAsync(bool on)
+    {
+        _busy = true;
+        try
+        {
+            if (on && Tracker.IsSupported && !await Tracker.StartAsync())
+            {
+                Snackbar.Add("Konum izni verilmedi. Ayarlardan 'Her zaman' konum iznini açın.", Severity.Warning);
+                return;
+            }
+            _shift = await Field.SetShiftAsync(on);
+            if (!on) await Tracker.StopAsync();
+            Snackbar.Add(on ? "Mesai başladı." : "Mesai bitti, konum paylaşımı durdu.", Severity.Success);
+        }
+        catch (ApiException ex)
+        {
+            if (on) await Tracker.StopAsync();
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        _tasks = await Field.GetTasksAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Field.Changed -= OnChanged;
+}
