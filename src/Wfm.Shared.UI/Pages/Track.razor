@@ -11,7 +11,7 @@
         <div class="d-flex align-center gap-3" style="max-width:640px;margin:0 auto">
             @if (!string.IsNullOrWhiteSpace(_data?.LogoUrl))
             {
-                <img src="@_data.LogoUrl" alt="" class="wfm-appbar-logo" />
+                <img src="@Api.AbsoluteUrl(_data.LogoUrl!)" alt="" class="wfm-appbar-logo" />
             }
             <div>
                 <MudText Typo="Typo.subtitle1"><b>@(_data?.TenantName ?? "Görev takibi")</b></MudText>
