@@ -1,0 +1,25 @@
+@* Harita pin renklerinin açıklaması. *@
+<div class="wfm-legend" aria-label="Harita açıklaması">
+    @if (Workers)
+    {
+        <span><i style="background:@MapMarker.WorkerOnShift"></i>Mesaide</span>
+        <span><i style="background:@MapMarker.WorkerStale"></i>Konum eski (30 dk+)</span>
+        <span><i style="background:@MapMarker.WorkerOffShift"></i>Mesai dışı</span>
+    }
+    @if (Tasks)
+    {
+        @foreach (var s in Statuses)
+        {
+            <span><i style="background:@Ui.StatusHex(s)"></i>@Ui.Status(s)</span>
+        }
+        <span><b>!</b>&nbsp;Yüksek öncelik</span>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Workers { get; set; } = true;
+    [Parameter] public bool Tasks { get; set; } = true;
+
+    private static readonly WorkTaskStatus[] Statuses =
+        [WorkTaskStatus.Draft, WorkTaskStatus.Assigned, WorkTaskStatus.Accepted, WorkTaskStatus.EnRoute, WorkTaskStatus.OnSite, WorkTaskStatus.Rejected];
+}

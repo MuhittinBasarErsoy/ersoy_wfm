@@ -56,12 +56,19 @@ public class TrackingService(WfmDbContext db, IHubContext<TrackingHub> hub)
 /// <summary>Bildirim kaydı + SignalR ile kullanıcıya iletim; görev değişikliklerini izleyicilere yayar.</summary>
 public class NotificationService(WfmDbContext db, IHubContext<NotificationHub> hub)
 {
-    public async Task NotifyAsync(Guid tenantId, Guid userId, string title, string body, Guid? taskId)
+    public async Task NotifyAsync(Guid tenantId, Guid userId, string title, string body, Guid? taskId, string kind = NotificationKinds.General)
     {
-        var n = new Notification { TenantId = tenantId, UserId = userId, Title = title, Body = body, WorkTaskId = taskId };
+        var n = new Notification { TenantId = tenantId, UserId = userId, Title = title, Body = body, WorkTaskId = taskId, Kind = kind };
         db.Notifications.Add(n);
         await db.SaveChangesAsync();
         await hub.Clients.Group(HubGroups.User(userId)).SendAsync(HubMethods.NotificationReceived, n.ToDto());
+    }
+
+    /// <summary>Yeni yorumu görevi izleyen yöneticilere ve atanan çalışana yayar.</summary>
+    public async Task CommentAddedAsync(Guid tenantId, TaskCommentDto comment, Guid? assigneeId)
+    {
+        await hub.Clients.Group(HubGroups.Watchers(tenantId)).SendAsync(HubMethods.CommentAdded, comment);
+        if (assigneeId is { } a) await hub.Clients.Group(HubGroups.User(a)).SendAsync(HubMethods.CommentAdded, comment);
     }
 
     public async Task TaskChangedAsync(Guid tenantId, WorkTaskDto task, params Guid?[] extraUsers)

@@ -5,6 +5,7 @@
 {
     var key = f.Key;
     var label = f.Required ? f.Label + " *" : f.Label;
+    var missing = ShowErrors && f.Required && string.IsNullOrWhiteSpace(Get(key)) && f.Type != FieldType.Checkbox;
     @if (ReadOnly)
     {
         <div class="mb-2">
@@ -16,11 +17,11 @@
     @switch (f.Type)
     {
         case FieldType.Number:
-            <MudNumericField T="double?" Label="@label" Variant="Variant.Outlined" Class="mb-3" Placeholder="@f.Placeholder"
+            <MudNumericField T="double?" Label="@label" Variant="Variant.Outlined" Class="mb-3" Placeholder="@f.Placeholder" Error="missing" ErrorText="Zorunlu alan" Culture="Ui.Tr"
                              Value="@ParseNumber(Get(key))" ValueChanged="@(v => Set(key, v?.ToString(CultureInfo.InvariantCulture)))" />
             break;
         case FieldType.Select:
-            <MudSelect T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Clearable="!f.Required"
+            <MudSelect T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Clearable="!f.Required" Error="missing" ErrorText="Zorunlu alan"
                        Value="@Get(key)" ValueChanged="@(v => Set(key, v))" AnchorOrigin="Origin.BottomCenter">
                 @foreach (var o in f.Options)
                 {
@@ -29,7 +30,7 @@
             </MudSelect>
             break;
         case FieldType.Date:
-            <MudDatePicker Label="@label" Variant="Variant.Outlined" Class="mb-3" DateFormat="dd.MM.yyyy" Culture="@Tr"
+            <MudDatePicker Label="@label" Variant="Variant.Outlined" Class="mb-3" DateFormat="dd.MM.yyyy" Culture="@Tr" Error="missing" ErrorText="Zorunlu alan"
                            Date="@ParseDate(Get(key))" DateChanged="@(d => Set(key, d?.ToString("yyyy-MM-dd")))" />
             break;
         case FieldType.Checkbox:
@@ -37,15 +38,15 @@
                          Value="@(Get(key) == "true")" ValueChanged="@(v => Set(key, v ? "true" : "false"))" />
             break;
         case FieldType.TextArea:
-            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Lines="3" Placeholder="@f.Placeholder"
+            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Lines="3" Placeholder="@f.Placeholder" Error="missing" ErrorText="Zorunlu alan"
                           Value="@Get(key)" ValueChanged="@(v => Set(key, v))" />
             break;
         case FieldType.Phone:
-            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" InputType="InputType.Telephone" Placeholder="@f.Placeholder"
+            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" InputType="InputType.Telephone" Placeholder="@f.Placeholder" Error="missing" ErrorText="Zorunlu alan"
                           Value="@Get(key)" ValueChanged="@(v => Set(key, v))" />
             break;
         default:
-            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Placeholder="@f.Placeholder"
+            <MudTextField T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Placeholder="@f.Placeholder" Error="missing" ErrorText="Zorunlu alan"
                           Value="@Get(key)" ValueChanged="@(v => Set(key, v))" />
             break;
     }
@@ -57,6 +58,8 @@
     [Parameter, EditorRequired] public IEnumerable<FieldDefinition> Fields { get; set; } = [];
     [Parameter, EditorRequired] public Dictionary<string, string?> Values { get; set; } = [];
     [Parameter] public bool ReadOnly { get; set; }
+    /// <summary>Zorunlu ve boş alanları hata olarak işaretle (kaydetme denendikten sonra).</summary>
+    [Parameter] public bool ShowErrors { get; set; }
     [Parameter] public EventCallback ValuesChanged { get; set; }
 
     private string? Get(string key) => Values.TryGetValue(key, out var v) ? v : null;

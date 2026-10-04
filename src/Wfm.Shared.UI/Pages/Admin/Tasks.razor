@@ -5,37 +5,57 @@
 @inject UserContext Me
 @inject IDialogService Dialogs
 @inject NavigationManager Nav
-
-<PageTitle>Görevler · WFM</PageTitle>
+@inject ISnackbar Snackbar
+@inject WfmJs Js
 
 <RequirePolicy Policy="@Policies.ViewTracking">
-    <div class="d-flex align-center mb-3 flex-wrap gap-2">
-        <MudText Typo="Typo.h5">Görevler</MudText>
-        <MudSpacer />
-        @if (Me.Can(Policies.ManageTasks))
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => EditAsync(null))">Yeni görev</MudButton>
-        }
-    </div>
+    <PageHeader Title="Görevler" Subtitle="@($"{_total} kayıt")">
+        <Actions>
+            <MudMenu Icon="@Icons.Material.Filled.BookmarkBorder" AriaLabel="Kayıtlı filtreler" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem OnClick="SaveFilterAsync" Icon="@Icons.Material.Filled.BookmarkAdd">Bu filtreyi kaydet…</MudMenuItem>
+                @if (_saved.Count > 0)
+                {
+                    <MudDivider />
+                    @foreach (var f in _saved)
+                    {
+                        <MudMenuItem OnClick="@(() => ApplySaved(f))" Icon="@(f.IsShared ? Icons.Material.Filled.Groups : Icons.Material.Filled.Bookmark)">
+                            @f.Name@(f.IsMine ? "" : $" · {f.OwnerName}")
+                        </MudMenuItem>
+                    }
+                    <MudDivider />
+                    <MudMenuItem OnClick="ManageFiltersAsync" Icon="@Icons.Material.Filled.Settings">Filtreleri yönet…</MudMenuItem>
+                }
+            </MudMenu>
+            <MudMenu Label="@(_exporting ? "Hazırlanıyor…" : "Dışa aktar")" StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Outlined" Disabled="_exporting"
+                     AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem OnClick="@(() => ExportAsync(excel: true))" Icon="@Icons.Material.Filled.TableView">Excel (.xlsx)</MudMenuItem>
+                <MudMenuItem OnClick="@(() => ExportAsync(excel: false))" Icon="@Icons.Material.Filled.Description">CSV</MudMenuItem>
+            </MudMenu>
+            @if (Me.Can(Policies.ManageTasks))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => EditAsync(null))">Yeni görev</MudButton>
+            }
+        </Actions>
+    </PageHeader>
 
     <MudPaper Elevation="1" Class="pa-3 mb-3">
         <MudGrid Spacing="2">
             <MudItem xs="12" sm="6" md="3">
-                <MudTextField T="string" @bind-Value="_query.Search" @bind-Value:after="ReloadAsync" Label="Ara (başlık, adres, müşteri)" Variant="Variant.Outlined"
+                <MudTextField T="string" Value="_query.Search" ValueChanged="SearchChanged" Label="Ara (başlık, adres, müşteri)" Variant="Variant.Outlined"
                               Margin="Margin.Dense" DebounceInterval="400" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable />
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
                 <MudSelect T="WorkTaskStatus" Label="Durum" MultiSelection Variant="Variant.Outlined" Margin="Margin.Dense"
                            SelectedValues="_statuses" SelectedValuesChanged="StatusesChanged" Clearable
                            MultiSelectionTextFunc="@(l => l.Count == 0 ? "" : string.Join(", ", _statuses.Select(Ui.Status)))">
-                    @foreach (var s in Enum.GetValues<WorkTaskStatus>())
+                    @foreach (var s in Ui.FlowOrder)
                     {
                         <MudSelectItem T="WorkTaskStatus" Value="s">@Ui.Status(s)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
             <MudItem xs="6" sm="4" md="2">
-                <MudSelect T="Guid?" @bind-Value="_query.TaskTypeId" @bind-Value:after="ReloadAsync" Label="Tip" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
+                <MudSelect T="Guid?" Value="_query.TaskTypeId" ValueChanged="@(v => FilterChanged(() => _query.TaskTypeId = v))" Label="Tip" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
                     @foreach (var t in _types)
                     {
                         <MudSelectItem T="Guid?" Value="t.Id">@t.Name</MudSelectItem>
@@ -43,113 +63,290 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="6" sm="4" md="2">
-                <MudSelect T="Guid?" @bind-Value="_query.AssigneeId" @bind-Value:after="ReloadAsync" Label="Çalışan" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
+                <MudSelect T="Guid?" Value="_query.AssigneeId" ValueChanged="@(v => FilterChanged(() => _query.AssigneeId = v))" Label="Çalışan" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
                     @foreach (var w in _workers)
                     {
                         <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" sm="4" md="2" Class="d-flex align-center">
-                <MudSwitch T="bool" @bind-Value="_query.OnlyOpen" @bind-Value:after="ReloadAsync" Color="Color.Primary" Label="Yalnız açık" />
+            <MudItem xs="12" sm="4" md="2" Class="d-flex flex-column justify-center">
+                <MudSwitch T="bool" Value="_query.OnlyOpen" ValueChanged="@(v => FilterChanged(() => _query.OnlyOpen = v))" Color="Color.Primary" Label="Yalnız açık" Class="ma-0" />
+                <MudSwitch T="bool" Value="_query.Overdue" ValueChanged="@(v => FilterChanged(() => _query.Overdue = v))" Color="Color.Error" Label="Yalnız geciken" Class="ma-0" />
             </MudItem>
         </MudGrid>
+        @if (HasFilter)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearFilters" Class="mt-1">Filtreleri temizle</MudButton>
+        }
     </MudPaper>
 
-    <MudTable T="WorkTaskDto" Items="_items" Hover Dense Loading="_loading" Elevation="1" OnRowClick="@(e => Nav.NavigateTo($"/tasks/{e.Item!.Id}"))"
-              RowClass="wfm-clickable" Breakpoint="Breakpoint.Sm">
+    @if (_selected.Count > 0 && Me.Can(Policies.ManageTasks))
+    {
+        <MudPaper Elevation="2" Class="pa-2 mb-2 d-flex align-center flex-wrap gap-2" Style="position:sticky;top:72px;z-index:3">
+            <MudText Typo="Typo.body2" Class="ml-2"><b>@_selected.Count görev seçili</b></MudText>
+            <MudSelect T="Guid?" @bind-Value="_bulkAssignee" Label="Çalışana ata" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:240px" Dense>
+                @foreach (var w in _workers.Where(w => w.IsActive))
+                {
+                    <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_bulkAssignee is null || _bulkBusy" OnClick="BulkAssignAsync">Ata</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_bulkBusy" OnClick="BulkCancelAsync" StartIcon="@Icons.Material.Filled.Cancel">İptal et</MudButton>
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" OnClick="@(() => _selected = [])">Seçimi kaldır</MudButton>
+        </MudPaper>
+    }
+
+    <MudTable T="WorkTaskDto" @ref="_table" ServerData="LoadServerAsync" Hover Dense Elevation="1" RowClassFunc="RowClass"
+              OnRowClick="RowClicked" Breakpoint="Breakpoint.Sm" MultiSelection="Me.Can(Policies.ManageTasks)"
+              @bind-SelectedItems="_selected" SelectOnRowClick="false" Comparer="_comparer" CurrentPage="_query.Page - 1"
+              RowsPerPage="_query.PageSize" LoadingProgressColor="Color.Primary">
         <HeaderContent>
-            <MudTh>Görev</MudTh>
-            <MudTh>Durum</MudTh>
-            <MudTh>Öncelik</MudTh>
-            <MudTh>Atanan</MudTh>
-            <MudTh>Planlanan</MudTh>
+            <MudTh><MudTableSortLabel T="WorkTaskDto" SortLabel="title" InitialDirection="@Dir("title")">Görev</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="WorkTaskDto" SortLabel="status" InitialDirection="@Dir("status")">Durum</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="WorkTaskDto" SortLabel="priority" InitialDirection="@Dir("priority")">Öncelik</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="WorkTaskDto" SortLabel="assignee" InitialDirection="@Dir("assignee")">Atanan</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="WorkTaskDto" SortLabel="scheduled" InitialDirection="@Dir("scheduled")">Planlanan</MudTableSortLabel></MudTh>
             <MudTh>Adres</MudTh>
-            <MudTh></MudTh>
+            <MudTh><span class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">İşlemler</span></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Görev">
                 <div class="d-flex align-center gap-2" style="min-width:220px">
                     <TypeIcon Icon="@context.TaskTypeIcon" Color="@context.TaskTypeColor" Title="@context.TaskTypeName" />
-                    <div>
-                        <MudText Typo="Typo.body2"><b>@context.Title</b></MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.TaskTypeName@(context.CustomerName is null ? "" : " · " + context.CustomerName)</MudText>
+                    <div style="min-width:0">
+                        <a href="/tasks/@context.Id" class="mud-typography mud-typography-body2" style="color:inherit;text-decoration:none" @onclick:stopPropagation><b>@context.Title</b></a>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display:block">@context.TaskTypeName@(context.CustomerName is null ? "" : " · " + context.CustomerName)</MudText>
                     </div>
                 </div>
             </MudTd>
             <MudTd DataLabel="Durum"><StatusChip Status="context.Status" /></MudTd>
-            <MudTd DataLabel="Öncelik"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Ui.PriorityColor(context.Priority)">@Ui.Priority(context.Priority)</MudChip></MudTd>
-            <MudTd DataLabel="Atanan">@(context.AssigneeName ?? "—")</MudTd>
-            <MudTd DataLabel="Planlanan">@Ui.Local(context.ScheduledStart)</MudTd>
-            <MudTd DataLabel="Adres"><MudText Typo="Typo.caption" Style="display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="@context.Address">@context.Address</MudText></MudTd>
-            <MudTd>
-                @if (Me.Can(Policies.ManageTasks) && context.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed))
+            <MudTd DataLabel="Öncelik"><PriorityLabel Priority="context.Priority" /></MudTd>
+            <MudTd DataLabel="Atanan">
+                @if (context.AssigneeName is null)
                 {
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Düzenle" />
+                    <MudText Typo="Typo.body2" Color="Color.Warning">Atanmadı</MudText>
+                }
+                else
+                {
+                    @context.AssigneeName
+                }
+            </MudTd>
+            <MudTd DataLabel="Planlanan">
+                <div>@Ui.Local(context.ScheduledStart)</div>
+                <OverdueBadge Task="context" />
+            </MudTd>
+            <MudTd DataLabel="Adres"><MudText Typo="Typo.caption" Style="display:block;max-width:260px" Class="wfm-ellipsis" title="@context.Address">@context.Address</MudText></MudTd>
+            <MudTd>
+                @if (Me.Can(Policies.ManageTasks) && !Ui.IsClosed(context.Status))
+                {
+                    <span @onclick:stopPropagation>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="@($"{context.Title} düzenle")" />
+                    </span>
                 }
             </MudTd>
         </RowTemplate>
-        <NoRecordsContent><MudText Class="pa-4">Kriterlere uyan görev yok.</MudText></NoRecordsContent>
+        <NoRecordsContent>
+            <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Kriterlere uyan görev yok"
+                        Text="@(HasFilter ? "Filtreleri gevşetmeyi deneyin." : "Henüz görev oluşturulmamış.")">
+                @if (HasFilter)
+                {
+                    <MudButton Variant="Variant.Outlined" OnClick="ClearFilters">Filtreleri temizle</MudButton>
+                }
+                else if (Me.Can(Policies.ManageTasks))
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => EditAsync(null))">İlk görevi oluştur</MudButton>
+                }
+            </EmptyState>
+        </NoRecordsContent>
         <PagerContent>
-            <div class="d-flex align-center justify-end pa-2 gap-2">
-                <MudText Typo="Typo.caption">@_total kayıt</MudText>
-                <MudPagination Count="@Math.Max(1, (int)Math.Ceiling(_total / (double)_query.PageSize))" Selected="_query.Page" SelectedChanged="PageChanged" Size="Size.Small" />
-            </div>
+            <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="@(new[] { 25, 50, 100 })" />
         </PagerContent>
     </MudTable>
 </RequirePolicy>
 
 @code {
-    private readonly TaskQuery _query = new() { PageSize = 25 };
+    private MudTable<WorkTaskDto>? _table;
+    private TaskQuery _query = new() { PageSize = 25 };
     private IReadOnlyCollection<WorkTaskStatus> _statuses = [];
-    private List<WorkTaskDto> _items = [];
     private List<TaskTypeDto> _types = [];
     private List<UserDto> _workers = [];
     private GeoPoint _center = new(41.0082, 28.9784);
     private int _total;
-    private bool _loading;
+    private HashSet<WorkTaskDto> _selected = [];
+    private Guid? _bulkAssignee;
+    private bool _bulkBusy, _exporting, _initialized;
+    private List<SavedFilterDto> _saved = [];
+    private readonly IdComparer _comparer = new();
+
+
+    private sealed class IdComparer : IEqualityComparer<WorkTaskDto>
+    {
+        public bool Equals(WorkTaskDto? x, WorkTaskDto? y) => x?.Id == y?.Id;
+        public int GetHashCode(WorkTaskDto obj) => obj.Id.GetHashCode();
+    }
+
+    private bool HasFilter => !string.IsNullOrWhiteSpace(_query.Search) || _statuses.Count > 0 || _query.TaskTypeId is not null ||
+                              _query.AssigneeId is not null || _query.OnlyOpen || _query.Overdue;
+
+    private SortDirection Dir(string label) => (_query.Sort ?? "priority") != label ? SortDirection.None
+        : _query.Desc || _query.Sort is null ? SortDirection.Descending : SortDirection.Ascending;
 
     protected override async Task OnInitializedAsync()
     {
-        var typesTask = Api.GetTaskTypesAsync();
+        // Tablo yüklenince adres çubuğu yeniden yazılır; "yeni görev" isteğini ondan önce yakala.
+        _openNew = Nav.Uri.Contains("new=1") && Me.Can(Policies.ManageTasks);
+        Nav.LocationChanged += OnLocationChanged;
+        ReadQuery(new Uri(Nav.Uri).Query);
+        var typesTask = Api.GetTaskTypesAsync(includeInactive: true);
         var workersTask = Api.GetUsersAsync(Roles.FieldWorker);
         var tenantTask = Api.MyTenantAsync();
         _types = await typesTask;
         _workers = await workersTask;
         var tenant = await tenantTask;
         _center = new GeoPoint(tenant.DefaultLatitude, tenant.DefaultLongitude);
-        await ReloadAsync();
         Realtime.TaskChanged += OnTaskChanged;
+        _initialized = true;
+        if (_table is not null) await _table.ReloadServerData();
 
-        if (Nav.Uri.Contains("new=1") && Me.Can(Policies.ManageTasks)) await EditAsync(null);
+        StateHasChanged();
     }
 
-    private async Task ReloadAsync()
+    private bool _openNew;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _loading = true;
+        // Sayfa doğrudan ?new=1 ile açıldığında diyalog sağlayıcısı ilk çizimden sonra hazır olur.
+        // Açık diyaloglar gezinmede kapandığı için adres çubuğundaki new=1 temizlendikten sonra açılır.
+        if (_openNew && _initialized && !Nav.Uri.Contains("new=1"))
+        {
+            _openNew = false;
+            _ = InvokeAsync(() => EditAsync(null));
+        }
+        if (!firstRender) return;
+        try
+        {
+            _saved = await Api.GetSavedFiltersAsync();
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    // ---------- URL ↔ filtre ----------
+    private void ReadQuery(string query)
+    {
+        var qs = QueryString.Parse(query);
+        string? Get(string k) => qs.TryGetValue(k, out var v) ? v[0] : null;
+        _query = new TaskQuery
+        {
+            PageSize = int.TryParse(Get("size"), out var size) && size is 25 or 50 or 100 ? size : 25,
+            Page = int.TryParse(Get("page"), out var p) && p > 0 ? p : 1,
+            Search = Get("q"),
+            TaskTypeId = Guid.TryParse(Get("type"), out var t) ? t : null,
+            AssigneeId = Guid.TryParse(Get("assignee"), out var a) ? a : null,
+            OnlyOpen = Get("open") == "1",
+            Overdue = Get("overdue") == "1",
+            Sort = Get("sort"),
+            Desc = Get("desc") == "1",
+        };
+        _statuses = qs.TryGetValue("status", out var st)
+            ? st.Select(x => Enum.TryParse<WorkTaskStatus>(x, out var s) ? (WorkTaskStatus?)s : null).OfType<WorkTaskStatus>().ToList()
+            : [];
+    }
+
+    private string BuildQueryString()
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_query.Search)) parts.Add("q=" + Uri.EscapeDataString(_query.Search));
+        parts.AddRange(_statuses.Select(s => $"status={s}"));
+        if (_query.TaskTypeId is { } t) parts.Add($"type={t}");
+        if (_query.AssigneeId is { } a) parts.Add($"assignee={a}");
+        if (_query.OnlyOpen) parts.Add("open=1");
+        if (_query.Overdue) parts.Add("overdue=1");
+        if (!string.IsNullOrEmpty(_query.Sort)) parts.Add($"sort={_query.Sort}");
+        if (_query.Desc) parts.Add("desc=1");
+        if (_query.Page > 1) parts.Add($"page={_query.Page}");
+        if (_query.PageSize != 25) parts.Add($"size={_query.PageSize}");
+        return parts.Count == 0 ? "" : "?" + string.Join('&', parts);
+    }
+
+    private void WriteUrl()
+    {
+        var target = "/tasks" + BuildQueryString();
+        // Aynı adrese gezinme açık diyalogları kapatır ve gereksiz geçmiş kaydı üretir.
+        if ("/" + Nav.ToBaseRelativePath(Nav.Uri) != target) Nav.NavigateTo(target, replace: true);
+    }
+
+    // ---------- Veri ----------
+    private async Task<TableData<WorkTaskDto>> LoadServerAsync(TableState state, CancellationToken ct)
+    {
+        if (!_initialized) return new TableData<WorkTaskDto> { Items = [], TotalItems = 0 };
+        if (!string.IsNullOrEmpty(state.SortLabel) && state.SortDirection != SortDirection.None)
+        {
+            _query.Sort = state.SortLabel;
+            _query.Desc = state.SortDirection == SortDirection.Descending;
+        }
+        _query.Page = state.Page + 1;
+        _query.PageSize = state.PageSize;
         _query.Statuses = _statuses.ToList();
-        var res = await Api.GetTasksAsync(_query);
-        _items = res.Items;
-        _total = res.Total;
-        _loading = false;
+        WriteUrl();
+        try
+        {
+            var res = await Api.GetTasksAsync(_query);
+            _total = res.Total;
+            return new TableData<WorkTaskDto> { Items = res.Items, TotalItems = res.Total };
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            return new TableData<WorkTaskDto> { Items = [], TotalItems = 0 };
+        }
+    }
+
+    private async Task ReloadFirstPageAsync()
+    {
+        _query.Page = 1;
+        _selected = [];
+        if (_table is not null)
+        {
+            _table.NavigateTo(0);
+            await _table.ReloadServerData();
+        }
+    }
+
+    private Task SearchChanged(string? v) => FilterChanged(() => _query.Search = v);
+
+    private async Task FilterChanged(Action apply)
+    {
+        apply();
+        await ReloadFirstPageAsync();
     }
 
     private async Task StatusesChanged(IReadOnlyCollection<WorkTaskStatus>? values)
     {
         _statuses = values ?? [];
-        _query.Page = 1;
-        await ReloadAsync();
+        await ReloadFirstPageAsync();
     }
 
-    private async Task PageChanged(int page)
+    private async Task ClearFilters()
     {
-        _query.Page = page;
-        await ReloadAsync();
+        _query = new TaskQuery { PageSize = _query.PageSize, Sort = _query.Sort, Desc = _query.Desc };
+        _statuses = [];
+        await ReloadFirstPageAsync();
+    }
+
+    private string RowClass(WorkTaskDto t, int _) => "wfm-clickable" + (t.IsOverdue ? " wfm-row-overdue" : "");
+
+    private void RowClicked(TableRowClickEventArgs<WorkTaskDto> e)
+    {
+        if (e.Item is { } t) Nav.NavigateTo($"/tasks/{t.Id}");
     }
 
     private async Task EditAsync(WorkTaskDto? task)
     {
-        if (_types.Count == 0)
+        var activeTypes = _types.Where(t => t.IsActive || t.Id == task?.TaskTypeId).ToList();
+        if (activeTypes.Count == 0)
         {
             await Dialogs.ShowMessageBoxAsync("Görev tipi yok", "Önce 'Görev tipleri' sayfasından en az bir görev tipi tanımlayın.");
             return;
@@ -157,23 +354,141 @@
         var parameters = new DialogParameters<TaskEditDialog>
         {
             { x => x.Existing, task },
-            { x => x.Types, _types },
+            { x => x.Types, activeTypes },
             { x => x.Workers, _workers },
             { x => x.Center, _center }
         };
-        var dialog = await Dialogs.ShowAsync<TaskEditDialog>(null, parameters,
-            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+        var dialog = await Dialogs.ShowAsync<TaskEditDialog>(null, parameters, TaskEditDialog.Options);
         var result = await dialog.Result;
-        if (result is { Canceled: false }) await ReloadAsync();
+        if (result is { Canceled: false } && _table is not null) await _table.ReloadServerData();
+    }
+
+    // ---------- Toplu işlemler ----------
+    private async Task BulkAssignAsync()
+    {
+        if (_bulkAssignee is not { } assignee) return;
+        var open = _selected.Where(t => !Ui.IsClosed(t.Status)).ToList();
+        var name = _workers.FirstOrDefault(w => w.Id == assignee)?.FullName;
+        if (await Dialogs.ShowMessageBoxAsync("Toplu atama", $"{open.Count} görev {name} adlı çalışana atanacak ve bildirim gönderilecek.",
+                "Ata", cancelText: "Vazgeç") != true) return;
+        await RunBulkAsync(open, t => Api.AssignTaskAsync(t.Id, assignee), "atandı");
+    }
+
+    private async Task BulkCancelAsync()
+    {
+        var open = _selected.Where(t => !Ui.IsClosed(t.Status)).ToList();
+        if (await Dialogs.ShowMessageBoxAsync("Toplu iptal", $"{open.Count} görev iptal edilecek. Atanan çalışanlara bildirim gider. Bu işlem geri alınamaz.",
+                "İptal et", cancelText: "Vazgeç") != true) return;
+        await RunBulkAsync(open, t => Api.ChangeStatusAsync(t.Id, new ChangeStatusRequest { Status = WorkTaskStatus.Cancelled, Note = "Toplu iptal" }), "iptal edildi");
+    }
+
+    private async Task RunBulkAsync(List<WorkTaskDto> items, Func<WorkTaskDto, Task> action, string verb)
+    {
+        _bulkBusy = true;
+        var ok = 0;
+        var errors = new List<string>();
+        foreach (var t in items)
+        {
+            try { await action(t); ok++; }
+            catch (ApiException ex) { errors.Add($"{t.Title}: {ex.Message}"); }
+        }
+        _bulkBusy = false;
+        _selected = [];
+        Snackbar.Add($"{ok} görev {verb}.", Severity.Success);
+        foreach (var e in errors.Take(3)) Snackbar.Add(e, Severity.Error);
+        if (_table is not null) await _table.ReloadServerData();
+    }
+
+    // ---------- Dışa aktarma ----------
+    private static readonly string[] ExportHeader =
+        ["Başlık", "Tip", "Durum", "Öncelik", "Atanan", "Müşteri", "Telefon", "Adres", "Planlanan başlangıç", "Planlanan bitiş", "Yola çıkış", "Tamamlanma", "Süre (dk)", "Gecikti", "Not"];
+
+    private static DateTime? L(DateTime? utc) => utc is null ? null : DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc).ToLocalTime();
+
+    private async Task ExportAsync(bool excel)
+    {
+        _exporting = true;
+        try
+        {
+            var all = await Api.GetAllTasksAsync(_query with { Statuses = _statuses.ToList() });
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmm");
+            if (excel)
+            {
+                // Tarihler gerçek tarih, süreler sayı olarak yazılır; Excel'de sıralanıp filtrelenebilir.
+                var rows = all.Select(t => (IReadOnlyList<object?>)new object?[]
+                {
+                    t.Title, t.TaskTypeName, Ui.Status(t.Status), Ui.Priority(t.Priority), t.AssigneeName, t.CustomerName, t.CustomerPhone, t.Address,
+                    L(t.ScheduledStart), L(t.ScheduledEnd), L(t.StartedAt), L(t.CompletedAt),
+                    t.StartedAt is { } st && t.CompletedAt is { } ct ? Math.Round((ct - st).TotalMinutes) : null,
+                    t.IsOverdue ? "Evet" : null, t.CompletionNote
+                });
+                var bytes = Xlsx.Build("Görevler", ExportHeader, rows);
+                await Js.Run("downloadBytes", $"gorevler-{stamp}.xlsx", Convert.ToBase64String(bytes),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            }
+            else
+            {
+                var csv = Csv.Build(ExportHeader, all.Select(t => new[]
+                {
+                    t.Title, t.TaskTypeName, Ui.Status(t.Status), Ui.Priority(t.Priority), t.AssigneeName ?? "", t.CustomerName ?? "", t.CustomerPhone ?? "",
+                    t.Address, Ui.Local(t.ScheduledStart), Ui.Local(t.ScheduledEnd), Ui.Local(t.StartedAt), Ui.Local(t.CompletedAt),
+                    t.StartedAt is { } st && t.CompletedAt is { } ct ? Math.Round((ct - st).TotalMinutes).ToString(Ui.Tr) : "",
+                    t.IsOverdue ? "Evet" : "", t.CompletionNote ?? ""
+                }));
+                await Js.Run("downloadText", $"gorevler-{stamp}.csv", csv, "text/csv;charset=utf-8");
+            }
+            Snackbar.Add($"{all.Count} görev indirildi.", Severity.Success);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _exporting = false; }
+    }
+
+    // ---------- Kayıtlı filtreler (sunucuda; isteğe bağlı ekiple paylaşılır) ----------
+    private async Task SaveFilterAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<SaveFilterDialog>("Filtreyi kaydet", new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+        if (await dialog.Result is not { Canceled: false, Data: ValueTuple<string, bool> data }) return;
+        // Sayfa numarası filtrenin parçası değil.
+        var query = string.Join('&', BuildQueryString().TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Where(p => !p.StartsWith("page=")));
+        try
+        {
+            await Api.SaveFilterAsync(new SaveFilterRequest(data.Item1, query.Length == 0 ? "" : "?" + query, data.Item2));
+            _saved = await Api.GetSavedFiltersAsync();
+            Snackbar.Add(data.Item2 ? "Filtre kaydedildi ve ekiple paylaşıldı." : "Filtre kaydedildi.", Severity.Success);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ApplySaved(SavedFilterDto f)
+    {
+        ReadQuery(f.Query);
+        await ReloadFirstPageAsync();
+    }
+
+    private async Task ManageFiltersAsync()
+    {
+        var parameters = new DialogParameters<ManageFiltersDialog> { { x => x.Filters, _saved.ToList() } };
+        var dialog = await Dialogs.ShowAsync<ManageFiltersDialog>("Kayıtlı filtreler", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        try { _saved = await Api.GetSavedFiltersAsync(); } catch (ApiException) { }
+        if (result is { Canceled: false, Data: SavedFilterDto f }) await ApplySaved(f);
     }
 
     private void OnTaskChanged(WorkTaskDto t) => _ = InvokeAsync(async () =>
     {
-        var i = _items.FindIndex(x => x.Id == t.Id);
-        if (i >= 0) _items[i] = t;
-        else await ReloadAsync();
+        if (_table is not null) await _table.ReloadServerData();
         StateHasChanged();
     });
 
-    public void Dispose() => Realtime.TaskChanged -= OnTaskChanged;
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (_openNew) _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Realtime.TaskChanged -= OnTaskChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }

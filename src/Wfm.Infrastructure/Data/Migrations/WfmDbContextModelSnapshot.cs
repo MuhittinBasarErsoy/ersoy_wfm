@@ -184,6 +184,11 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("datetime2");
 
@@ -238,6 +243,43 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.SavedFilter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsShared")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Query")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UserId");
+
+                    b.ToTable("SavedFilters");
                 });
 
             modelBuilder.Entity("Wfm.Domain.Entities.TaskAttachment", b =>
@@ -299,6 +341,38 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.HasIndex("WorkTaskId");
 
                     b.ToTable("Attachments");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.TaskComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkTaskId", "CreatedAt");
+
+                    b.ToTable("TaskComments");
                 });
 
             modelBuilder.Entity("Wfm.Domain.Entities.TaskEvent", b =>
@@ -423,6 +497,10 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BrandColor")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -437,6 +515,18 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.Property<int>("LocationRetentionDays")
                         .HasColumnType("int");
+
+                    b.Property<string>("LogoContentType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("LogoPath")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -535,6 +625,9 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<double>("Longitude")
                         .HasColumnType("float");
 
+                    b.Property<DateTime?>("OverdueNotifiedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
@@ -570,12 +663,20 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("TrackingToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.HasIndex("TaskTypeId");
+
+                    b.HasIndex("TrackingToken")
+                        .IsUnique()
+                        .HasFilter("[TrackingToken] IS NOT NULL");
 
                     b.HasIndex("TenantId", "Status");
 
@@ -752,6 +853,15 @@ namespace Wfm.Infrastructure.Data.Migrations
                 {
                     b.HasOne("Wfm.Domain.Entities.WorkTask", null)
                         .WithMany("Attachments")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.TaskComment", b =>
+                {
+                    b.HasOne("Wfm.Domain.Entities.WorkTask", null)
+                        .WithMany()
                         .HasForeignKey("WorkTaskId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

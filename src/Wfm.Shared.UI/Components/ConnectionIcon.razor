@@ -1,0 +1,15 @@
+@implements IDisposable
+@inject WfmRealtime Realtime
+
+<MudTooltip Text="@(Realtime.IsConnected ? "Canlı bağlantı aktif: değişiklikler anında görünür" : "Canlı bağlantı yok; yeniden bağlanılıyor")">
+    <span role="status" aria-label="@(Realtime.IsConnected ? "Canlı bağlantı aktif" : "Canlı bağlantı yok")" class="d-inline-flex mr-1">
+        <MudIcon Icon="@(Realtime.IsConnected ? Icons.Material.Filled.CloudDone : Icons.Material.Filled.CloudOff)" Size="Size.Small"
+                 Style="@(Realtime.IsConnected ? "opacity:.85" : "color:#ffcc80")" />
+    </span>
+</MudTooltip>
+
+@code {
+    protected override void OnInitialized() => Realtime.StateChanged += OnState;
+    private void OnState(bool connected) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Realtime.StateChanged -= OnState;
+}

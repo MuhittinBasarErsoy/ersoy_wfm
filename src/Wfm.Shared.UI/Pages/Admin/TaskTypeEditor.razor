@@ -3,16 +3,18 @@
 @inject WfmApiClient Api
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject IDialogService Dialogs
 
-<PageTitle>Görev tipi · WFM</PageTitle>
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
 
 <RequirePolicy Policy="@Policies.ManageTaskTypes">
-    <div class="d-flex align-center gap-2 mb-3">
-        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/task-types" aria-label="Geri" />
-        <MudText Typo="Typo.h5">@(Id is null ? "Yeni görev tipi" : _name)</MudText>
-        <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
-    </div>
+    <PageHeader Title="@(Id is null ? "Yeni görev tipi" : (string.IsNullOrWhiteSpace(_name) ? "Görev tipi" : _name))" BackHref="/task-types" BackLabel="Görev tiplerine dön"
+                Subtitle="@(Dirty ? "Kaydedilmemiş değişiklikler var" : null)">
+        <Leading><TypeIcon Icon="@_icon" Color="@_color" /></Leading>
+        <Actions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+        </Actions>
+    </PageHeader>
 
     @if (!_loaded)
     {
@@ -26,21 +28,24 @@
                     <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Genel</b></MudText>
                     <MudTextField T="string" @bind-Value="_name" Label="Ad *" Variant="Variant.Outlined" Class="mb-3" Placeholder="ör. Çiçek Teslimatı" />
                     <MudTextField T="string" @bind-Value="_description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
-                    <MudText Typo="Typo.caption">Simge</MudText>
-                    <div class="d-flex flex-wrap gap-1 mb-3">
+                    <MudText Typo="Typo.caption" id="icon-label">Simge</MudText>
+                    <div class="d-flex flex-wrap gap-1 mb-3" role="group" aria-labelledby="icon-label">
                         @foreach (var icon in Ui.IconChoices)
                         {
-                            <span class="wfm-clickable" style="@(icon == _icon ? "outline:2px solid #1565c0;border-radius:10px" : "")" @onclick="@(() => _icon = icon)">
-                                <TypeIcon Icon="@icon" Color="@_color" Title="@icon" />
-                            </span>
+                            <button type="button" class="wfm-icon-choice" aria-pressed="@(icon == _icon ? "true" : "false")" aria-label="@icon" title="@icon" @onclick="@(() => _icon = icon)">
+                                <TypeIcon Icon="@icon" Color="@_color" />
+                            </button>
                         }
                     </div>
-                    <MudText Typo="Typo.caption">Renk</MudText>
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        @foreach (var c in Ui.ColorChoices)
+                    <MudText Typo="Typo.caption" id="color-label">Renk</MudText>
+                    <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-labelledby="color-label">
+                        @for (var ci = 0; ci < Ui.ColorChoices.Length; ci++)
                         {
-                            <span class="wfm-clickable" role="button" aria-label="@c" @onclick="@(() => _color = c)"
-                                  style="width:28px;height:28px;border-radius:50%;background:@c;@(c == _color ? "outline:3px solid #222;outline-offset:2px" : "")"></span>
+                            var c = Ui.ColorChoices[ci];
+                            <button type="button" class="wfm-swatch" style="background:@c" aria-pressed="@(c == _color ? "true" : "false")"
+                                    aria-label="@($"Renk {ci + 1}")" title="@c" @onclick="@(() => _color = c)">
+                                @if (c == _color) { <span class="material-icons" style="font-size:18px" aria-hidden="true">check</span> }
+                            </button>
                         }
                     </div>
                     <MudSwitch T="bool" @bind-Value="_active" Color="Color.Primary" Label="Aktif (yeni görevlerde seçilebilir)" />
@@ -90,9 +95,9 @@
                                     </MudSelect>
                                 </MudItem>
                                 <MudItem xs="12" sm="2" Class="d-flex align-center justify-end">
-                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="index == 0" OnClick="@(() => Move(index, -1))" aria-label="Yukarı" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="index == _fields.Count - 1" OnClick="@(() => Move(index, 1))" aria-label="Aşağı" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => _fields.RemoveAt(index))" aria-label="Sil" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="index == 0" OnClick="@(() => Move(index, -1))" aria-label="@($"{f.Label} yukarı taşı")" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="index == _fields.Count - 1" OnClick="@(() => Move(index, 1))" aria-label="@($"{f.Label} aşağı taşı")" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveFieldAsync(index))" aria-label="@($"{f.Label} alanını sil")" />
                                 </MudItem>
                                 @if (f.Type == FieldType.Select)
                                 {
@@ -147,7 +152,26 @@
     private List<FieldDefinition> _fields = [];
     private readonly Dictionary<string, string?> _preview = [];
     private List<string> _errors = [];
-    private bool _loaded, _busy;
+    private bool _loaded, _busy, _saved;
+    private string _snapshot = "";
+
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(new { _name, _description, _icon, _color, _active, _completion, _fields });
+    private bool Dirty => _loaded && !_saved && Snapshot() != _snapshot;
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (!Dirty) return;
+        if (await Dialogs.ShowMessageBoxAsync("Değişiklikler kaydedilmedi", "Görev tipinde yaptığınız değişiklikler kaybolacak. Sayfadan çıkılsın mı?",
+                "Çık", cancelText: "Düzenlemeye dön") != true) ctx.PreventNavigation();
+    }
+
+    private async Task RemoveFieldAsync(int index)
+    {
+        var f = _fields[index];
+        if (await Dialogs.ShowMessageBoxAsync("Alanı sil", $"'{f.Label}' alanı silinecek. Mevcut görevlerde girilmiş değerler görünmez olur.",
+                "Sil", cancelText: "Vazgeç") != true) return;
+        _fields.RemoveAt(index);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -159,6 +183,7 @@
             _completion = t.Completion;
             _fields = t.Fields.OrderBy(f => f.Order).ToList();
         }
+        _snapshot = Snapshot();
         _loaded = true;
     }
 
@@ -183,6 +208,7 @@
         var f = _fields[index];
         _fields.RemoveAt(index);
         _fields.Insert(index + delta, f);
+        for (var i = 0; i < _fields.Count; i++) _fields[i].Order = i; // önizleme de yeni sırayı göstersin
     }
 
     private async Task SaveAsync()
@@ -196,6 +222,7 @@
             if (Id is { } id) await Api.UpdateTaskTypeAsync(id, req);
             else await Api.CreateTaskTypeAsync(req);
             Snackbar.Add("Görev tipi kaydedildi.", Severity.Success);
+            _saved = true;
             Nav.NavigateTo("/task-types");
         }
         catch (ApiException ex)

@@ -1,86 +1,231 @@
 @inject WfmApiClient Api
 @inject WfmJs Js
 @inject ISnackbar Snackbar
+@inject IDialogService Dialogs
 
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">@(Existing is null ? "Yeni görev" : "Görevi düzenle")</MudText>
+        @* Adım göstergesi: tamamlanan adımlara geri dönülebilir; düzenlemede tüm adımlar açık. *@
+        <nav class="wfm-steps mt-2" aria-label="Adımlar">
+            @for (var i = 0; i < Steps.Length; i++)
+            {
+                var index = i;
+                var state = index == _step ? "current" : index < _step || StepValid(index) && index <= _maxStep ? "done" : "todo";
+                <button type="button" class="@($"wfm-step {state}")" disabled="@(!CanJump(index))" aria-current="@(index == _step ? "step" : null)"
+                        @onclick="@(() => GoToAsync(index))">
+                    <span class="wfm-step-num">@(state == "done" && index != _step ? "✓" : (index + 1).ToString())</span>
+                    <span class="wfm-step-label">@Steps[index]</span>
+                </button>
+            }
+        </nav>
     </TitleContent>
     <DialogContent>
-        <MudGrid Spacing="2">
-            <MudItem xs="12" md="6">
-                <MudSelect T="Guid" Label="Görev tipi *" Variant="Variant.Outlined" Value="_model.TaskTypeId" ValueChanged="TypeChanged" AnchorOrigin="Origin.BottomCenter">
-                    @foreach (var t in Types)
-                    {
-                        <MudSelectItem T="Guid" Value="t.Id">@t.Name</MudSelectItem>
-                    }
-                </MudSelect>
-                <MudTextField T="string" @bind-Value="_model.Title" Label="Başlık *" Variant="Variant.Outlined" Class="mt-3" />
-                <MudTextField T="string" @bind-Value="_model.Description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mt-3" />
-                <div class="d-flex gap-2 mt-3">
-                    <MudSelect T="TaskPriority" @bind-Value="_model.Priority" Label="Öncelik" Variant="Variant.Outlined" Style="flex:1">
+        <div style="min-height:420px">
+            @switch (_step)
+            {
+                case 0:
+                    <MudSelect T="Guid" Label="Görev tipi *" Variant="Variant.Outlined" Value="_model.TaskTypeId" ValueChanged="TypeChanged" AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var t in Types)
+                        {
+                            <MudSelectItem T="Guid" Value="t.Id">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTextField T="string" @bind-Value="_model.Title" Label="Başlık *" Variant="Variant.Outlined" Class="mt-3" Immediate
+                                  Error="@(_tried[0] && string.IsNullOrWhiteSpace(_model.Title))" ErrorText="Başlık zorunlu" />
+                    <MudTextField T="string" @bind-Value="_model.Description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mt-3"
+                                  HelperText="Saha çalışanı görev ekranında görür" />
+                    <MudSelect T="TaskPriority" @bind-Value="_model.Priority" Label="Öncelik" Variant="Variant.Outlined" Class="mt-3" Style="max-width:240px">
                         @foreach (var p in Enum.GetValues<TaskPriority>())
                         {
                             <MudSelectItem T="TaskPriority" Value="p">@Ui.Priority(p)</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudSelect T="Guid?" @bind-Value="_model.AssigneeId" Label="Atanan çalışan" Variant="Variant.Outlined" Clearable Style="flex:1.4">
+                    @if (SelectedType is { } type && type.Fields.Any(f => !f.FilledOnCompletion))
+                    {
+                        <MudText Typo="Typo.overline" Color="Color.Secondary" Class="mt-4 d-block">@type.Name bilgileri</MudText>
+                        <DynamicFieldForm Fields="type.Fields.Where(f => !f.FilledOnCompletion)" Values="_model.CustomFieldValues" ShowErrors="_tried[0]" />
+                    }
+                    break;
+
+                case 1:
+                    <MudAutocomplete T="string" Label="Adres *" Variant="Variant.Outlined" SearchFunc="SearchAsync" DebounceInterval="500"
+                                     Value="_model.Address" ValueChanged="AddressChanged" MinCharacters="3" ShowProgressIndicator CoerceText="false" CoerceValue
+                                     AdornmentIcon="@Icons.Material.Filled.Search" HelperText="Yazıp listeden seçin ya da haritaya tıklayın"
+                                     Error="@(_tried[1] && (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation))"
+                                     ErrorText="@(string.IsNullOrWhiteSpace(_model.Address) ? "Adres zorunlu" : "Haritada konum seçin")" />
+                    <div style="height:300px" class="mt-2">
+                        <LeafletMap @ref="_map" Height="100%" Clickable OnMapClick="MapClicked" OnReady="MapReady"
+                                    Latitude="@(HasLocation ? _model.Latitude : Center.Latitude)" Longitude="@(HasLocation ? _model.Longitude : Center.Longitude)" Zoom="@(HasLocation ? 15 : 12)" />
+                    </div>
+                    @if (HasLocation)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Seçilen konum: @Ui.Coord(_model.Latitude, _model.Longitude, 5)</MudText>
+                    }
+                    <div class="d-flex gap-2 mt-3 flex-wrap">
+                        <MudTextField T="string" @bind-Value="_model.CustomerName" Label="Müşteri adı" Variant="Variant.Outlined" Style="flex:1;min-width:160px" />
+                        <MudTextField T="string" @bind-Value="_model.CustomerPhone" Label="Müşteri telefonu" Variant="Variant.Outlined" InputType="InputType.Telephone" Style="flex:1;min-width:160px"
+                                      HelperText="Saha çalışanı tek dokunuşla arayabilir" />
+                    </div>
+                    break;
+
+                case 2:
+                    <div class="d-flex gap-2 flex-wrap">
+                        <MudDatePicker Label="Planlanan tarih" @bind-Date="_date" DateFormat="dd.MM.yyyy" Variant="Variant.Outlined" Clearable Style="flex:1.2;min-width:150px" Culture="Ui.Tr" />
+                        <MudTimePicker Label="Başlangıç" @bind-Time="_start" Variant="Variant.Outlined" Style="flex:1;min-width:110px" Disabled="_date is null" />
+                        <MudTimePicker Label="Bitiş" @bind-Time="_end" Variant="Variant.Outlined" Style="flex:1;min-width:110px" Disabled="_date is null"
+                                       Error="@(_start is not null && _end is not null && _end < _start)" ErrorText="Bitiş başlangıçtan önce" HelperText="Geçerse gecikti sayılır" />
+                    </div>
+                    <MudSelect T="Guid?" @bind-Value="_model.AssigneeId" Label="Atanan çalışan" Variant="Variant.Outlined" Clearable Class="mt-4"
+                               HelperText="Boş bırakılırsa taslak olarak kalır; sonra panodan atanabilir">
                         @foreach (var w in Workers.Where(w => w.IsActive))
                         {
                             <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
                         }
                     </MudSelect>
-                </div>
-                <div class="d-flex gap-2 mt-3">
-                    <MudDatePicker Label="Planlanan tarih" @bind-Date="_date" DateFormat="dd.MM.yyyy" Variant="Variant.Outlined" Clearable Style="flex:1.2" />
-                    <MudTimePicker Label="Başlangıç" @bind-Time="_start" Variant="Variant.Outlined" Style="flex:1" />
-                    <MudTimePicker Label="Bitiş" @bind-Time="_end" Variant="Variant.Outlined" Style="flex:1" />
-                </div>
-                <div class="d-flex gap-2 mt-3">
-                    <MudTextField T="string" @bind-Value="_model.CustomerName" Label="Müşteri adı" Variant="Variant.Outlined" Style="flex:1" />
-                    <MudTextField T="string" @bind-Value="_model.CustomerPhone" Label="Müşteri telefonu" Variant="Variant.Outlined" InputType="InputType.Telephone" Style="flex:1" />
-                </div>
-                @if (SelectedType is { } type && type.Fields.Any(f => !f.FilledOnCompletion))
-                {
-                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">@type.Name bilgileri</MudText>
-                    <DynamicFieldForm Fields="type.Fields.Where(f => !f.FilledOnCompletion)" Values="_model.CustomFieldValues" />
-                }
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <MudAutocomplete T="AddressResult" Label="Adres ara" Variant="Variant.Outlined" SearchFunc="SearchAsync" DebounceInterval="500"
-                                 ToStringFunc="@(a => a?.Address)" ValueChanged="AddressPicked" MinCharacters="3" ShowProgressIndicator
-                                 AdornmentIcon="@Icons.Material.Filled.Search" ResetValueOnEmptyText />
-                <MudTextField T="string" @bind-Value="_model.Address" Label="Adres *" Variant="Variant.Outlined" Lines="2" Class="mt-3" />
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Haritaya tıklayarak da konum seçebilirsiniz.</MudText>
-                <div style="height:340px" class="mt-2">
-                    <LeafletMap @ref="_map" Height="100%" Clickable OnMapClick="MapClicked" OnReady="MapReady"
-                                Latitude="@(HasLocation ? _model.Latitude : Center.Latitude)" Longitude="@(HasLocation ? _model.Longitude : Center.Longitude)" Zoom="@(HasLocation ? 15 : 12)" />
-                </div>
-                @if (HasLocation)
-                {
-                    <MudText Typo="Typo.caption">📍 @_model.Latitude.ToString("0.00000"), @_model.Longitude.ToString("0.00000")</MudText>
-                }
-            </MudItem>
-        </MudGrid>
+                    @if (_suggestions.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-3 mb-1">Önerilen (mesaide, görev konumuna yakın ve iş yükü az):</MudText>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (var s in _suggestions)
+                            {
+                                <MudChip T="string" Size="Size.Medium" Variant="@(_model.AssigneeId == s.Id ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                                         Icon="@Icons.Material.Filled.AutoAwesome" OnClick="@(() => _model.AssigneeId = s.Id)">
+                                    @s.Name · @s.Detail
+                                </MudChip>
+                            }
+                        </div>
+                    }
+                    else if (HasLocation)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-3">Şu an mesaide ve konumu güncel çalışan olmadığı için öneri yok.</MudText>
+                    }
+                    break;
+
+                default:
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Kaydetmeden önce kontrol edin</MudText>
+                    <MudSimpleTable Dense Elevation="0" Bordered>
+                        <tbody>
+                            <tr><th style="width:34%">Görev</th><td>@SelectedType?.Name · <b>@_model.Title</b> · @Ui.Priority(_model.Priority)</td></tr>
+                            <tr><th>Adres</th><td>@(string.IsNullOrWhiteSpace(_model.Address) ? "—" : _model.Address)</td></tr>
+                            <tr><th>Müşteri</th><td>@(_model.CustomerName ?? "—")@(_model.CustomerPhone is null ? "" : " · " + _model.CustomerPhone)</td></tr>
+                            <tr><th>Zaman</th><td>@ScheduleText</td></tr>
+                            <tr><th>Atanan</th><td>@(Workers.FirstOrDefault(w => w.Id == _model.AssigneeId)?.FullName ?? "Atanmadı (taslak)")</td></tr>
+                            @foreach (var f in (SelectedType?.Fields ?? []).Where(f => !f.FilledOnCompletion).OrderBy(f => f.Order))
+                            {
+                                <tr><th>@f.Label</th><td>@(_model.CustomFieldValues.GetValueOrDefault(f.Key) is { Length: > 0 } v ? v : "—")</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                    @if (_model.AssigneeId is null)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense Class="mt-3">Çalışan seçilmediği için görev taslak olarak kaydedilecek.</MudAlert>
+                    }
+                    else if (Existing is null)
+                    {
+                        <MudAlert Severity="Severity.Success" Dense Class="mt-3">Kaydedince çalışana bildirim gönderilecek.</MudAlert>
+                    }
+                    break;
+            }
+        </div>
         @if (_errors.Count > 0)
         {
-            <MudAlert Severity="Severity.Error" Class="mt-3">
+            <MudAlert Severity="Severity.Error" Class="mt-3" Dense role="alert">
                 @foreach (var e in _errors) { <div>@e</div> }
             </MudAlert>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+        <MudButton OnClick="CancelAsync">Vazgeç</MudButton>
+        <MudSpacer />
+        @if (_step > 0)
+        {
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ChevronLeft" OnClick="@(() => GoToAsync(_step - 1))">Geri</MudButton>
+        }
+        @if (Existing is not null && _step < Steps.Length - 1)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+        }
+        @if (_step < Steps.Length - 1)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.ChevronRight" OnClick="@(() => GoToAsync(_step + 1))">İleri</MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">
+                @if (_busy) { <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" /> }
+                @(Existing is null ? "Görevi oluştur" : "Kaydet")
+            </MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
 @code {
+    /// <summary>Dışarı tıklayınca kapanmaz; kaydedilmemiş değişiklik varsa Vazgeç onay ister.</summary>
+    public static DialogOptions Options => new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
+
+    private static readonly string[] Steps = ["Görev", "Konum ve müşteri", "Zaman ve atama", "Özet"];
+    private int _step, _maxStep;
+    private readonly bool[] _tried = new bool[4];
+
+    private string ScheduleText => _date is not { } d ? "Planlanmadı"
+        : $"{d:dd.MM.yyyy}{(_start is { } s ? " " + s.ToString(@"hh\:mm") : "")}{(_end is { } e ? "–" + e.ToString(@"hh\:mm") : "")}";
+
+    /// <summary>Adımın kendi doğrulama hataları (boşsa adım geçerli).</summary>
+    private List<string> StepErrors(int step)
+    {
+        var errors = new List<string>();
+        switch (step)
+        {
+            case 0:
+                if (string.IsNullOrWhiteSpace(_model.Title)) errors.Add("Başlık zorunlu.");
+                if (SelectedType is { } type)
+                    errors.AddRange(TaskRules.ValidateCreationFields(new TaskType { Fields = type.Fields }, _model.CustomFieldValues));
+                break;
+            case 1:
+                if (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation) errors.Add("Adres girin ve haritada konum seçin.");
+                break;
+            case 2:
+                if (_start is not null && _end is not null && _end < _start) errors.Add("Bitiş saati başlangıçtan önce olamaz.");
+                break;
+        }
+        return errors;
+    }
+
+    private bool StepValid(int step) => StepErrors(step).Count == 0;
+
+    // Yeni görevde ilerideki adımlara ancak öncekiler geçerliyse atlanır; düzenlemede her adım açık.
+    private bool CanJump(int step) => Existing is not null || step <= _maxStep || Enumerable.Range(0, step).All(StepValid);
+
+    private Task GoToAsync(int step)
+    {
+        _errors.Clear();
+        if (step > _step)
+        {
+            // İleri giderken aradaki adımları doğrula; ilk hatalı adımda kal.
+            for (var i = _step; i < step; i++)
+            {
+                _tried[i] = true;
+                var errors = StepErrors(i);
+                if (errors.Count == 0) continue;
+                _step = i;
+                _errors = errors;
+                return Task.CompletedTask;
+            }
+        }
+        _step = step;
+        _maxStep = Math.Max(_maxStep, step);
+        if (step == 2) UpdateSuggestions();
+        return Task.CompletedTask;
+    }
+
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
     [Parameter] public WorkTaskDto? Existing { get; set; }
     [Parameter] public List<TaskTypeDto> Types { get; set; } = [];
     [Parameter] public List<UserDto> Workers { get; set; } = [];
     [Parameter] public GeoPoint Center { get; set; } = new(41.0082, 28.9784);
+
+    private record Suggestion(Guid Id, string Name, string Detail);
 
     private SaveWorkTaskRequest _model = new();
     private DateTime? _date;
@@ -88,11 +233,19 @@
     private LeafletMap? _map;
     private List<string> _errors = [];
     private bool _busy;
+    private string _snapshot = "";
+    private readonly Dictionary<string, AddressResult> _lastResults = [];
+    private List<WorkerLocationDto> _live = [];
+    private Dictionary<Guid, int> _openCounts = [];
+    private List<Suggestion> _suggestions = [];
 
     private TaskTypeDto? SelectedType => Types.FirstOrDefault(t => t.Id == _model.TaskTypeId);
     private bool HasLocation => _model.Latitude != 0 || _model.Longitude != 0;
 
-    protected override void OnInitialized()
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(new { _model, _date, _start, _end });
+    private bool Dirty => Snapshot() != _snapshot;
+
+    protected override async Task OnInitializedAsync()
     {
         if (Existing is { } t)
         {
@@ -114,14 +267,46 @@
         else
         {
             _model.TaskTypeId = Types.FirstOrDefault()?.Id ?? Guid.Empty;
+            _model.Title = Types.FirstOrDefault()?.Name ?? "";
             _date = DateTime.Today;
         }
+        _snapshot = Snapshot();
+
+        // Atama önerisi için canlı konumlar ve çalışan başına açık görev sayısı.
+        try
+        {
+            var liveTask = Api.GetLiveLocationsAsync();
+            var openTask = Api.GetAllTasksAsync(new TaskQuery { OnlyOpen = true }, 1000);
+            _live = await liveTask;
+            _openCounts = (await openTask).Where(x => x.AssigneeId is not null).GroupBy(x => x.AssigneeId!.Value).ToDictionary(g => g.Key, g => g.Count());
+            UpdateSuggestions();
+        }
+        catch (ApiException) { /* öneri isteğe bağlı */ }
+    }
+
+    /// <summary>Konuma yakın ve iş yükü az, mesaideki çalışanları sıralar (1 açık görev ≈ 2 km sayılır).</summary>
+    private void UpdateSuggestions()
+    {
+        if (!HasLocation) { _suggestions = []; return; }
+        var active = Workers.Where(w => w.IsActive).ToDictionary(w => w.Id);
+        _suggestions = _live.Where(l => l.OnShift && active.ContainsKey(l.UserId) && !MapMarker.IsStale(l))
+            .Select(l =>
+            {
+                var km = Wfm.Domain.Entities.Geo.DistanceMeters(l.Latitude, l.Longitude, _model.Latitude, _model.Longitude) / 1000;
+                var open = _openCounts.GetValueOrDefault(l.UserId);
+                return (l, km, open, score: km + open * 2);
+            })
+            .OrderBy(x => x.score).Take(3)
+            .Select(x => new Suggestion(x.l.UserId, x.l.FullName.Split(' ')[0], $"{Ui.Distance(x.km * 1000)} · {x.open} açık"))
+            .ToList();
     }
 
     private void TypeChanged(Guid id)
     {
+        var previous = SelectedType?.Name;
         _model.TaskTypeId = id;
-        if (string.IsNullOrWhiteSpace(_model.Title)) _model.Title = SelectedType?.Name ?? "";
+        // Başlık hâlâ önceki tipin adıysa yeni tipe göre güncelle.
+        if (string.IsNullOrWhiteSpace(_model.Title) || _model.Title == previous) _model.Title = SelectedType?.Name ?? "";
     }
 
     private async Task MapReady()
@@ -129,20 +314,28 @@
         if (HasLocation && _map is not null) await _map.SetPickAsync(_model.Latitude, _model.Longitude);
     }
 
-    private async Task<IEnumerable<AddressResult>> SearchAsync(string text, CancellationToken ct)
+    private async Task<IEnumerable<string>> SearchAsync(string text, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(text) || text.Length < 3) return [];
-        try { return await Js.Invoke<List<AddressResult>>("searchAddress", text); }
+        try
+        {
+            var results = await Js.Invoke<List<AddressResult>>("searchAddress", text);
+            foreach (var r in results) _lastResults[r.Address] = r;
+            return results.Select(r => r.Address);
+        }
         catch { return []; }
     }
 
-    private async Task AddressPicked(AddressResult? a)
+    private async Task AddressChanged(string? address)
     {
-        if (a is null) return;
-        _model.Address = a.Address;
-        _model.Latitude = a.Latitude;
-        _model.Longitude = a.Longitude;
-        if (_map is not null) await _map.SetPickAsync(a.Latitude, a.Longitude);
+        _model.Address = address ?? "";
+        if (address is not null && _lastResults.TryGetValue(address, out var a))
+        {
+            _model.Latitude = a.Latitude;
+            _model.Longitude = a.Longitude;
+            if (_map is not null) await _map.SetPickAsync(a.Latitude, a.Longitude);
+            UpdateSuggestions();
+        }
     }
 
     private async Task MapClicked(GeoPoint p)
@@ -150,6 +343,7 @@
         _model.Latitude = Math.Round(p.Latitude, 6);
         _model.Longitude = Math.Round(p.Longitude, 6);
         if (_map is not null) await _map.SetPickAsync(p.Latitude, p.Longitude);
+        UpdateSuggestions();
         try
         {
             if (await Js.Invoke<string?>("reverseGeocode", p.Latitude, p.Longitude) is { } addr) _model.Address = addr;
@@ -158,14 +352,26 @@
         StateHasChanged();
     }
 
+    private async Task CancelAsync()
+    {
+        if (Dirty && await Dialogs.ShowMessageBoxAsync("Değişiklikler kaydedilmedi", "Girdiğiniz bilgiler kaybolacak. Çıkmak istiyor musunuz?",
+                "Çık", cancelText: "Düzenlemeye dön") != true) return;
+        Dialog.Cancel();
+    }
+
     private async Task SaveAsync()
     {
         _errors.Clear();
-        if (SelectedType is { } type)
-            _errors.AddRange(TaskRules.ValidateCreationFields(new TaskType { Fields = type.Fields }, _model.CustomFieldValues));
-        if (string.IsNullOrWhiteSpace(_model.Title)) _errors.Add("Başlık zorunlu.");
-        if (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation) _errors.Add("Adres ve harita konumu seçin.");
-        if (_errors.Count > 0) return;
+        // Hatalı ilk adıma götür.
+        for (var i = 0; i < 3; i++)
+        {
+            _tried[i] = true;
+            var errors = StepErrors(i);
+            if (errors.Count == 0) continue;
+            _step = i;
+            _errors = errors;
+            return;
+        }
 
         _model.ScheduledStart = _date is { } d && _start is { } s ? d.Date + s : _date;
         _model.ScheduledEnd = _date is { } d2 && _end is { } e ? d2.Date + e : null;
@@ -174,7 +380,9 @@
         try
         {
             var saved = Existing is null ? await Api.CreateTaskAsync(_model) : await Api.UpdateTaskAsync(Existing.Id, _model);
-            Snackbar.Add(Existing is null ? "Görev oluşturuldu." : "Görev güncellendi.", Severity.Success);
+            Snackbar.Add(Existing is null
+                ? (_model.AssigneeId is null ? "Görev taslak olarak oluşturuldu." : "Görev oluşturuldu, çalışana bildirim gönderildi.")
+                : "Görev güncellendi.", Severity.Success);
             Dialog.Close(DialogResult.Ok(saved));
         }
         catch (ApiException ex)

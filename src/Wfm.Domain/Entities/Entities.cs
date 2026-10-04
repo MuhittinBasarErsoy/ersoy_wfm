@@ -13,6 +13,13 @@ public class Tenant : Entity
     public double DefaultLongitude { get; set; } = 28.9784;
     /// <summary>Konum ping'lerinin saklanma süresi (gün).</summary>
     public int LocationRetentionDays { get; set; } = 30;
+    /// <summary>Arayüzde kullanılan marka rengi (#rrggbb); boşsa varsayılan tema.</summary>
+    public string? BrandColor { get; set; }
+    /// <summary>Giriş ekranı, üst bar ve müşteri takip sayfasında gösterilen logo adresi.</summary>
+    public string? LogoUrl { get; set; }
+    /// <summary>Yüklenen logonun depodaki yolu (adres yerine dosya yüklendiyse).</summary>
+    public string? LogoPath { get; set; }
+    public string? LogoContentType { get; set; }
 }
 
 public class Team : TenantEntity
@@ -110,6 +117,39 @@ public class Notification : TenantEntity
     public string Body { get; set; } = "";
     public Guid? WorkTaskId { get; set; }
     public DateTime? ReadAt { get; set; }
+    /// <summary>Bildirim türü (<see cref="NotificationKinds"/>); arayüz simge ve gruplama için kullanır.</summary>
+    public string Kind { get; set; } = NotificationKinds.General;
+}
+
+public static class NotificationKinds
+{
+    public const string General = "general";
+    public const string Assigned = "assigned";
+    public const string Unassigned = "unassigned";
+    public const string Cancelled = "cancelled";
+    public const string Rejected = "rejected";
+    public const string Failed = "failed";
+    public const string Overdue = "overdue";
+    public const string Comment = "comment";
+    public const string PasswordReset = "password_reset";
+}
+
+/// <summary>Görev listesi için kayıtlı filtre. Paylaşılanları şirketteki tüm yönetim kullanıcıları görür.</summary>
+public class SavedFilter : TenantEntity
+{
+    public Guid UserId { get; set; }
+    public string Name { get; set; } = "";
+    /// <summary>Görevler sayfasının sorgu dizesi (ör. "?status=Draft&amp;overdue=1").</summary>
+    public string Query { get; set; } = "";
+    public bool IsShared { get; set; }
+}
+
+/// <summary>Görev üzerinde dispeçer ile saha çalışanı arasındaki yazışma.</summary>
+public class TaskComment : TenantEntity
+{
+    public Guid WorkTaskId { get; set; }
+    public Guid UserId { get; set; }
+    public string Body { get; set; } = "";
 }
 
 /// <summary>Saha çalışanının mesai oturumu. Konum takibi yalnızca açık mesai süresince yapılır.</summary>

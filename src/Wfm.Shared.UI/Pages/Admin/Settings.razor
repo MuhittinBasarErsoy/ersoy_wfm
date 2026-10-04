@@ -1,0 +1,165 @@
+@page "/settings"
+@inject WfmApiClient Api
+@inject ThemeState ThemeState
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject WfmJs Js
+
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
+
+<RequirePolicy Policy="@Policies.ManageUsers">
+    <PageHeader Title="Şirket ayarları" Subtitle="@(Dirty ? "Kaydedilmemiş değişiklikler var" : "Marka, harita merkezi ve şirket bilgileri")">
+        <Actions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="@(_busy || !Dirty)">Kaydet</MudButton>
+        </Actions>
+    </PageHeader>
+
+    @if (_tenant is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Şirket</b></MudText>
+                    <MudTextField T="string" @bind-Value="_name" Label="Şirket adı *" Variant="Variant.Outlined" Class="mb-3" Immediate
+                                  HelperText="Üst barda ve müşteri takip sayfasında görünür" />
+                    <MudTextField T="string" Value="_tenant.Slug" Label="Kısa ad" Variant="Variant.Outlined" ReadOnly HelperText="Sistem yöneticisi tarafından belirlenir" />
+                </MudPaper>
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-1"><b>Marka</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">Uygulamanın ana rengi ve logosu tüm kullanıcılarınız için değişir.</MudText>
+                    <MudText Typo="Typo.caption" id="brand-label">Ana renk</MudText>
+                    <div class="d-flex flex-wrap gap-2 mb-2 mt-1" role="group" aria-labelledby="brand-label">
+                        <button type="button" class="wfm-swatch" style="background:@Ui.DefaultPrimary" aria-pressed="@(string.IsNullOrEmpty(_brand) ? "true" : "false")"
+                                aria-label="Varsayılan renk" title="Varsayılan" @onclick="@(() => _brand = null)">
+                            @if (string.IsNullOrEmpty(_brand)) { <span class="material-icons" style="font-size:18px" aria-hidden="true">check</span> }
+                        </button>
+                        @foreach (var c in BrandChoices)
+                        {
+                            <button type="button" class="wfm-swatch" style="background:@c" aria-pressed="@(c == _brand ? "true" : "false")" aria-label="@($"Renk {c}")" title="@c" @onclick="@(() => _brand = c)">
+                                @if (c == _brand) { <span class="material-icons" style="font-size:18px" aria-hidden="true">check</span> }
+                            </button>
+                        }
+                    </div>
+                    <MudTextField T="string" @bind-Value="_brand" Label="Özel renk (#rrggbb)" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Class="mb-3" Clearable
+                                  Error="@(!string.IsNullOrEmpty(_brand) && !System.Text.RegularExpressions.Regex.IsMatch(_brand, "^#[0-9a-fA-F]{6}$"))" ErrorText="#rrggbb biçiminde girin" />
+                    <MudText Typo="Typo.caption" Class="d-block">Logo</MudText>
+                    <div class="d-flex flex-wrap gap-2 align-center mb-2 mt-1">
+                        <InputFile id="logo-file" accept="image/png,image/jpeg,image/webp" OnChange="UploadLogoAsync" hidden />
+                        <MudButton HtmlTag="label" for="logo-file" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" Disabled="_uploading" Size="Size.Small">
+                            @(_uploading ? "Yükleniyor…" : "Dosya yükle")
+                        </MudButton>
+                        @if (!string.IsNullOrWhiteSpace(_logo))
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.Delete" OnClick="@(() => _logo = null)">Logoyu kaldır</MudButton>
+                        }
+                    </div>
+                    @if (!Uploaded)
+                    {
+                        <MudTextField T="string" @bind-Value="_logo" Label="ya da logo adresi (https://…)" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Clearable
+                                      HelperText="PNG, JPEG ya da WebP · en fazla 1 MB · şeffaf arka plan, yükseklik ~40 px önerilir" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Yüklenen dosya kullanılıyor.</MudText>
+                    }
+                    <MudText Typo="Typo.caption" Class="d-block mt-3 mb-1">Önizleme</MudText>
+                    <div class="d-flex align-center gap-2 pa-2" style="@($"background:{(string.IsNullOrEmpty(_brand) ? Ui.DefaultPrimary : _brand)};border-radius:8px;color:#fff")">
+                        @if (!string.IsNullOrWhiteSpace(_logo))
+                        {
+                            <img src="@Api.AbsoluteUrl(_logo!)" alt="Logo önizleme" class="wfm-appbar-logo" />
+                        }
+                        <b>@_name</b>
+                    </div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="7">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-1"><b>Varsayılan harita merkezi</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">Haritalar ve yeni görev formu bu noktadan açılır. Haritaya tıklayarak değiştirin.</MudText>
+                    <div style="height:380px">
+                        <LeafletMap @ref="_map" Height="100%" Latitude="_lat" Longitude="_lng" Zoom="11" Clickable OnMapClick="MapClicked" OnReady="MapReady" />
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Seçilen: @Ui.Coord(_lat, _lng)</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    private static readonly string[] BrandChoices = ["#00897b", "#2e7d32", "#6a1b9a", "#ad1457", "#c62828", "#ef6c00", "#37474f", "#283593"];
+
+    private TenantDto? _tenant;
+    private LeafletMap? _map;
+    private string? _name, _brand, _logo;
+    private double _lat, _lng;
+    private bool _busy, _uploading;
+    private bool Uploaded => _logo?.StartsWith("/api/public/tenant-logo/") == true;
+
+    private async Task UploadLogoAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > 1024 * 1024) { Snackbar.Add("Logo 1 MB'tan büyük olamaz.", Severity.Warning); return; }
+        _uploading = true;
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            var updated = await Api.UploadLogoAsync(ms, file.Name, file.ContentType);
+            // Logo hemen kaydedilir; diğer alanlardaki kaydedilmemiş değişiklikler korunur.
+            _tenant = _tenant! with { LogoUrl = updated.LogoUrl };
+            _logo = updated.LogoUrl;
+            ThemeState.SetTenant(updated with { Name = _tenant.Name, BrandColor = _tenant.BrandColor });
+            Snackbar.Add("Logo yüklendi.", Severity.Success);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _uploading = false; }
+    }
+
+    private bool Dirty => _tenant is not null &&
+        (_name != _tenant.Name || (_brand ?? "") != (_tenant.BrandColor ?? "") || (_logo ?? "") != (_tenant.LogoUrl ?? "") ||
+         Math.Abs(_lat - _tenant.DefaultLatitude) > 1e-7 || Math.Abs(_lng - _tenant.DefaultLongitude) > 1e-7);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tenant = await Api.MyTenantAsync();
+        (_name, _brand, _logo, _lat, _lng) = (_tenant.Name, _tenant.BrandColor, _tenant.LogoUrl, _tenant.DefaultLatitude, _tenant.DefaultLongitude);
+    }
+
+    private async Task MapReady()
+    {
+        if (_map is not null) await _map.SetPickAsync(_lat, _lng);
+    }
+
+    private async Task MapClicked(GeoPoint p)
+    {
+        (_lat, _lng) = (Math.Round(p.Latitude, 6), Math.Round(p.Longitude, 6));
+        if (_map is not null) await _map.SetPickAsync(_lat, _lng);
+    }
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (!Dirty) return;
+        if (await Dialogs.ShowMessageBoxAsync("Değişiklikler kaydedilmedi", "Şirket ayarlarında yaptığınız değişiklikler kaybolacak. Sayfadan çıkılsın mı?",
+                "Çık", cancelText: "Kalmaya devam et") != true) ctx.PreventNavigation();
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            _tenant = await Api.UpdateMyTenantAsync(new UpdateTenantSettingsRequest(_name ?? "", _lat, _lng, _brand, _logo));
+            (_name, _brand, _logo) = (_tenant.Name, _tenant.BrandColor, _tenant.LogoUrl);
+            await ThemeState.SetTenantAsync(Js, _tenant);
+            Snackbar.Add("Şirket ayarları kaydedildi.", Severity.Success);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+}

@@ -1,5 +1,5 @@
 @page "/field/tasks/{Id:guid}"
-@implements IDisposable
+@implements IAsyncDisposable
 @inject IFieldService Field
 @inject IGeolocationService Geo
 @inject ICameraService Camera
@@ -7,7 +7,7 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 
-<PageTitle>@(_task?.Title ?? "Görev") · WFM</PageTitle>
+<AppTitle Title="@(_task?.Title ?? "Görev")" />
 
 <SyncBanner />
 
@@ -15,7 +15,9 @@
 {
     @if (_loaded)
     {
-        <MudAlert Severity="Severity.Warning">Görev bulunamadı veya size atanmış değil.</MudAlert>
+        <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Görev bulunamadı" Text="Görev size atanmış değil ya da geri alınmış olabilir.">
+            <MudButton Href="/field" Variant="Variant.Outlined">Görevlerime dön</MudButton>
+        </EmptyState>
     }
     else
     {
@@ -26,35 +28,62 @@ else
 {
     var t = _task;
     <div class="d-flex align-center gap-2 mb-2">
-        <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" />
+        <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" Title="@t.TaskTypeName" />
         <div style="flex:1;min-width:0">
-            <MudText Typo="Typo.h6" Style="line-height:1.2">@t.Title</MudText>
+            <h1 class="mud-typography mud-typography-h6" style="line-height:1.2;margin:0" tabindex="-1">@t.Title</h1>
             <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName</MudText>
         </div>
         <StatusChip Status="t.Status" />
     </div>
+    <div class="d-flex flex-wrap gap-3 mb-2">
+        <PriorityLabel Priority="t.Priority" HideNormal />
+        <OverdueBadge Task="t" />
+    </div>
 
-    <MudPaper Elevation="1" Class="pa-2 mb-3" Style="height:220px">
-        <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+    @if (Arrived && t.Status == WorkTaskStatus.EnRoute)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-3" Icon="@Icons.Material.Filled.WhereToVote">
+            Görev konumuna ulaştınız (@Ui.Distance(_distance!.Value)).
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" Class="ml-2" OnClick="@(() => ChangeAsync(WorkTaskStatus.OnSite))" Disabled="_busy">Vardım</MudButton>
+        </MudAlert>
+    }
+
+    <MudPaper Elevation="1" Class="pa-2 mb-3">
+        <div style="height:220px">
+            <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+        </div>
+        @if (_distance is { } d)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1">Görev konumuna uzaklığınız: <b>@Ui.Distance(d)</b></MudText>
+        }
     </MudPaper>
 
     <MudPaper Elevation="1" Class="pa-3 mb-3">
-        <MudText Typo="Typo.body1">📍 @t.Address</MudText>
+        <div class="d-flex align-start gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Place" Color="Color.Secondary" aria-label="Adres" />
+            <MudText Typo="Typo.body1">@t.Address</MudText>
+        </div>
         @if (t.CustomerName is not null)
         {
-            <MudText Typo="Typo.body2" Class="mt-1">👤 @t.CustomerName</MudText>
+            <div class="d-flex align-center gap-2 mt-1">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Secondary" aria-label="Müşteri" />
+                <MudText Typo="Typo.body2">@t.CustomerName</MudText>
+            </div>
         }
         @if (t.ScheduledStart is not null)
         {
-            <MudText Typo="Typo.body2" Class="mt-1">🕑 @Ui.Local(t.ScheduledStart)@(t.ScheduledEnd is null ? "" : " – " + Ui.Local(t.ScheduledEnd, "HH:mm"))</MudText>
+            <div class="d-flex align-center gap-2 mt-1">
+                <MudIcon Icon="@Icons.Material.Filled.Schedule" Color="Color.Secondary" aria-label="Planlanan zaman" />
+                <MudText Typo="Typo.body2">@Ui.Local(t.ScheduledStart)@(t.ScheduledEnd is null ? "" : " – " + Ui.Local(t.ScheduledEnd, "HH:mm"))</MudText>
+            </div>
         }
         <div class="d-flex gap-2 mt-3">
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Directions" FullWidth
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Directions" FullWidth Size="Size.Large"
                        OnClick="@(() => External.OpenDirectionsAsync(t.Latitude, t.Longitude, t.Title))">Yol tarifi</MudButton>
             @if (!string.IsNullOrEmpty(t.CustomerPhone))
             {
-                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Phone" FullWidth
-                           OnClick="@(() => External.CallAsync(t.CustomerPhone))">Ara</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Phone" FullWidth Size="Size.Large"
+                           OnClick="@(() => External.CallAsync(t.CustomerPhone))">Müşteriyi ara</MudButton>
             }
         </div>
         @if (!string.IsNullOrWhiteSpace(t.Description))
@@ -72,24 +101,34 @@ else
     {
         @* ---------- Tamamlama ---------- *@
         <MudPaper Elevation="1" Class="pa-3 mb-3">
-            <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Görevi tamamla</b></MudText>
+            <MudText Typo="Typo.subtitle1" Class="mb-1"><b>Görevi tamamla</b></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">Tamamlamak için gerekenler:</MudText>
+            <ul class="wfm-checklist" aria-label="Tamamlama gereksinimleri">
+                @foreach (var item in Checklist)
+                {
+                    <li class="@(item.Done ? "ok" : "todo")">
+                        <MudIcon Icon="@(item.Done ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.Circle)" Size="Size.Small" aria-hidden="true" />
+                        <span>@item.Text</span><span class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">@(item.Done ? " tamam" : " eksik")</span>
+                    </li>
+                }
+            </ul>
 
             @if (ct.Fields.Any(f => f.FilledOnCompletion))
             {
-                <DynamicFieldForm Fields="ct.Fields.Where(f => f.FilledOnCompletion)" Values="_completionValues" />
+                <DynamicFieldForm Fields="ct.Fields.Where(f => f.FilledOnCompletion)" Values="_completionValues" ValuesChanged="StateHasChanged" ShowErrors="_tried" />
             }
 
             <MudText Typo="Typo.subtitle2" Class="mt-2">
                 Fotoğraflar @(MinPhotos > 0 ? $"(en az {MinPhotos})" : "")
             </MudText>
             <AttachmentGallery Attachments="t.Attachments.Where(a => a.Kind == AttachmentKind.Photo).ToList()" OnRemove="RemoveAttachmentAsync" Empty="Henüz fotoğraf yok." />
-            <div class="d-flex gap-2 mt-2 mb-3">
+            <div class="d-flex gap-2 mt-2 mb-3 flex-wrap">
                 @if (Camera.IsSupported)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PhotoCamera" OnClick="TakePhotoAsync" Disabled="_busy">Fotoğraf çek</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PhotoCamera" OnClick="TakePhotoAsync" Disabled="_busy" Size="Size.Large">Fotoğraf çek</MudButton>
                 }
                 <InputFile id="@_fileId" accept="image/*" OnChange="@(e => UploadPhotoAsync(e.File))" hidden />
-                <MudButton HtmlTag="label" for="@_fileId" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.AddPhotoAlternate" Disabled="_busy">@(Camera.IsSupported ? "Galeriden" : "Fotoğraf ekle")</MudButton>
+                <MudButton HtmlTag="label" for="@_fileId" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.AddPhotoAlternate" Disabled="_busy" Size="Size.Large">@(Camera.IsSupported ? "Galeriden" : "Fotoğraf ekle")</MudButton>
             </div>
 
             @if (ct.Completion.RequireSignature || HasSignature)
@@ -101,16 +140,12 @@ else
                 }
                 else
                 {
-                    <SignaturePad @ref="_signature" />
+                    <SignaturePad @ref="_signature" OnChange="SignatureChanged" />
                 }
             }
 
-            <MudTextField T="string" @bind-Value="_note" Label="@(ct.Completion.RequireNote ? "Not *" : "Not")" Variant="Variant.Outlined" Lines="3" Class="mt-3" />
-
-            @if (_errors.Count > 0)
-            {
-                <MudAlert Severity="Severity.Error" Dense Class="mt-2">@foreach (var e in _errors) { <div>@e</div> }</MudAlert>
-            }
+            <MudTextField T="string" @bind-Value="_note" Label="@(ct.Completion.RequireNote ? "Not *" : "Not (isteğe bağlı)")" Variant="Variant.Outlined" Lines="3" Class="mt-3" Immediate
+                          Error="@(_tried && ct.Completion.RequireNote && string.IsNullOrWhiteSpace(_note))" ErrorText="Not zorunlu" />
         </MudPaper>
     }
 
@@ -124,26 +159,52 @@ else
             }
             @if (!string.IsNullOrWhiteSpace(t.CompletionNote))
             {
-                <MudText Typo="Typo.body2" Class="mb-2" Style="white-space:pre-wrap">📝 @t.CompletionNote</MudText>
+                <MudText Typo="Typo.body2" Class="mb-2" Style="white-space:pre-wrap">@t.CompletionNote</MudText>
             }
             <AttachmentGallery Attachments="t.Attachments" Empty="Kanıt eklenmemiş." />
         </MudPaper>
     }
 
-    <div class="wfm-bottom-actions d-flex flex-wrap gap-2">
-        @foreach (var next in Actions)
-        {
-            var target = next;
-            <MudButton Variant="@(IsPrimary(target) ? Variant.Filled : Variant.Outlined)" Color="@ActionColor(target)" Size="Size.Large"
-                       Style="flex:1;min-width:140px" Disabled="_busy" OnClick="@(() => ChangeAsync(target))">
-                @if (_busy && IsPrimary(target))
+    @if (Actions.Any())
+    {
+        <div class="wfm-bottom-actions">
+            @if (_errors.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Dense Class="mb-2">@foreach (var e in _errors) { <div>@e</div> }</MudAlert>
+            }
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var next in Actions)
                 {
-                    <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                    var target = next;
+                    var blocked = target == WorkTaskStatus.Completed && !CanComplete;
+                    <MudButton Variant="@(IsPrimary(target) ? Variant.Filled : Variant.Outlined)" Color="@ActionColor(target)" Size="Size.Large"
+                               Style="@(IsPrimary(target) ? "flex:2;min-width:160px" : "flex:1;min-width:120px")" Disabled="@(_busy || blocked)" OnClick="@(() => ChangeAsync(target))">
+                        @if (_busy && IsPrimary(target))
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                        }
+                        @TaskStatusFlow.ActionName(target)
+                    </MudButton>
                 }
-                @TaskStatusFlow.ActionName(target)
-            </MudButton>
+            </div>
+            @if (Actions.Contains(WorkTaskStatus.Completed) && !CanComplete)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">Yukarıdaki eksikleri tamamlayınca "Tamamla" etkinleşir.</MudText>
+            }
+        </div>
+    }
+
+    <MudPaper Elevation="0" Outlined Class="pa-3 mt-3">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Dispeçerle mesajlaşma</MudText>
+        @if (Field.IsOnline)
+        {
+            <CommentThread TaskId="t.Id" CanPost="!Ui.IsClosed(t.Status)" Empty="Soru ya da bilgi için dispeçere buradan yazabilirsiniz." />
         }
-    </div>
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Mesajlar çevrimdışıyken kullanılamaz.</MudText>
+        }
+    </MudPaper>
 
     <MudPaper Elevation="0" Outlined Class="pa-3 mt-3">
         <MudText Typo="Typo.subtitle2" Class="mb-2">Geçmiş</MudText>
@@ -154,6 +215,8 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    private const double ArrivalMeters = 150;
+
     private WorkTaskDetailDto? _task;
     private TaskTypeDto? Type;
     private LeafletMap? _map;
@@ -161,11 +224,41 @@ else
     private readonly Dictionary<string, string?> _completionValues = [];
     private string? _note;
     private List<string> _errors = [];
-    private bool _busy, _loaded;
+    private bool _busy, _loaded, _tried, _signed;
+    private double? _distance;
+    private PeriodicTimer? _locTimer;
+    private readonly CancellationTokenSource _cts = new();
     private readonly string _fileId = "file-" + Guid.NewGuid().ToString("N")[..8];
 
+    private record CheckItem(string Text, bool Done);
+
     private bool HasSignature => _task?.Attachments.Any(a => a.Kind == AttachmentKind.Signature) == true;
+    private int PhotoCount => _task?.Attachments.Count(a => a.Kind == AttachmentKind.Photo) ?? 0;
     private int MinPhotos => Type is null ? 0 : Math.Max(Type.Completion.RequirePhoto ? 1 : 0, Type.Completion.MinPhotoCount);
+    private bool Arrived => _distance is { } d && d <= ArrivalMeters;
+
+    /// <summary>Görev tipinin tamamlama kurallarının canlı durumu (sunucu da aynı kuralları uygular).</summary>
+    private List<CheckItem> Checklist
+    {
+        get
+        {
+            var list = new List<CheckItem>();
+            if (Type is null) return list;
+            var c = Type.Completion;
+            foreach (var f in Type.Fields.Where(f => f.FilledOnCompletion && f.Required).OrderBy(f => f.Order))
+                list.Add(new($"{f.Label}", f.Type == FieldType.Checkbox ? _completionValues.GetValueOrDefault(f.Key) == "true" : !string.IsNullOrWhiteSpace(_completionValues.GetValueOrDefault(f.Key))));
+            if (MinPhotos > 0) list.Add(new($"Fotoğraf: {PhotoCount} / {MinPhotos}", PhotoCount >= MinPhotos));
+            if (c.RequireSignature) list.Add(new("Müşteri imzası", HasSignature || _signed));
+            if (c.RequireNote) list.Add(new("Tamamlama notu", !string.IsNullOrWhiteSpace(_note)));
+            if (c.MaxDistanceMeters > 0)
+                list.Add(new(_distance is { } d ? $"Görev konumuna en fazla {c.MaxDistanceMeters} m (şu an {Ui.Distance(d)})" : $"Görev konumuna en fazla {c.MaxDistanceMeters} m (konum alınıyor…)",
+                    _distance is { } dd && dd <= c.MaxDistanceMeters));
+            if (list.Count == 0) list.Add(new("Ek gereksinim yok", true));
+            return list;
+        }
+    }
+
+    private bool CanComplete => Checklist.All(i => i.Done);
 
     private IEnumerable<WorkTaskStatus> Actions => _task is null ? [] :
         TaskStatusFlow.NextStatuses(_task.Status).Where(TaskStatusFlow.IsFieldWorkerTransition)
@@ -184,6 +277,33 @@ else
         Field.Changed += OnChanged;
         await LoadAsync();
         _loaded = true;
+        _ = WatchLocationAsync();
+    }
+
+    /// <summary>Yolda ve yerindeyken konumu periyodik okuyup varış önerisini ve mesafe kuralını günceller.</summary>
+    private async Task WatchLocationAsync()
+    {
+        await UpdateDistanceAsync();
+        _locTimer = new PeriodicTimer(TimeSpan.FromSeconds(20));
+        try
+        {
+            while (await _locTimer.WaitForNextTickAsync(_cts.Token))
+                if (_task?.Status is WorkTaskStatus.EnRoute or WorkTaskStatus.OnSite) await UpdateDistanceAsync();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task UpdateDistanceAsync()
+    {
+        if (_task is null) return;
+        if (await Geo.GetCurrentAsync() is not { } me) return;
+        var wasArrived = Arrived;
+        _distance = Wfm.Domain.Entities.Geo.DistanceMeters(me.Latitude, me.Longitude, _task.Latitude, _task.Longitude);
+        if (_map is not null)
+            await _map.SetMarkersAsync("me", [new MapMarker("me", me.Latitude, me.Longitude, MapMarker.WorkerOnShift, "Ben", Title: "Konumunuz", Pulse: true)]);
+        if (!wasArrived && Arrived && _task.Status == WorkTaskStatus.EnRoute)
+            Snackbar.Add("Görev konumuna ulaştınız. 'Vardım' ile durumu güncelleyin.", Severity.Info);
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadAsync()
@@ -201,10 +321,12 @@ else
         await _map.SetMarkersAsync("task", [MapMarker.ForTask(_task)]);
         if (await Geo.GetCurrentAsync() is { } me)
         {
-            await _map.SetMarkersAsync("me", [new MapMarker("me", me.Latitude, me.Longitude, "#00897b", "Ben", Pulse: true)]);
+            await _map.SetMarkersAsync("me", [new MapMarker("me", me.Latitude, me.Longitude, MapMarker.WorkerOnShift, "Ben", Title: "Konumunuz", Pulse: true)]);
             await _map.FitAllAsync();
         }
     }
+
+    private void SignatureChanged(bool hasInk) => _signed = hasInk;
 
     private async Task ChangeAsync(WorkTaskStatus target)
     {
@@ -216,6 +338,13 @@ else
         {
             note = await AskReasonAsync(target == WorkTaskStatus.Rejected ? "Görevi reddet" : "Görev yapılamadı");
             if (note is null) return;
+        }
+        if (target == WorkTaskStatus.Completed)
+        {
+            _tried = true;
+            if (!CanComplete) return;
+            if (await Dialogs.ShowMessageBoxAsync("Görevi tamamla", "Görev tamamlandı olarak işaretlenecek ve kanıtlar gönderilecek. Bu işlem geri alınamaz.",
+                    "Tamamla", cancelText: "Vazgeç") != true) return;
         }
 
         _busy = true;
@@ -264,13 +393,11 @@ else
             await LoadAsync();
         }
 
-        double? distance = location is null ? null : Geo_Distance(location);
+        double? distance = location is null ? null : Wfm.Domain.Entities.Geo.DistanceMeters(location.Latitude, location.Longitude, _task.Latitude, _task.Longitude);
         _errors = TaskRules.ValidateCompletion(new TaskType { Fields = Type.Fields, Completion = Type.Completion }, _completionValues,
-            _task.Attachments.Count(a => a.Kind == AttachmentKind.Photo), HasSignature, _note, distance);
+            PhotoCount, HasSignature, _note, distance);
         return _errors.Count == 0;
     }
-
-    private double Geo_Distance(GeoPoint p) => Wfm.Domain.Entities.Geo.DistanceMeters(p.Latitude, p.Longitude, _task!.Latitude, _task.Longitude);
 
     private async Task<string?> AskReasonAsync(string title)
     {
@@ -332,6 +459,7 @@ else
         try
         {
             await Field.RemoveAttachmentAsync(_task.Id, a.Id);
+            if (a.Kind == AttachmentKind.Signature) _signed = false;
             await LoadAsync();
         }
         catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
@@ -344,5 +472,12 @@ else
         StateHasChanged();
     });
 
-    public void Dispose() => Field.Changed -= OnChanged;
+    public ValueTask DisposeAsync()
+    {
+        Field.Changed -= OnChanged;
+        _cts.Cancel();
+        _locTimer?.Dispose();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
 }

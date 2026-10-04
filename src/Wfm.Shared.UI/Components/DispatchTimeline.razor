@@ -1,0 +1,94 @@
+@* Günün görevlerini çalışan satırlarında saat eksenine yerleştirir (07:00–22:00). Bloğa tıklayınca görev açılır. *@
+@{
+    var now = DateTime.Now;
+    var showNow = Day.Date == now.Date && now.Hour >= StartHour && now.Hour < EndHour;
+}
+<div class="wfm-tl-scroll">
+    <div class="wfm-tl" role="table" aria-label="@($"{Day:d MMMM} zaman çizelgesi")">
+        <div class="wfm-tl-line wfm-tl-headrow" role="row">
+            <div class="wfm-tl-name" role="columnheader">Çalışan</div>
+            <div class="wfm-tl-track wfm-tl-hours" aria-hidden="true">
+                @for (var h = StartHour; h < EndHour; h++)
+                {
+                    <span style="left:@Pct((h - StartHour) * 60)%">@h.ToString("00"):00</span>
+                }
+            </div>
+        </div>
+        @foreach (var row in Rows)
+        {
+            var dayTasks = row.Tasks.Where(t => t.ScheduledStart is not null && Local(t.ScheduledStart).Date == Day.Date).OrderBy(t => t.ScheduledStart).ToList();
+            var unscheduled = row.Tasks.Count - dayTasks.Count;
+            var lanes = Lanes(dayTasks);
+            var laneCount = Math.Max(1, lanes.Count == 0 ? 1 : lanes.Values.Max() + 1);
+            <div class="wfm-tl-line" role="row">
+                <div class="wfm-tl-name" role="rowheader">
+                    <MudText Typo="Typo.body2" Class="wfm-ellipsis"><b>@row.Name</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display:block">
+                        @dayTasks.Count planlı@(unscheduled > 0 ? $" · {unscheduled} saatsiz/başka gün" : "")
+                    </MudText>
+                </div>
+                <div class="wfm-tl-track" style="height:@(laneCount * 34 + 8)px" role="cell">
+                    @if (showNow)
+                    {
+                        <div class="wfm-tl-now" style="left:@Pct((now.Hour - StartHour) * 60 + now.Minute)%" aria-label="Şu an"></div>
+                    }
+                    @foreach (var t in dayTasks)
+                    {
+                        var (left, width) = Span(t);
+                        var look = Ui.StatusLook(t.Status);
+                        <a href="/tasks/@t.Id" class="@(t.IsOverdue ? "wfm-tl-block overdue" : "wfm-tl-block")"
+                           style="left:@left%;width:@width%;top:@(lanes[t.Id] * 34 + 4)px;background:@look.Hex;color:@look.Fg"
+                           title="@($"{t.Title} · {Ui.Status(t.Status)} · {Ui.Local(t.ScheduledStart, "HH:mm")}{(t.ScheduledEnd is null ? "" : "–" + Ui.Local(t.ScheduledEnd, "HH:mm"))}{(t.IsOverdue ? " · gecikti" : "")}")"
+                           aria-label="@($"{t.Title}, {Ui.Status(t.Status)}, {Ui.Local(t.ScheduledStart, "HH:mm")}")">
+                            @Ui.Local(t.ScheduledStart, "HH:mm") @t.Title
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    public record Row(string Name, List<WorkTaskDto> Tasks);
+
+    [Parameter, EditorRequired] public List<Row> Rows { get; set; } = [];
+    [Parameter] public DateTime Day { get; set; } = DateTime.Today;
+
+    private const int StartHour = 7, EndHour = 22;
+    private const double TotalMinutes = (EndHour - StartHour) * 60;
+
+    private static DateTime Local(DateTime? utc) => DateTime.SpecifyKind(utc!.Value, DateTimeKind.Utc).ToLocalTime();
+
+    private static string Pct(double minutes) =>
+        Math.Clamp(minutes / TotalMinutes * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private (string Left, string Width) Span(WorkTaskDto t)
+    {
+        var start = Local(t.ScheduledStart);
+        var end = t.ScheduledEnd is null ? start.AddHours(1) : Local(t.ScheduledEnd);
+        var s = (start - Day.Date.AddHours(StartHour)).TotalMinutes;
+        var e = Math.Max(s + 30, (end - Day.Date.AddHours(StartHour)).TotalMinutes); // en az 30 dk genişlik
+        s = Math.Clamp(s, 0, TotalMinutes - 30);
+        e = Math.Clamp(e, s + 30, TotalMinutes);
+        return (Pct(s), Pct(e - s));
+    }
+
+    /// <summary>Çakışan görevleri alt alta şeritlere dağıtır.</summary>
+    private Dictionary<Guid, int> Lanes(List<WorkTaskDto> tasks)
+    {
+        var laneEnds = new List<DateTime>();
+        var result = new Dictionary<Guid, int>();
+        foreach (var t in tasks)
+        {
+            var start = Local(t.ScheduledStart);
+            var end = t.ScheduledEnd is null ? start.AddHours(1) : Local(t.ScheduledEnd);
+            if (end < start.AddMinutes(30)) end = start.AddMinutes(30);
+            var lane = laneEnds.FindIndex(x => x <= start);
+            if (lane < 0) { laneEnds.Add(end); lane = laneEnds.Count - 1; }
+            else laneEnds[lane] = end;
+            result[t.Id] = lane;
+        }
+        return result;
+    }
+}

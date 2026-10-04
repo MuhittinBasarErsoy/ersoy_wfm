@@ -8,25 +8,35 @@ namespace Wfm.Shared.UI.Components;
 public record MapMarker(string Id, double Lat, double Lng, string Color, string? Label = null, string? Title = null,
     string? Popup = null, bool Pulse = false)
 {
+    public const string WorkerOnShift = "#00897b";
+    public const string WorkerStale = "#ffa000";
+    public const string WorkerOffShift = "#9e9e9e";
+    public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(30);
+
     public static string E(string? s) => WebUtility.HtmlEncode(s ?? "");
+
+    public static bool IsStale(WorkerLocationDto w) => DateTime.UtcNow - w.RecordedAt > StaleAfter;
+
+    public static string WorkerColor(WorkerLocationDto w) => !w.OnShift ? WorkerOffShift : IsStale(w) ? WorkerStale : WorkerOnShift;
 
     public static MapMarker ForTask(WorkTaskDto t, string? link = null) => new(
         t.Id.ToString(), t.Latitude, t.Longitude, Ui.StatusHex(t.Status),
         Label: t.Priority >= Domain.Enums.TaskPriority.High ? "!" : null,
         Title: t.Title,
-        Popup: $"<b>{E(t.Title)}</b><br/>{E(t.TaskTypeName)} · {E(Ui.Status(t.Status))}<br/>{E(t.Address)}" +
-               (t.AssigneeName is null ? "" : $"<br/>👤 {E(t.AssigneeName)}") +
+        Popup: $"<b>{E(t.Title)}</b><br/>{E(t.TaskTypeName)} · {E(Ui.Status(t.Status))}" +
+               (t.IsOverdue ? " · <b style=\"color:#c62828\">Gecikti</b>" : "") +
+               $"<br/>{E(t.Address)}" +
+               (t.AssigneeName is null ? "<br/><i>Atanmadı</i>" : $"<br/>Atanan: {E(t.AssigneeName)}") +
                (link is null ? "" : $"<br/><a href=\"{link}\">Detay →</a>"));
 
     public static MapMarker ForWorker(WorkerLocationDto w)
     {
-        var stale = DateTime.UtcNow - w.RecordedAt > TimeSpan.FromMinutes(15);
-        return new(w.UserId.ToString(), w.Latitude, w.Longitude,
-            !w.OnShift ? "#9e9e9e" : stale ? "#ffa000" : "#00897b",
+        var stale = IsStale(w);
+        return new(w.UserId.ToString(), w.Latitude, w.Longitude, WorkerColor(w),
             Label: Ui.Initials(w.FullName), Title: w.FullName,
-            Popup: $"<b>{E(w.FullName)}</b><br/>{(w.OnShift ? "Mesaide" : "Mesai dışı")} · {E(Ui.Ago(w.RecordedAt))}" +
-                   (w.BatteryLevel is { } b ? $"<br/>🔋 %{b}" : "") +
-                   (w.ActiveTaskTitle is null ? "" : $"<br/>📋 {E(w.ActiveTaskTitle)}"),
+            Popup: $"<b>{E(w.FullName)}</b><br/>{(w.OnShift ? "Mesaide" : "Mesai dışı")} · son konum {E(Ui.Ago(w.RecordedAt))}" +
+                   (w.BatteryLevel is { } b ? $"<br/>Pil: %{b}" : "") +
+                   (w.ActiveTaskTitle is null ? "" : $"<br/>Aktif görev: {E(w.ActiveTaskTitle)}"),
             Pulse: w.OnShift && !stale);
     }
 }

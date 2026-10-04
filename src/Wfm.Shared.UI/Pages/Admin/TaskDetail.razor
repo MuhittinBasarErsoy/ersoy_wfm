@@ -6,14 +6,16 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
-
-<PageTitle>@(_task?.Title ?? "Görev") · WFM</PageTitle>
+@inject WfmJs Js
 
 @if (_task is null)
 {
+    <PageTitle>Görev · WFM</PageTitle>
     @if (_notFound)
     {
-        <MudAlert Severity="Severity.Warning">Görev bulunamadı.</MudAlert>
+        <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Görev bulunamadı" Text="Silinmiş olabilir ya da bu görevi görme yetkiniz yok.">
+            <MudButton Href="/tasks" Variant="Variant.Outlined">Görevlere dön</MudButton>
+        </EmptyState>
     }
     else
     {
@@ -23,29 +25,45 @@
 else
 {
     var t = _task;
-    <div class="d-flex align-center gap-3 mb-3 flex-wrap">
-        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/tasks" aria-label="Görevlere dön" />
-        <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" Title="@t.TaskTypeName" />
-        <div>
-            <MudText Typo="Typo.h5">@t.Title</MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName · oluşturuldu @Ui.Local(t.CreatedAt)</MudText>
-        </div>
-        <StatusChip Status="t.Status" />
-        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Ui.PriorityColor(t.Priority)">@Ui.Priority(t.Priority)</MudChip>
-        <MudSpacer />
-        @if (Me.Can(Policies.ManageTasks))
-        {
-            @if (IsOpen)
+    <PageHeader Title="@t.Title" BackHref="/tasks" BackLabel="Görevlere dön">
+        <Leading><TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" Title="@t.TaskTypeName" /></Leading>
+        <SubtitleContent>@t.TaskTypeName · oluşturuldu @Ui.Local(t.CreatedAt)</SubtitleContent>
+        <Badges>
+            <div class="d-flex align-center gap-2 flex-wrap">
+                <StatusChip Status="t.Status" />
+                <PriorityLabel Priority="t.Priority" />
+                <OverdueBadge Task="t" />
+            </div>
+        </Badges>
+        <Actions>
+            @if (Me.Can(Policies.ManageTasks))
             {
-                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit" OnClick="EditAsync">Düzenle</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Cancel" OnClick="CancelTaskAsync">İptal et</MudButton>
+                @if (IsOpen)
+                {
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Share" OnClick="ShareTrackingAsync">Müşteri takip linki</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="EditAsync">Düzenle</MudButton>
+                }
+                <MudMenu Icon="@Icons.Material.Filled.MoreVert" AriaLabel="Diğer işlemler" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem OnClick="PrintAsync" Icon="@Icons.Material.Filled.Print">Yazdır / PDF</MudMenuItem>
+                    @if (IsOpen)
+                    {
+                        <MudMenuItem OnClick="CancelTaskAsync" Icon="@Icons.Material.Filled.Cancel" IconColor="Color.Error">Görevi iptal et</MudMenuItem>
+                    }
+                    @if (t.Status is WorkTaskStatus.Draft or WorkTaskStatus.Cancelled)
+                    {
+                        <MudMenuItem OnClick="DeleteAsync" Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">Kalıcı olarak sil</MudMenuItem>
+                    }
+                </MudMenu>
             }
-            @if (t.Status is WorkTaskStatus.Draft or WorkTaskStatus.Cancelled)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="DeleteAsync" aria-label="Sil" />
-            }
-        }
-    </div>
+        </Actions>
+    </PageHeader>
+
+    @if (t.Status is WorkTaskStatus.Draft or WorkTaskStatus.Rejected && Me.Can(Policies.ManageTasks))
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3" Dense>
+            @(t.Status == WorkTaskStatus.Rejected ? "Görev çalışan tarafından reddedildi. Başka bir çalışana atayın." : "Görev henüz kimseye atanmadı.")
+        </MudAlert>
+    }
 
     <MudGrid Spacing="3">
         <MudItem xs="12" md="7">
@@ -55,7 +73,8 @@ else
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Atanan çalışan</MudText>
                         @if (Me.Can(Policies.ManageTasks) && IsOpen)
                         {
-                            <MudSelect T="Guid?" Value="t.AssigneeId" ValueChanged="AssignAsync" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Placeholder="Atanmadı">
+                            <MudSelect T="Guid?" Value="t.AssigneeId" ValueChanged="AssignAsync" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Placeholder="Atanmadı"
+                                       aria-label="Atanan çalışan">
                                 @foreach (var w in _workers.Where(w => w.IsActive))
                                 {
                                     <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
@@ -73,11 +92,23 @@ else
                     </MudItem>
                     <MudItem xs="12" sm="6">
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Müşteri</MudText>
-                        <MudText>@(t.CustomerName ?? "—") @(t.CustomerPhone is null ? "" : $"· {t.CustomerPhone}")</MudText>
+                        <MudText>
+                            @(t.CustomerName ?? "—")
+                            @if (t.CustomerPhone is not null)
+                            {
+                                <span> · <a href="tel:@t.CustomerPhone" style="color:var(--mud-palette-primary)">@t.CustomerPhone</a></span>
+                            }
+                        </MudText>
                     </MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Başlama / tamamlanma</MudText>
-                        <MudText>@Ui.Local(t.StartedAt) / @Ui.Local(t.CompletedAt)</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Yola çıkış / tamamlanma</MudText>
+                        <MudText>
+                            @Ui.Local(t.StartedAt) / @Ui.Local(t.CompletedAt)
+                            @if (t.StartedAt is { } st && t.CompletedAt is { } ct)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display:block">Süre: @Ui.Duration(ct - st)</MudText>
+                            }
+                        </MudText>
                     </MudItem>
                     <MudItem xs="12">
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Adres</MudText>
@@ -121,10 +152,23 @@ else
                 <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Fotoğraflar ve imza</b></MudText>
                 <AttachmentGallery Attachments="t.Attachments" Empty="Henüz kanıt yüklenmedi." />
             </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-3 wfm-no-print">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Çalışanla mesajlaşma</b></MudText>
+                <CommentThread TaskId="t.Id" CanPost="@(Me.Can(Policies.ManageTasks) && t.AssigneeId is not null)"
+                               Empty="@(t.AssigneeId is null ? "Görev atandığında çalışanla buradan yazışabilirsiniz." : "Henüz mesaj yok. Çalışana not ya da soru gönderebilirsiniz.")" />
+            </MudPaper>
         </MudItem>
         <MudItem xs="12" md="5">
-            <MudPaper Elevation="1" Class="pa-2 mb-3" Style="height:320px">
-                <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+            <MudPaper Elevation="1" Class="pa-2 mb-3">
+                <div style="height:320px">
+                    <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+                </div>
+                <div class="wfm-legend">
+                    <span><i style="background:@Ui.StatusHex(t.Status)"></i>Görev konumu</span>
+                    <span><i style="background:@MapMarker.WorkerOnShift"></i>Çalışanın son konumu</span>
+                    <span>• Durum değişikliğinin yapıldığı yer</span>
+                </div>
             </MudPaper>
             <MudPaper Elevation="1" Class="pa-4">
                 <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Görev geçmişi</b></MudText>
@@ -143,7 +187,7 @@ else
     private LeafletMap? _map;
     private bool _notFound;
 
-    private bool IsOpen => _task?.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed);
+    private bool IsOpen => _task is not null && !Ui.IsClosed(_task.Status);
 
     protected override async Task OnInitializedAsync()
     {
@@ -152,7 +196,7 @@ else
         if (Me.Can(Policies.ManageTasks))
         {
             _workers = await Api.GetUsersAsync(Roles.FieldWorker);
-            _types = await Api.GetTaskTypesAsync();
+            _types = await Api.GetTaskTypesAsync(includeInactive: true);
         }
     }
 
@@ -163,9 +207,10 @@ else
         try
         {
             _task = await Api.GetTaskAsync(Id);
+            _notFound = false;
             if (_map is not null) await DrawMapAsync();
         }
-        catch (ApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound)
+        catch (ApiException ex) when (ex.Status is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
         {
             _notFound = true;
         }
@@ -180,7 +225,7 @@ else
             .Select(e => new MapMarker(e.Id.ToString(), e.Latitude!.Value, e.Longitude!.Value, Ui.StatusHex(e.ToStatus), "•",
                 Popup: $"{MapMarker.E(Ui.Status(e.ToStatus))} · {MapMarker.E(Ui.Local(e.CreatedAt))}"));
         await _map.SetMarkersAsync("events", evPoints);
-        if (_task.AssigneeId is { } a && IsOpen)
+        if (_task.AssigneeId is { } a && IsOpen && Me.Can(Policies.ViewTracking))
         {
             var live = (await Api.GetLiveLocationsAsync()).FirstOrDefault(w => w.UserId == a);
             if (live is not null) await _map.SetMarkersAsync("worker", [MapMarker.ForWorker(live)]);
@@ -190,6 +235,21 @@ else
 
     private async Task AssignAsync(Guid? assignee)
     {
+        if (_task is null || assignee == _task.AssigneeId) return;
+        var name = _workers.FirstOrDefault(w => w.Id == assignee)?.FullName;
+        var inProgress = _task.Status is WorkTaskStatus.Accepted or WorkTaskStatus.EnRoute or WorkTaskStatus.OnSite;
+        var message = assignee is null
+            ? $"Görev {_task.AssigneeName} adlı çalışandan geri alınacak ve taslağa dönecek."
+            : _task.AssigneeId is null
+                ? $"Görev {name} adlı çalışana atanacak ve bildirim gönderilecek."
+                : $"Görev {_task.AssigneeName} yerine {name} adlı çalışana atanacak. İki çalışana da bildirim gider." +
+                  (inProgress ? " Görev şu an yürütülüyor; akış baştan başlayacak." : "");
+        if (await Dialogs.ShowMessageBoxAsync(assignee is null ? "Atamayı kaldır" : "Atamayı değiştir", message,
+                assignee is null ? "Kaldır" : "Ata", cancelText: "Vazgeç") != true)
+        {
+            StateHasChanged(); // seçimi eski değere döndür
+            return;
+        }
         try
         {
             await Api.AssignTaskAsync(Id, assignee);
@@ -205,20 +265,43 @@ else
         var parameters = new DialogParameters<TaskEditDialog>
         {
             { x => x.Existing, _task },
-            { x => x.Types, _types },
+            { x => x.Types, _types.Where(x => x.IsActive || x.Id == _task?.TaskTypeId).ToList() },
             { x => x.Workers, _workers },
             { x => x.Center, new GeoPoint(tenant.DefaultLatitude, tenant.DefaultLongitude) }
         };
-        var dialog = await Dialogs.ShowAsync<TaskEditDialog>(null, parameters, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+        var dialog = await Dialogs.ShowAsync<TaskEditDialog>(null, parameters, TaskEditDialog.Options);
         if (await dialog.Result is { Canceled: false }) await LoadAsync();
     }
 
-    private async Task CancelTaskAsync()
+    private async Task ShareTrackingAsync()
     {
-        if (await Dialogs.ShowMessageBoxAsync("Görevi iptal et", "Görev iptal edilecek ve çalışana bildirim gidecek. Emin misiniz?", "İptal et", cancelText: "Vazgeç") != true) return;
         try
         {
-            await Api.ChangeStatusAsync(Id, new ChangeStatusRequest { Status = WorkTaskStatus.Cancelled, Note = "Dispeçer tarafından iptal edildi" });
+            var link = await Api.CreateTrackingLinkAsync(Id);
+            var url = $"{await Js.Invoke<string>("origin")}/track/{link.Token}";
+            var text = $"{_task?.Title} görevinizi buradan takip edebilirsiniz";
+            if (await Js.Invoke<bool>("shareLink", _task?.Title ?? "Görev takibi", text, url)) return;
+            await Js.Invoke<bool>("copyText", url);
+            Snackbar.Add("Takip linki panoya kopyalandı. Müşteriye SMS ya da mesajla gönderebilirsiniz.", Severity.Success, o =>
+            {
+                o.Action = "Aç";
+                o.OnClick = _ => Js.Run("openUrl", url).AsTask();
+            });
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private Task PrintAsync() => Js.Run("print").AsTask();
+
+    private async Task CancelTaskAsync()
+    {
+        var note = await Prompt.AskAsync(Dialogs, "Görevi iptal et", "İptal nedeni (çalışan görecek)", "ör. Müşteri talebi ertelendi");
+        if (note is null) return;
+        try
+        {
+            await Api.ChangeStatusAsync(Id, new ChangeStatusRequest { Status = WorkTaskStatus.Cancelled, Note = note });
+            Snackbar.Add("Görev iptal edildi.", Severity.Success);
             await LoadAsync();
         }
         catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
@@ -226,10 +309,11 @@ else
 
     private async Task DeleteAsync()
     {
-        if (await Dialogs.ShowMessageBoxAsync("Görevi sil", "Görev ve ekleri kalıcı olarak silinecek.", "Sil", cancelText: "Vazgeç") != true) return;
+        if (await Dialogs.ShowMessageBoxAsync("Görevi kalıcı olarak sil", "Görev, geçmişi ve tüm ekleri silinecek. Bu işlem geri alınamaz.", "Sil", cancelText: "Vazgeç") != true) return;
         try
         {
             await Api.DeleteTaskAsync(Id);
+            Snackbar.Add("Görev silindi.", Severity.Success);
             Nav.NavigateTo("/tasks");
         }
         catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }

@@ -21,10 +21,13 @@
             }
         </MudSelect>
         <MudTextField T="string" @bind-Value="_password" Label="@(Existing is null ? "Parola *" : "Yeni parola (değiştirmek için)")" Variant="Variant.Outlined"
-                      InputType="InputType.Password" Class="mb-3" HelperText="En az 6 karakter, büyük/küçük harf ve rakam" />
+                      InputType="@(_showPassword ? InputType.Text : InputType.Password)" Class="mb-3" HelperText="En az 6 karakter, büyük/küçük harf ve rakam"
+                      Adornment="Adornment.End" AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                      OnAdornmentClick="@(() => _showPassword = !_showPassword)" AdornmentAriaLabel="@(_showPassword ? "Parolayı gizle" : "Parolayı göster")" autocomplete="new-password" />
         @if (Existing is not null)
         {
             <MudSwitch T="bool" @bind-Value="_active" Color="Color.Primary" Label="Hesap aktif" Disabled="IsSelf" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">@(IsSelf ? "Kendi hesabınızı pasifleştiremez veya rolünüzü değiştiremezsiniz." : "Pasif kullanıcı giriş yapamaz; geçmiş kayıtları korunur.")</MudText>
         }
         @if (_error is not null) { <MudAlert Severity="Severity.Error" Dense Class="mt-2">@_error</MudAlert> }
     </DialogContent>
@@ -43,7 +46,7 @@
     private string _name = "", _email = "", _role = Roles.FieldWorker;
     private string? _phone, _password, _error;
     private Guid? _teamId;
-    private bool _active = true, _busy;
+    private bool _active = true, _busy, _showPassword;
 
     private string RoleHelp => _role switch
     {

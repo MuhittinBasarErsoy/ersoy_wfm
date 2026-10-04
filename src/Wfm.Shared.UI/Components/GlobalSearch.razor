@@ -1,0 +1,121 @@
+@* Ctrl+K arama: görevler, kullanıcılar ve sayfalar. Enter ilk sonucu açar. *@
+@inject WfmApiClient Api
+@inject UserContext Me
+@inject NavigationManager Nav
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_text" @bind-Value:after="SearchAsync" Immediate DebounceInterval="250" AutoFocus
+                      Placeholder="Görev, adres, müşteri, kişi ya da sayfa ara…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" OnKeyDown="KeyAsync" aria-label="Ara" Class="mt-2" />
+        <div style="max-height:60vh;overflow:auto" class="mt-2" aria-live="polite">
+            @if (_busy)
+            {
+                <MudProgressLinear Indeterminate Size="Size.Small" />
+            }
+            @if (Results.Count == 0 && !_busy && !string.IsNullOrWhiteSpace(_text))
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-3">Sonuç yok.</MudText>
+            }
+            @foreach (var group in Results.GroupBy(r => r.Group))
+            {
+                <MudText Typo="Typo.overline" Color="Color.Secondary" Class="px-2">@group.Key</MudText>
+                @foreach (var r in group)
+                {
+                    <Tap Class="wfm-row px-2" OnClick="@(() => Go(r.Href))">
+                        <MudIcon Icon="@r.Icon" Size="Size.Small" Color="Color.Secondary" />
+                        <div style="flex:1;min-width:0">
+                            <MudText Typo="Typo.body2" Class="wfm-ellipsis"><b>@r.Title</b></MudText>
+                            @if (r.Subtitle is not null)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="wfm-ellipsis" Style="display:block">@r.Subtitle</MudText>
+                            }
+                        </div>
+                        @if (r.Status is { } s)
+                        {
+                            <StatusChip Status="s" />
+                        }
+                    </Tap>
+                }
+            }
+        </div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-2 mb-1">Enter: ilk sonucu aç · Esc: kapat</MudText>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private record Hit(string Group, string Icon, string Title, string? Subtitle, string Href, WorkTaskStatus? Status = null);
+
+    private string? _text;
+    private bool _busy;
+    private List<Hit> _tasks = [];
+    private List<UserDto>? _users;
+    private List<Hit> Results => [.. PageHits(), .. _tasks, .. UserHits()];
+
+    private IEnumerable<Hit> PageHits()
+    {
+        var all = new List<Hit>
+        {
+            new("Sayfalar", Icons.Material.Filled.Dashboard, "Genel bakış", null, "/dashboard"),
+        };
+        if (Me.Can(Policies.ViewTracking))
+        {
+            all.Add(new("Sayfalar", Icons.Material.Filled.Map, "Canlı harita", null, "/map"));
+            all.Add(new("Sayfalar", Icons.Material.Filled.ViewKanban, "Dispeç panosu", null, "/board"));
+            all.Add(new("Sayfalar", Icons.Material.Filled.Assignment, "Görevler", null, "/tasks"));
+            all.Add(new("Sayfalar", Icons.Material.Filled.AlarmOn, "Geciken görevler", null, "/tasks?overdue=1"));
+        }
+        if (Me.Can(Policies.ManageTasks)) all.Add(new("Sayfalar", Icons.Material.Filled.Add, "Yeni görev oluştur", null, "/tasks?new=1"));
+        if (Me.Can(Policies.ViewReports)) all.Add(new("Sayfalar", Icons.Material.Filled.BarChart, "Raporlar", null, "/reports"));
+        if (Me.Can(Policies.ManageTaskTypes)) all.Add(new("Sayfalar", Icons.Material.Filled.Category, "Görev tipleri", null, "/task-types"));
+        if (Me.Can(Policies.ManageUsers))
+        {
+            all.Add(new("Sayfalar", Icons.Material.Filled.People, "Kullanıcılar ve ekipler", null, "/users"));
+            all.Add(new("Sayfalar", Icons.Material.Filled.Settings, "Şirket ayarları", null, "/settings"));
+        }
+        all.Add(new("Sayfalar", Icons.Material.Filled.Person, "Profil ve parola", null, "/profile"));
+        all.Add(new("Sayfalar", Icons.Material.Filled.Notifications, "Bildirimler", null, "/notifications"));
+        if (string.IsNullOrWhiteSpace(_text)) return all.Take(6);
+        return all.Where(h => h.Title.Contains(_text.Trim(), StringComparison.CurrentCultureIgnoreCase));
+    }
+
+    private IEnumerable<Hit> UserHits()
+    {
+        if (_users is null || string.IsNullOrWhiteSpace(_text) || _text.Trim().Length < 2) return [];
+        var q = _text.Trim();
+        return _users.Where(u => u.FullName.Contains(q, StringComparison.CurrentCultureIgnoreCase) || u.Email.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Take(5)
+            .Select(u => new Hit("Kişiler", Icons.Material.Filled.Person, u.FullName,
+                $"{string.Join(", ", u.Roles.Select(Roles.DisplayName))} · {u.Email}",
+                u.Roles.Contains(Roles.FieldWorker) ? $"/tasks?assignee={u.Id}" : Me.Can(Policies.ManageUsers) ? "/users" : "/tasks"));
+    }
+
+    private async Task SearchAsync()
+    {
+        var q = _text?.Trim();
+        if (string.IsNullOrEmpty(q) || q.Length < 2) { _tasks = []; return; }
+        _busy = true;
+        try
+        {
+            _users ??= Me.Can(Policies.ViewTracking) ? await Api.GetUsersAsync() : [];
+            var res = await Api.GetTasksAsync(new TaskQuery { Search = q, PageSize = 8, Sort = "updated", Desc = true });
+            _tasks = res.Items.Select(t => new Hit("Görevler", Icons.Material.Filled.Assignment, t.Title,
+                $"{t.TaskTypeName} · {t.Address}{(t.CustomerName is null ? "" : " · " + t.CustomerName)}", $"/tasks/{t.Id}", t.Status)).ToList();
+        }
+        catch (ApiException) { _tasks = []; }
+        finally { _busy = false; }
+    }
+
+    private void KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Results.FirstOrDefault() is { } first) Go(first.Href);
+    }
+
+    private void Go(string href)
+    {
+        Dialog.Close();
+        Nav.NavigateTo(href);
+    }
+}

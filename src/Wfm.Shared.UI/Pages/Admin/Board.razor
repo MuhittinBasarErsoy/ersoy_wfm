@@ -1,0 +1,254 @@
+@page "/board"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    <PageHeader Title="Dispeç panosu"
+                Subtitle="@(CanManage ? "Görev kartını bir çalışanın sütununa sürükleyerek atayın; klavyeyle kartın menüsünü kullanın." : "Açık görevlerin çalışanlara dağılımı")">
+        <Actions>
+            <MudToggleGroup T="string" @bind-Value="_view" Size="Size.Small" Outlined aria-label="Görünüm">
+                <MudToggleItem Value="@("kanban")"><MudIcon Icon="@Icons.Material.Filled.ViewKanban" Size="Size.Small" Class="mr-1" />Pano</MudToggleItem>
+                <MudToggleItem Value="@("timeline")"><MudIcon Icon="@Icons.Material.Filled.ViewTimeline" Size="Size.Small" Class="mr-1" />Zaman çizelgesi</MudToggleItem>
+            </MudToggleGroup>
+            <MudSelect T="string" @bind-Value="_range" Label="Planlanan" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:150px">
+                <MudSelectItem T="string" Value="@("today")">Bugün</MudSelectItem>
+                <MudSelectItem T="string" Value="@("tomorrow")">Yarın</MudSelectItem>
+                @if (_view == "kanban")
+                {
+                    <MudSelectItem T="string" Value="@("all")">Tüm açık görevler</MudSelectItem>
+                }
+            </MudSelect>
+            @if (_teams.Count > 0)
+            {
+                <MudSelect T="Guid?" @bind-Value="_team" Label="Ekip" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Style="min-width:150px">
+                    @foreach (var t in _teams)
+                    {
+                        <MudSelectItem T="Guid?" Value="t.Id">@t.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            <MudSwitch T="bool" @bind-Value="_onlyOnShift" Label="Yalnız mesaidekiler" Color="Color.Primary" />
+            @if (CanManage)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/tasks?new=1">Yeni görev</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    @if (!_loaded)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else if (_view == "timeline")
+    {
+        <MudPaper Elevation="1" Class="pa-2">
+            <DispatchTimeline Day="@(_range == "tomorrow" ? DateTime.Today.AddDays(1) : DateTime.Today)" Rows="TimelineRows" />
+        </MudPaper>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">
+            Kırmızı dikey çizgi şu anı, kırmızı çerçeve gecikmeyi gösterir. Atamayı değiştirmek için "Pano" görünümünü ya da görev detayını kullanın.
+        </MudText>
+    }
+    else
+    {
+        <MudDropContainer T="WorkTaskDto" @ref="_container" Items="Visible" ItemsSelector="@((item, zone) => ZoneOf(item) == zone)"
+                          ItemDropped="DroppedAsync" ItemDisabled="@(_ => !CanManage || _busy)" Class="wfm-board">
+            <ChildContent>
+                <div class="wfm-board-col" aria-label="Atanmamış görevler">
+                    <div class="d-flex align-center gap-2 mb-2 px-1">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonOff" Size="Size.Small" Color="Color.Warning" aria-hidden="true" />
+                        <MudText Typo="Typo.subtitle2" Style="flex:1"><b>Atanmamış</b></MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@(CountIn(Unassigned) > 0 ? Color.Warning : Color.Default)">@CountIn(Unassigned)</MudChip>
+                    </div>
+                    <MudDropZone T="WorkTaskDto" Identifier="@Unassigned" />
+                </div>
+                @foreach (var w in Columns)
+                {
+                    var live = _live.FirstOrDefault(l => l.UserId == w.Id);
+                    var zone = w.Id.ToString();
+                    <div class="wfm-board-col" aria-label="@($"{w.FullName} görevleri")">
+                        <div class="d-flex align-center gap-2 mb-2 px-1">
+                            <MudAvatar Size="Size.Small" Style="@($"background:{(live is null ? MapMarker.WorkerOffShift : MapMarker.WorkerColor(live))};color:#fff")">@Ui.Initials(w.FullName)</MudAvatar>
+                            <div style="flex:1;min-width:0">
+                                <MudText Typo="Typo.subtitle2" Class="wfm-ellipsis"><b>@w.FullName</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display:block">
+                                    @(live is null ? "Konum yok" : live.OnShift ? (MapMarker.IsStale(live) ? $"Mesaide · konum {Ui.Ago(live.RecordedAt)}" : "Mesaide") : "Mesai dışı")
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Size="Size.Small">@CountIn(zone)</MudChip>
+                        </div>
+                        <MudDropZone T="WorkTaskDto" Identifier="@zone" />
+                    </div>
+                }
+            </ChildContent>
+            <ItemRenderer>
+                <MudPaper Elevation="1" Class="wfm-board-card" Style="@($"border-left:4px solid {context.TaskTypeColor}")">
+                    <div class="d-flex align-start gap-1">
+                        <div style="flex:1;min-width:0">
+                            <a href="/tasks/@context.Id" class="mud-typography mud-typography-body2" style="color:inherit;text-decoration:none;display:block"><b>@context.Title</b></a>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="wfm-ellipsis" Style="display:block">@context.Address</MudText>
+                        </div>
+                        @if (CanManage)
+                        {
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense AriaLabel="@($"{context.Title} için ata")" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                <MudMenuItem Disabled>Ata:</MudMenuItem>
+                                @foreach (var w in _workers.Where(w => w.IsActive && w.Id != context.AssigneeId))
+                                {
+                                    <MudMenuItem OnClick="@(() => AssignAsync(context, w.Id))">@w.FullName</MudMenuItem>
+                                }
+                                @if (context.AssigneeId is not null)
+                                {
+                                    <MudDivider />
+                                    <MudMenuItem OnClick="@(() => AssignAsync(context, null))">Atamayı kaldır</MudMenuItem>
+                                }
+                            </MudMenu>
+                        }
+                    </div>
+                    <div class="d-flex flex-wrap align-center gap-2 mt-1">
+                        <StatusChip Status="context.Status" />
+                        @if (context.ScheduledStart is not null)
+                        {
+                            <MudText Typo="Typo.caption">@Ui.Local(context.ScheduledStart, _range == "all" ? "dd.MM HH:mm" : "HH:mm")</MudText>
+                        }
+                        <PriorityLabel Priority="context.Priority" HideNormal />
+                        <OverdueBadge Task="context" Compact />
+                    </div>
+                </MudPaper>
+            </ItemRenderer>
+        </MudDropContainer>
+        @if (Columns.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Filtreye uyan saha çalışanı yok.</MudText>
+        }
+    }
+</RequirePolicy>
+
+@code {
+    private const string Unassigned = "unassigned";
+
+    private MudDropContainer<WorkTaskDto>? _container;
+    private List<WorkTaskDto> _tasks = [];
+    private List<UserDto> _workers = [];
+    private List<TeamDto> _teams = [];
+    private List<WorkerLocationDto> _live = [];
+    private string _range = "today";
+    private string _view = "kanban";
+
+    private List<DispatchTimeline.Row> TimelineRows =>
+        [new("Atanmamış", Visible.Where(t => ZoneOf(t) == Unassigned).ToList()),
+         .. Columns.Select(w => new DispatchTimeline.Row(w.FullName, Visible.Where(t => ZoneOf(t) == w.Id.ToString()).ToList()))];
+    private Guid? _team;
+    private bool _onlyOnShift, _loaded, _busy;
+
+    private bool CanManage => Me.Can(Policies.ManageTasks);
+
+    private List<WorkTaskDto> Visible => _tasks.Where(InRange).Where(t => ZoneOf(t) == Unassigned || Columns.Any(c => c.Id == t.AssigneeId))
+        .OrderByDescending(t => t.IsOverdue).ThenByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt).ToList();
+
+    private List<UserDto> Columns => _workers.Where(w => w.IsActive)
+        .Where(w => _team is null || w.TeamId == _team)
+        .Where(w => !_onlyOnShift || _live.Any(l => l.UserId == w.Id && l.OnShift))
+        .OrderByDescending(w => _live.Any(l => l.UserId == w.Id && l.OnShift)).ThenBy(w => w.FullName).ToList();
+
+    private bool InRange(WorkTaskDto t)
+    {
+        if (_range == "all") return true;
+        var day = _range == "tomorrow" ? DateTime.Today.AddDays(1) : DateTime.Today;
+        var local = (t.ScheduledStart ?? t.CreatedAt).ToLocalTime().Date;
+        // Bugün görünümünde geçmiş günlerden kalan açık görevler de gösterilir.
+        return _range == "today" ? local <= day : local == day;
+    }
+
+    private static string ZoneOf(WorkTaskDto t) =>
+        t.AssigneeId is null || t.Status is WorkTaskStatus.Draft or WorkTaskStatus.Rejected ? Unassigned : t.AssigneeId.Value.ToString();
+
+    private int CountIn(string zone) => Visible.Count(t => ZoneOf(t) == zone);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tasks = Api.GetAllTasksAsync(new TaskQuery { OnlyOpen = true }, 2000);
+        var workers = Api.GetUsersAsync(Roles.FieldWorker);
+        var live = Api.GetLiveLocationsAsync();
+        var teams = Me.Can(Policies.ManageUsers) ? Api.GetTeamsAsync() : Task.FromResult(new List<TeamDto>());
+        _tasks = await tasks;
+        _workers = await workers;
+        _live = await live;
+        try { _teams = await teams; } catch (ApiException) { _teams = []; }
+        _loaded = true;
+        Realtime.TaskChanged += OnTaskChanged;
+        Realtime.LocationUpdated += OnLocation;
+    }
+
+    private async Task DroppedAsync(MudItemDropInfo<WorkTaskDto> info)
+    {
+        if (info.Item is not { } task) return;
+        Guid? target = info.DropzoneIdentifier == Unassigned ? null : Guid.Parse(info.DropzoneIdentifier);
+        if (ZoneOf(task) == info.DropzoneIdentifier) return;
+        await AssignAsync(task, target);
+    }
+
+    private async Task AssignAsync(WorkTaskDto task, Guid? target)
+    {
+        var previous = task.AssigneeId;
+        _busy = true;
+        try
+        {
+            var updated = await Api.AssignTaskAsync(task.Id, target);
+            Replace(updated);
+            var name = target is null ? null : _workers.FirstOrDefault(w => w.Id == target)?.FullName;
+            Snackbar.Add(target is null ? $"'{task.Title}' ataması kaldırıldı." : $"'{task.Title}' → {name}", Severity.Success, o =>
+            {
+                o.Action = "Geri al";
+                o.OnClick = async _ =>
+                {
+                    try
+                    {
+                        Replace(await Api.AssignTaskAsync(task.Id, previous));
+                        await InvokeAsync(() => { _container?.Refresh(); StateHasChanged(); });
+                    }
+                    catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+                };
+            });
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+            _container?.Refresh();
+            StateHasChanged();
+        }
+    }
+
+    private void Replace(WorkTaskDto t)
+    {
+        _tasks.RemoveAll(x => x.Id == t.Id);
+        if (!Ui.IsClosed(t.Status)) _tasks.Add(t);
+    }
+
+    private void OnTaskChanged(WorkTaskDto t) => _ = InvokeAsync(() =>
+    {
+        if (_busy) return;
+        Replace(t);
+        _container?.Refresh();
+        StateHasChanged();
+    });
+
+    private void OnLocation(WorkerLocationDto w) => _ = InvokeAsync(() =>
+    {
+        _live.RemoveAll(x => x.UserId == w.UserId);
+        _live.Add(w);
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Realtime.TaskChanged -= OnTaskChanged;
+        Realtime.LocationUpdated -= OnLocation;
+    }
+}

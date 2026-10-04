@@ -41,6 +41,25 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task LogoutAsync(string refreshToken) => Send(HttpMethod.Post, "/api/auth/logout", new RefreshRequest(refreshToken));
     public Task<UserDto> MeAsync() => Get<UserDto>("/api/auth/me");
     public Task<TenantDto> MyTenantAsync() => Get<TenantDto>("/api/auth/tenant");
+    public Task<TenantDto> UpdateMyTenantAsync(UpdateTenantSettingsRequest req) => Put<TenantDto>("/api/auth/tenant", req);
+    public Task<UserDto> UpdateProfileAsync(UpdateProfileRequest req) => Put<UserDto>("/api/auth/me", req);
+    public Task ChangePasswordAsync(ChangePasswordRequest req) => Send(HttpMethod.Post, "/api/auth/change-password", req);
+    public Task ForgotPasswordAsync(string email) => Send(HttpMethod.Post, "/api/auth/forgot-password", new ForgotPasswordRequest(email));
+    public Task<PublicTenantBrandDto> GetBrandAsync(string slug) => Get<PublicTenantBrandDto>($"/api/public/brand/{Uri.EscapeDataString(slug)}");
+
+    public async Task<TenantDto> UploadLogoAsync(Stream content, string fileName, string contentType)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new StreamContent(content);
+        file.Headers.ContentType = new(contentType);
+        form.Add(file, "file", fileName);
+        return await Read<TenantDto>(() => http.PostAsync("/api/auth/tenant/logo", form));
+    }
+
+    // ---------- Kayıtlı filtreler ----------
+    public Task<List<SavedFilterDto>> GetSavedFiltersAsync() => Get<List<SavedFilterDto>>("/api/saved-filters");
+    public Task<SavedFilterDto> SaveFilterAsync(SaveFilterRequest req) => Post<SavedFilterDto>("/api/saved-filters", req);
+    public Task DeleteSavedFilterAsync(Guid id) => Send(HttpMethod.Delete, $"/api/saved-filters/{id}", null);
 
     // ---------- Tenants ----------
     public Task<List<TenantDto>> GetTenantsAsync() => Get<List<TenantDto>>("/api/tenants");
@@ -67,6 +86,8 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<PagedResult<WorkTaskDto>> GetTasksAsync(TaskQuery q)
     {
         var qs = new List<string> { $"page={q.Page}", $"pageSize={q.PageSize}", $"onlyOpen={q.OnlyOpen}" };
+        if (q.Overdue) qs.Add("overdue=true");
+        if (!string.IsNullOrEmpty(q.Sort)) qs.Add($"sort={Uri.EscapeDataString(q.Sort)}&desc={q.Desc}");
         if (q.Statuses is { Count: > 0 }) qs.AddRange(q.Statuses.Select(s => $"statuses={s}"));
         if (q.AssigneeId is { } a) qs.Add($"assigneeId={a}");
         if (q.TaskTypeId is { } t) qs.Add($"taskTypeId={t}");
@@ -81,6 +102,25 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<WorkTaskDto> AssignTaskAsync(Guid id, Guid? assigneeId) => Post<WorkTaskDto>($"/api/tasks/{id}/assign", new AssignRequest(assigneeId));
     public Task<WorkTaskDto> ChangeStatusAsync(Guid id, ChangeStatusRequest req) => Post<WorkTaskDto>($"/api/tasks/{id}/status", req);
     public Task DeleteTaskAsync(Guid id) => Send(HttpMethod.Delete, $"/api/tasks/{id}", null);
+    public Task<TrackingLinkDto> CreateTrackingLinkAsync(Guid id) => Post<TrackingLinkDto>($"/api/tasks/{id}/tracking-link", null);
+    public Task<List<TaskCommentDto>> GetCommentsAsync(Guid taskId) => Get<List<TaskCommentDto>>($"/api/tasks/{taskId}/comments");
+    public Task<TaskCommentDto> AddCommentAsync(Guid taskId, string body) => Post<TaskCommentDto>($"/api/tasks/{taskId}/comments", new AddCommentRequest(body));
+    public Task<PublicTrackingDto> GetPublicTrackingAsync(string token) => Get<PublicTrackingDto>($"/api/public/track/{Uri.EscapeDataString(token)}");
+
+    /// <summary>Filtreye uyan tüm görevleri sayfa sayfa çeker (dışa aktarma için, en fazla <paramref name="max"/>).</summary>
+    public async Task<List<WorkTaskDto>> GetAllTasksAsync(TaskQuery q, int max = 5000)
+    {
+        var all = new List<WorkTaskDto>();
+        var page = q with { Page = 1, PageSize = 500 };
+        while (all.Count < max)
+        {
+            var res = await GetTasksAsync(page);
+            all.AddRange(res.Items);
+            if (res.Items.Count < page.PageSize || all.Count >= res.Total) break;
+            page = page with { Page = page.Page + 1 };
+        }
+        return all;
+    }
 
     public async Task<AttachmentDto> UploadAttachmentAsync(Guid taskId, Stream content, string fileName, string contentType,
         AttachmentKind kind, double? lat, double? lng, DateTime? capturedAt, Guid? clientId)
@@ -112,8 +152,11 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<List<NotificationDto>> GetNotificationsAsync(bool unreadOnly = false) =>
         Get<List<NotificationDto>>($"/api/notifications?unreadOnly={unreadOnly}");
     public Task MarkNotificationsReadAsync() => Send(HttpMethod.Post, "/api/notifications/read-all", null);
+    public Task MarkNotificationReadAsync(Guid id) => Send(HttpMethod.Post, $"/api/notifications/{id}/read", null);
     public Task<SyncResponse> SyncAsync() => Get<SyncResponse>("/api/sync");
     public Task<ReportSummaryDto> GetReportAsync(int days = 30) => Get<ReportSummaryDto>($"/api/reports/summary?days={days}");
+    public Task<ReportSummaryDto> GetReportAsync(DateOnly from, DateOnly to) =>
+        Get<ReportSummaryDto>($"/api/reports/summary?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
 
     // ---------- HTTP yardımcıları ----------
     private Task<T> Get<T>(string url) => Read<T>(() => http.GetAsync(url));

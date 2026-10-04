@@ -137,7 +137,7 @@ export function getPosition() {
 // ---------- İmza alanı ----------
 const pads = new Map();
 
-export function initSignature(canvasId) {
+export function initSignature(canvasId, dotnetRef) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const ratio = window.devicePixelRatio || 1;
@@ -163,7 +163,10 @@ export function initSignature(canvasId) {
         ctx.lineTo(...pos(e)); ctx.stroke();
         e.preventDefault();
     });
-    const end = () => { state.drawing = false; };
+    const end = () => {
+        if (state.drawing && !state.empty) dotnetRef?.invokeMethodAsync('OnInk');
+        state.drawing = false;
+    };
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     pads.set(canvasId, state);
@@ -191,7 +194,7 @@ export function getSignature(canvasId) {
 }
 
 export function openUrl(url) {
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener');
 }
 
 // ---------- Tarayıcı konum takibi (web'den çalışan saha personeli için) ----------
@@ -206,4 +209,130 @@ export function startWatch(dotnetRef) {
 
 export function stopWatch(id) {
     if (id >= 0 && navigator.geolocation) navigator.geolocation.clearWatch(id);
+}
+
+// ---------- Cihaz depolaması (tema, kayıtlı filtreler) ----------
+export function storageGet(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+}
+
+export function storageSet(key, value) {
+    try {
+        if (value === null || value === undefined) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+    } catch { /* gizli pencere vb. */ }
+}
+
+// ---------- Dosya indirme / panoya kopyalama / paylaşma ----------
+export function downloadText(fileName, content, mime) {
+    // Excel'in Türkçe karakterleri doğru okuması için UTF-8 BOM.
+    const blob = new Blob(['﻿' + content], { type: mime || 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy'); ta.remove();
+        return ok;
+    }
+}
+
+/** Sistem paylaşım menüsü varsa onu açar; yoksa false döner (çağıran panoya kopyalar). */
+export async function shareLink(title, text, url) {
+    // Masaüstünde sistem paylaşım penceresi yerine panoya kopyalanır; yalnızca dokunmatik cihazda paylaşım menüsü.
+    if (!navigator.share || !window.matchMedia('(pointer: coarse)').matches) return false;
+    try { await navigator.share({ title, text, url }); return true; } catch { return false; }
+}
+
+export function origin() {
+    return window.location.origin;
+}
+
+// ---------- Kısayollar (Ctrl+K / "/" ile arama) ----------
+let hotkeyHandler = null;
+export function registerHotkeys(dotnetRef) {
+    unregisterHotkeys();
+    hotkeyHandler = e => {
+        const tag = (e.target && e.target.tagName) || '';
+        const typing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable);
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            dotnetRef.invokeMethodAsync('OnHotkey', 'search');
+        } else if (e.key === '/' && !typing) {
+            e.preventDefault();
+            dotnetRef.invokeMethodAsync('OnHotkey', 'search');
+        }
+    };
+    document.addEventListener('keydown', hotkeyHandler);
+}
+
+export function unregisterHotkeys() {
+    if (hotkeyHandler) document.removeEventListener('keydown', hotkeyHandler);
+    hotkeyHandler = null;
+}
+
+// ---------- Aşağı çekerek yenileme (mobil) ----------
+const pulls = new Map();
+export function registerPullToRefresh(elementId, dotnetRef) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const threshold = 70;
+    let startY = null, dy = 0;
+    const indicator = el.querySelector('.wfm-pull-indicator');
+    const scroller = () => document.scrollingElement || document.documentElement;
+    const onStart = e => { startY = scroller().scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0; };
+    const onMove = e => {
+        if (startY === null) return;
+        dy = Math.max(0, e.touches[0].clientY - startY);
+        if (indicator) {
+            indicator.style.height = Math.min(dy * 0.5, 56) + 'px';
+            indicator.classList.toggle('ready', dy > threshold);
+        }
+    };
+    const onEnd = () => {
+        if (startY !== null && dy > threshold) dotnetRef.invokeMethodAsync('OnPullRefresh');
+        startY = null; dy = 0;
+        if (indicator) { indicator.style.height = '0px'; indicator.classList.remove('ready'); }
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onEnd);
+    pulls.set(elementId, { el, onStart, onMove, onEnd });
+}
+
+export function unregisterPullToRefresh(elementId) {
+    const p = pulls.get(elementId);
+    if (!p) return;
+    p.el.removeEventListener('touchstart', p.onStart);
+    p.el.removeEventListener('touchmove', p.onMove);
+    p.el.removeEventListener('touchend', p.onEnd);
+    pulls.delete(elementId);
+}
+
+export function scrollToBottom(elementId) {
+    const el = document.getElementById(elementId);
+    if (el) el.scrollTop = el.scrollHeight;
+}
+
+export function print() {
+    window.print();
+}
+
+export function downloadBytes(fileName, base64, mime) {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

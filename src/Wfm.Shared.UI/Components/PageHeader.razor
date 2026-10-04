@@ -1,0 +1,32 @@
+@* Sayfa başlığı: h1 (odak ve ekran okuyucu için), isteğe bağlı geri butonu, alt başlık ve eylemler. *@
+<PageTitle>@Title · WFM</PageTitle>
+<div class="wfm-page-header">
+    @if (BackHref is not null)
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="@BackHref" aria-label="@BackLabel" Edge="Edge.Start" />
+    }
+    @Leading
+    <div style="min-width:0">
+        <h1 tabindex="-1">@Title</h1>
+        @if (Subtitle is not null || SubtitleContent is not null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@Subtitle@SubtitleContent</MudText>
+        }
+    </div>
+    @Badges
+    @if (Actions is not null)
+    {
+        <div class="wfm-page-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? SubtitleContent { get; set; }
+    [Parameter] public string? BackHref { get; set; }
+    [Parameter] public string BackLabel { get; set; } = "Geri";
+    [Parameter] public RenderFragment? Leading { get; set; }
+    [Parameter] public RenderFragment? Badges { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

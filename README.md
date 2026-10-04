@@ -105,6 +105,32 @@ Durum akışı: `Taslak → Atandı → Kabul edildi → Yolda → Yerinde → T
 > boyunca foreground service bağlantıyı canlı tutar. Uygulama her açıldığında `/api/sync` ile kaçırılan görevler ve
 > bildirimler çekilir. Kapalı uygulamaya garantili bildirim gerekirse ileride APNs/FCM eklenebilir.
 
+## Dispeçer ve saha araçları
+
+- **Dispeç panosu** (`/board`): açık görevler çalışan sütunlarında; kartı sürükleyerek ya da kart menüsünden atama,
+  "Geri al" ile geri alma. **Zaman çizelgesi** görünümü günün görevlerini çalışan satırlarında 07:00–22:00 ekseninde gösterir.
+- **Gecikme takibi**: planlanan bitişi geçen açık görevler listede, panoda ve haritada işaretlenir; görevi oluşturana
+  bir kez "Görev gecikti" bildirimi gider (`OverdueMonitorService`).
+- **Müşteri takip linki**: görev detayından paylaşılan `/track/{token}` sayfası oturum gerektirmez; çalışanın konumu
+  yalnızca görev "Yolda"yken gösterilir, link görev kapandıktan bir gün sonra geçersiz olur.
+- **Görev içi mesajlaşma** dispeçer ile atanan çalışan arasında (SignalR ile anlık, bildirimli).
+- **Atama önerisi**: görev formunda mesaideki çalışanlar uzaklık ve açık iş yüküne göre önerilir.
+- **Görev formu** adım adım ilerler (görev → konum ve müşteri → zaman ve atama → özet); her adım kendi alanlarını doğrular.
+- **Görevler listesi**: filtreler adres çubuğunda tutulur (paylaşılabilir), sunucu tarafı sıralama, toplu atama/iptal,
+  Excel (.xlsx, bağımlılıksız `Xlsx` yazıcı) ve CSV dışa aktarma, sunucuda kayıtlı ve istenirse ekiple paylaşılan filtreler.
+  **Ctrl+K** ile görev, kişi ve sayfa araması.
+- **Raporlar**: hazır dönemler veya serbest tarih aralığı; görev tipine göre kırılım; Excel/CSV dışa aktarma.
+- **Saha uygulaması**: tamamlama gereksinimleri canlı kontrol listesi olarak gösterilir ("Tamamla" ancak hepsi
+  karşılanınca etkinleşir), liste/harita görünümü, yakınlığa göre sıralama, aşağı çekerek yenileme, reddedilenler ayrı sekmede.
+- **Varış algılama** (`ArrivalDetector`): konum akışındaki her konumda "Yolda" görevlere uzaklık kontrol edilir;
+  ~150 m içine girilince uygulama açıksa ekranda, arka plandaysa yerel bildirimle "Vardım" önerilir (mobilde mesai
+  boyunca arka planda da çalışır).
+- **Şirket ayarları** (`/settings`): marka rengi, logo (dosya yükleme ya da https adresi) ve varsayılan harita merkezi.
+  **Profil** (`/profile`): ad, telefon, parola değiştirme, açık/koyu/sistem tema ve yüksek kontrast.
+- **Giriş ekranı** son giriş yapılan şirketin adını/logosunu/rengini hatırlar; `/login?sirket=<kisa-ad>` ile şirkete
+  özel link verilebilir. "Parolamı unuttum" şirket yöneticilerine bildirim olarak parola sıfırlama talebi gönderir
+  (e-posta altyapısı yok; hesabın var olup olmadığı yanıttan anlaşılmaz).
+
 ## Offline çalışma (mobil)
 
 - Görevler ve görev tipleri SQLite'ta önbelleklenir.

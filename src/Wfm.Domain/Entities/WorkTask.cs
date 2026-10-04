@@ -34,10 +34,18 @@ public class WorkTask : TenantEntity
 
     public byte[] RowVersion { get; set; } = [];
 
+    /// <summary>Müşteriye gönderilen herkese açık takip linkinin anahtarı (oluşturulmadıysa null).</summary>
+    public string? TrackingToken { get; set; }
+    /// <summary>Gecikme bildiriminin gönderildiği an; aynı görev için tekrar bildirim gitmesin diye.</summary>
+    public DateTime? OverdueNotifiedAt { get; set; }
+
     public List<TaskEvent> Events { get; set; } = [];
     public List<TaskAttachment> Attachments { get; set; } = [];
 
     public bool IsOpen => Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed);
+
+    /// <summary>Planlanan bitiş zamanı geçtiği hâlde açık olan görev.</summary>
+    public bool IsOverdue(DateTime utcNow) => IsOpen && ScheduledEnd is { } end && end < utcNow;
 
     /// <summary>Durum geçişini doğrular ve uygular. Geçersiz geçişte DomainException fırlatır.</summary>
     public TaskEvent ChangeStatus(WorkTaskStatus next, Guid userId, string? note = null, double? lat = null, double? lng = null)

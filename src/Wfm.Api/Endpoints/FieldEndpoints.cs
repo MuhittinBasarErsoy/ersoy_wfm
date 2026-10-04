@@ -154,7 +154,14 @@ public static class FieldEndpoints
             var uid = ctx.User.UserId();
             return await db.Notifications.Where(n => n.UserId == uid && (unreadOnly != true || n.ReadAt == null))
                 .OrderByDescending(n => n.CreatedAt).Take(100)
-                .Select(n => new NotificationDto(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt)).ToListAsync();
+                .Select(n => new NotificationDto(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt, n.Kind)).ToListAsync();
+        });
+        notif.MapPost("/{id:guid}/read", async (Guid id, HttpContext ctx, WfmDbContext db) =>
+        {
+            var uid = ctx.User.UserId();
+            await db.Notifications.Where(n => n.Id == id && n.UserId == uid && n.ReadAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(n => n.ReadAt, DateTime.UtcNow));
+            return Results.NoContent();
         });
         notif.MapPost("/read-all", async (HttpContext ctx, WfmDbContext db) =>
         {
@@ -180,7 +187,7 @@ public static class FieldEndpoints
             var types = await db.TaskTypes.ToListAsync();
             var notifications = await db.Notifications.Where(n => n.UserId == uid && n.CreatedAt >= since)
                 .OrderByDescending(n => n.CreatedAt).Take(50)
-                .Select(n => new NotificationDto(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt)).ToListAsync();
+                .Select(n => new NotificationDto(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt, n.Kind)).ToListAsync();
             var shift = await db.Shifts.Where(s => s.UserId == uid && s.EndedAt == null)
                 .Select(s => new ShiftDto(s.Id, s.StartedAt, s.EndedAt)).FirstOrDefaultAsync();
 

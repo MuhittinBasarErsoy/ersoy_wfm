@@ -35,6 +35,7 @@ builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<TrackingService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddHostedService<LocationCleanupService>();
+builder.Services.AddHostedService<OverdueMonitorService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
@@ -114,6 +115,7 @@ app.MapUserEndpoints();
 app.MapTaskEndpoints();
 app.MapFieldEndpoints();
 app.MapReportEndpoints();
+app.MapPublicEndpoints();
 app.MapHub<TrackingHub>(HubPaths.Tracking);
 app.MapHub<NotificationHub>(HubPaths.Notifications);
 

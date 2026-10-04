@@ -18,6 +18,7 @@ public sealed class WfmRealtime(AuthSession session, WfmClientOptions options) :
     public event Action<WorkerLocationDto>? LocationUpdated;
     public event Action<WorkTaskDto>? TaskChanged;
     public event Action<NotificationDto>? NotificationReceived;
+    public event Action<TaskCommentDto>? CommentAdded;
     public event Action<bool>? StateChanged;
 
     public bool IsConnected => _notifications?.State == HubConnectionState.Connected;
@@ -33,6 +34,7 @@ public sealed class WfmRealtime(AuthSession session, WfmClientOptions options) :
             {
                 c.On<WorkTaskDto>(HubMethods.TaskChanged, t => TaskChanged?.Invoke(t));
                 c.On<NotificationDto>(HubMethods.NotificationReceived, n => NotificationReceived?.Invoke(n));
+                c.On<TaskCommentDto>(HubMethods.CommentAdded, m => CommentAdded?.Invoke(m));
             });
             await StartIfNeeded(_tracking);
             await StartIfNeeded(_notifications);

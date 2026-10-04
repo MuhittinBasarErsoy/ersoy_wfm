@@ -1,0 +1,34 @@
+@* Fotoğrafı uygulama içinde büyük gösterir (yeni sekme açmaz; mobil WebView'den çıkılmaz). *@
+<MudDialog Class="wfm-lightbox">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Current.Kind == AttachmentKind.Signature ? "Müşteri imzası" : $"Fotoğraf {Index + 1} / {Items.Count}")</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            @Ui.Local(Current.CapturedAt)
+            @if (Current.Latitude is { } la)
+            {
+                <span> · konum @Ui.Coord(la, Current.Longitude)</span>
+            }
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex align-center gap-1">
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Disabled="Index == 0" OnClick="@(() => Index--)" aria-label="Önceki" />
+            <div style="flex:1;min-width:0">
+                <img src="@Src(Current)" alt="@Current.FileName" />
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Disabled="Index >= Items.Count - 1" OnClick="@(() => Index++)" aria-label="Sonraki" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Close())" Variant="Variant.Filled" Color="Color.Primary">Kapat</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public List<AttachmentDto> Items { get; set; } = [];
+    [Parameter] public int Index { get; set; }
+    [Parameter] public Func<AttachmentDto, string> Src { get; set; } = a => a.Url;
+
+    private AttachmentDto Current => Items[Math.Clamp(Index, 0, Items.Count - 1)];
+}

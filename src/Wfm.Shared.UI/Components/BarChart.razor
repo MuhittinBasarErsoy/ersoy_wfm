@@ -1,20 +1,30 @@
-@* Basit iki seriden oluşan sütun grafik (oluşturulan / tamamlanan). *@
-<div class="d-flex gap-4 mb-1">
-    <span class="d-flex align-center gap-1"><span style="width:10px;height:10px;border-radius:2px;background:@ColorA"></span><MudText Typo="Typo.caption">@LabelA</MudText></span>
-    <span class="d-flex align-center gap-1"><span style="width:10px;height:10px;border-radius:2px;background:@ColorB"></span><MudText Typo="Typo.caption">@LabelB</MudText></span>
+@* İki seriden oluşan sütun grafik (oluşturulan / tamamlanan). Uzun dönemlerde etiketler seyreltilir. *@
+<div class="d-flex gap-4 mb-1" aria-hidden="true">
+    <span class="d-flex align-center gap-1"><span style="width:10px;height:10px;border-radius:2px;background:@ColorA"></span><MudText Typo="Typo.caption">@LabelA (@Data.Sum(d => d.A))</MudText></span>
+    <span class="d-flex align-center gap-1"><span style="width:10px;height:10px;border-radius:2px;background:@ColorB"></span><MudText Typo="Typo.caption">@LabelB (@Data.Sum(d => d.B))</MudText></span>
 </div>
-<div class="wfm-bars" role="img" aria-label="@($"{LabelA} ve {LabelB} grafiği")">
-    @foreach (var d in Data)
+<div class="wfm-bars" aria-hidden="true">
+    @for (var i = 0; i < Data.Count; i++)
     {
-        <div class="wfm-bar-col">
+        var d = Data[i];
+        <div class="wfm-bar-col" title="@($"{d.Label} · {LabelA}: {d.A}, {LabelB}: {d.B}")">
             <div class="wfm-bar-pair">
-                <div class="wfm-bar" style="height:@Pct(d.A)%;background:@ColorA" title="@($"{LabelA}: {d.A}")"></div>
-                <div class="wfm-bar" style="height:@Pct(d.B)%;background:@ColorB" title="@($"{LabelB}: {d.B}")"></div>
+                <div class="wfm-bar" style="height:@Pct(d.A)%;background:@ColorA"></div>
+                <div class="wfm-bar" style="height:@Pct(d.B)%;background:@ColorB"></div>
             </div>
-            <span class="wfm-bar-label">@d.Label</span>
+            <span class="wfm-bar-label">@(i % Step == 0 || i == Data.Count - 1 ? d.Label : " ")</span>
         </div>
     }
 </div>
+@* Ekran okuyucular için aynı veri tablo olarak. *@
+<table class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">
+    <caption>@LabelA ve @LabelB</caption>
+    <tr><th>Gün</th><th>@LabelA</th><th>@LabelB</th></tr>
+    @foreach (var d in Data)
+    {
+        <tr><td>@d.Label</td><td>@d.A</td><td>@d.B</td></tr>
+    }
+</table>
 
 @code {
     public record Point(string Label, int A, int B);
@@ -22,9 +32,10 @@
     [Parameter, EditorRequired] public List<Point> Data { get; set; } = [];
     [Parameter] public string LabelA { get; set; } = "A";
     [Parameter] public string LabelB { get; set; } = "B";
-    [Parameter] public string ColorA { get; set; } = "#90caf9";
+    [Parameter] public string ColorA { get; set; } = "#64b5f6";
     [Parameter] public string ColorB { get; set; } = "#2e7d32";
 
+    private int Step => Math.Max(1, (int)Math.Ceiling(Data.Count / 10.0));
     private int Max => Math.Max(1, Data.Count == 0 ? 1 : Data.Max(d => Math.Max(d.A, d.B)));
     private string Pct(int v) => (v * 100.0 / Max).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
 }

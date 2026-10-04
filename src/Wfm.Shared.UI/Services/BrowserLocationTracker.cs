@@ -8,7 +8,7 @@ namespace Wfm.Shared.UI.Services;
 /// Web'den (telefon tarayıcısı) çalışan saha personeli için konum takibi: sayfa açık olduğu sürece tarayıcı konumunu
 /// en fazla 30 sn'de bir sunucuya gönderir. Arka plan takibi yalnızca mobil uygulamada mümkündür.
 /// </summary>
-public sealed class BrowserLocationTracker(WfmJs js, WfmApiClient api) : ILocationTracker, IDisposable
+public sealed class BrowserLocationTracker(WfmJs js, WfmApiClient api, ArrivalDetector arrival) : ILocationTracker, IDisposable
 {
     private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(30);
     private DotNetObjectReference<BrowserLocationTracker>? _ref;
@@ -38,6 +38,7 @@ public sealed class BrowserLocationTracker(WfmJs js, WfmApiClient api) : ILocati
     [JSInvokable]
     public async Task OnPosition(double lat, double lng, double? accuracy, double? speed, double? heading)
     {
+        await arrival.OnLocationAsync(lat, lng);
         if (DateTime.UtcNow - _lastSent < MinInterval) return;
         _lastSent = DateTime.UtcNow;
         try

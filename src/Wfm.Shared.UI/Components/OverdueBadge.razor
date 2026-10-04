@@ -1,0 +1,12 @@
+@if (Task.IsOverdue && Task.ScheduledEnd is { } end)
+{
+    <span class="wfm-overdue" title="Planlanan bitiş: @Ui.Local(end)">
+        <MudIcon Icon="@Icons.Material.Filled.AlarmOn" Style="font-size:16px" aria-hidden="true" />
+        @(Compact ? "Gecikti" : $"{Ui.Duration(DateTime.UtcNow - end)} gecikti")
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public WorkTaskDto Task { get; set; } = default!;
+    [Parameter] public bool Compact { get; set; }
+}

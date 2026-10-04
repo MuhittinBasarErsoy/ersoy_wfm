@@ -1,5 +1,5 @@
 @inherits LayoutComponentBase
-@implements IDisposable
+@implements IAsyncDisposable
 @inject AuthSession Session
 @inject UserContext Me
 @inject NotificationCenter Notifications
@@ -10,12 +10,18 @@
 @inject WfmApiClient Api
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject ThemeState ThemeState
+@inject LayoutState LayoutState
+@inject IDialogService Dialogs
+@inject WfmJs Js
+@inject ArrivalDetector Arrival
 
-<MudThemeProvider Theme="Ui.Theme" />
+<MudThemeProvider @ref="_themeProvider" Theme="ThemeState.Theme" IsDarkMode="ThemeState.IsDark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
+<div class="@ThemeState.CssClass">
 @if (!_ready || Me.User is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
@@ -24,21 +30,26 @@ else if (Me.IsFieldWorker)
 {
     @* Saha çalışanı arayüzü: sade, mobil öncelikli. *@
     <MudLayout>
-        <MudAppBar Elevation="1" Dense>
+        <MudAppBar Elevation="1">
             @if (!IsFieldHome)
             {
-                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => Nav.NavigateTo("/field"))" aria-label="Geri" />
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" Edge="Edge.Start" OnClick="GoBack" aria-label="Görevlerime dön" />
             }
-            <MudText Typo="Typo.h6" Class="ml-2">Görevlerim</MudText>
+            <MudText Typo="Typo.h6" Class="ml-2 wfm-ellipsis">@(IsFieldHome ? "Görevlerim" : LayoutState.Title ?? "Görevlerim")</MudText>
             <MudSpacer />
-            <MudTooltip Text="@(Realtime.IsConnected ? "Canlı bağlantı aktif" : $"Canlı bağlantı yok {Realtime.LastError}")">
-                <MudIcon Icon="@(Realtime.IsConnected ? Icons.Material.Filled.CloudDone : Icons.Material.Filled.CloudOff)" Size="Size.Small" Class="mr-2" />
-            </MudTooltip>
+            <ConnectionIcon />
             <MudBadge Content="Notifications.Unread" Visible="Notifications.Unread > 0" Color="Color.Error" Overlap Bordered>
-                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="/notifications" aria-label="Bildirimler" />
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="/notifications"
+                               aria-label="@($"Bildirimler, {Notifications.Unread} okunmamış")" />
             </MudBadge>
-            <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Hesap menüsü">
                 <MudMenuItem Disabled>@Me.User.FullName</MudMenuItem>
+                <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Profil ve parola</MudMenuItem>
+                <MudMenuItem OnClick="ToggleThemeAsync" Icon="@ThemeIcon">@ThemeLabel</MudMenuItem>
+                <MudMenuItem OnClick="@(() => ThemeState.SetHighContrastAsync(Js, !ThemeState.HighContrast))" Icon="@Icons.Material.Filled.Contrast">
+                    @(ThemeState.HighContrast ? "Yüksek kontrastı kapat" : "Yüksek kontrast")
+                </MudMenuItem>
+                <MudDivider />
                 <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Filled.Logout">Çıkış yap</MudMenuItem>
             </MudMenu>
         </MudAppBar>
@@ -54,28 +65,50 @@ else
     @* Yönetici / dispeçer dashboard arayüzü. *@
     <MudLayout>
         <MudAppBar Elevation="1">
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => _drawer = !_drawer)" aria-label="Menü" />
-            <MudText Typo="Typo.h6" Class="ml-2">WFM</MudText>
-            <MudText Typo="Typo.body2" Class="ml-3 d-none d-sm-flex" Style="opacity:.85">@Me.User.TenantName</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => _drawer = !_drawer)"
+                           aria-label="@(_drawer ? "Menüyü kapat" : "Menüyü aç")" aria-expanded="@(_drawer ? "true" : "false")" />
+            @if (!string.IsNullOrEmpty(ThemeState.LogoUrl))
+            {
+                <img src="@Api.AbsoluteUrl(ThemeState.LogoUrl)" alt="" class="wfm-appbar-logo ml-2" />
+            }
+            <MudText Typo="Typo.h6" Class="ml-2 wfm-ellipsis" Style="max-width:40vw">@(ThemeState.TenantName ?? Me.User.TenantName)</MudText>
             <MudSpacer />
-            <MudTooltip Text="@(Realtime.IsConnected ? "Canlı bağlantı aktif" : $"Canlı bağlantı yok {Realtime.LastError}")">
-                <MudIcon Icon="@(Realtime.IsConnected ? Icons.Material.Filled.CloudDone : Icons.Material.Filled.CloudOff)" Size="Size.Small" Class="mr-2" />
+            @if (!Me.IsSuperAdmin)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Search" OnClick="OpenSearchAsync"
+                           Class="d-none d-sm-flex mr-2" Style="text-transform:none;opacity:.9" aria-label="Ara (Ctrl+K)">
+                    Ara… <kbd class="ml-2" style="font-size:11px;opacity:.8">Ctrl K</kbd>
+                </MudButton>
+                <MudIconButton Icon="@Icons.Material.Filled.Search" Color="Color.Inherit" OnClick="OpenSearchAsync" Class="d-flex d-sm-none" aria-label="Ara" />
+            }
+            <ConnectionIcon />
+            <MudTooltip Text="@ThemeLabel">
+                <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" OnClick="ToggleThemeAsync" aria-label="@ThemeLabel" />
             </MudTooltip>
             <MudBadge Content="Notifications.Unread" Visible="Notifications.Unread > 0" Color="Color.Error" Overlap Bordered>
-                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="/notifications" aria-label="Bildirimler" />
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" Href="/notifications"
+                               aria-label="@($"Bildirimler, {Notifications.Unread} okunmamış")" />
             </MudBadge>
             <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                 <ActivatorContent>
-                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Class="ml-2 wfm-clickable" @onclick="@(e => context.ToggleAsync(e))">@Ui.Initials(Me.User.FullName)</MudAvatar>
+                    <MudIconButton Class="ml-1" aria-label="Hesap menüsü" OnClick="@(e => context.ToggleAsync(e))">
+                        <MudAvatar Color="Color.Secondary" Size="Size.Small">@Ui.Initials(Me.User.FullName)</MudAvatar>
+                    </MudIconButton>
                 </ActivatorContent>
                 <ChildContent>
                     <MudMenuItem Disabled>@Me.User.FullName · @Me.RoleName</MudMenuItem>
+                    <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Profil ve parola</MudMenuItem>
+                    @if (Me.Can(Policies.ManageUsers) && !Me.IsSuperAdmin)
+                    {
+                        <MudMenuItem Href="/settings" Icon="@Icons.Material.Filled.Settings">Şirket ayarları</MudMenuItem>
+                    }
+                    <MudDivider />
                     <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Filled.Logout">Çıkış yap</MudMenuItem>
                 </ChildContent>
             </MudMenu>
         </MudAppBar>
         <MudDrawer @bind-Open="_drawer" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="@DrawerVariant.Responsive">
-            <MudNavMenu Class="mt-2">
+            <MudNavMenu Class="mt-2" aria-label="Ana menü">
                 @if (Me.IsSuperAdmin)
                 {
                     <MudNavLink Href="/tenants" Icon="@Icons.Material.Filled.Business">Şirketler</MudNavLink>
@@ -86,11 +119,17 @@ else
                     @if (Me.Can(Policies.ViewTracking))
                     {
                         <MudNavLink Href="/map" Icon="@Icons.Material.Filled.Map">Canlı harita</MudNavLink>
+                        <MudNavLink Href="/board" Icon="@Icons.Material.Filled.ViewKanban">Dispeç panosu</MudNavLink>
                         <MudNavLink Href="/tasks" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Assignment">Görevler</MudNavLink>
                     }
                     @if (Me.Can(Policies.ViewReports))
                     {
                         <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.BarChart">Raporlar</MudNavLink>
+                    }
+                    @if (Me.Can(Policies.ManageTaskTypes) || Me.Can(Policies.ManageUsers))
+                    {
+                        <MudDivider Class="my-2" />
+                        <MudText Typo="Typo.overline" Class="px-4" Color="Color.Secondary">Yönetim</MudText>
                     }
                     @if (Me.Can(Policies.ManageTaskTypes))
                     {
@@ -99,6 +138,7 @@ else
                     @if (Me.Can(Policies.ManageUsers))
                     {
                         <MudNavLink Href="/users" Icon="@Icons.Material.Filled.People">Kullanıcılar ve ekipler</MudNavLink>
+                        <MudNavLink Href="/settings" Icon="@Icons.Material.Filled.Settings">Şirket ayarları</MudNavLink>
                     }
                 }
             </MudNavMenu>
@@ -110,16 +150,25 @@ else
         </MudMainContent>
     </MudLayout>
 }
+</div>
 
 @code {
     private bool _ready;
     private bool _drawer = true;
+    private MudThemeProvider? _themeProvider;
+    private DotNetObjectReference<MainLayout>? _ref;
+    private bool _searchOpen;
 
     private bool IsFieldHome => Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0] is "" or "field";
+
+    private string ThemeIcon => ThemeState.IsDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode;
+    private string ThemeLabel => ThemeState.IsDark ? "Açık temaya geç" : "Koyu temaya geç";
 
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += OnSessionChanged;
+        ThemeState.Changed += Refresh;
+        LayoutState.Changed += Refresh;
         var auth = await Session.GetAsync();
         if (auth is null)
         {
@@ -131,16 +180,71 @@ else
         Notifications.Received += OnNotification;
         Realtime.TaskChanged += OnTaskChanged;
         Field.Changed += Refresh;
+        Arrival.Arrived += OnArrived;
         _ready = true;
         // Canlı bağlantı arka planda kurulur; sayfa beklemez.
         _ = Notifications.StartAsync().ContinueWith(_ => InvokeAsync(StateHasChanged));
+        if (!Me.IsSuperAdmin) _ = LoadBrandAsync();
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ThemeState.LoadAsync(Js);
+            if (_themeProvider is not null)
+            {
+                try
+                {
+                    ThemeState.SetSystemDark(await _themeProvider.GetSystemDarkModeAsync());
+                    await _themeProvider.WatchSystemDarkModeAsync(dark => { ThemeState.SetSystemDark(dark); return Task.CompletedTask; });
+                }
+                catch (JSDisconnectedException) { }
+            }
+        }
+        // Kısayollar oturum doğrulandıktan sonra (ilk render'dan sonra olabilir) bir kez kaydedilir.
+        if (_ready && _ref is null && Me.User is not null && !Me.IsFieldWorker && !Me.IsSuperAdmin)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            await Js.Run("registerHotkeys", _ref);
+        }
+    }
+
+    private async Task LoadBrandAsync()
+    {
+        try { await ThemeState.SetTenantAsync(Js, await Api.MyTenantAsync()); }
+        catch (ApiException) { /* offline: varsayılan tema */ }
+    }
+
+    [JSInvokable]
+    public Task OnHotkey(string key) => key == "search" ? InvokeAsync(OpenSearchAsync) : Task.CompletedTask;
+
+    private async Task OpenSearchAsync()
+    {
+        if (_searchOpen) return;
+        _searchOpen = true;
+        try
+        {
+            var dialog = await Dialogs.ShowAsync<GlobalSearch>((string?)null, new DialogOptions
+            {
+                MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true,
+                Position = DialogPosition.TopCenter
+            });
+            await dialog.Result;
+        }
+        finally { _searchOpen = false; }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/field");
+
+    private Task ToggleThemeAsync() => ThemeState.SetModeAsync(Js, ThemeState.IsDark ? "light" : "dark");
 
     private void OnNotification(NotificationDto n)
     {
         _ = InvokeAsync(async () =>
         {
-            Snackbar.Add($"{n.Title}: {n.Body}", Severity.Info, o =>
+            Snackbar.Add($"{n.Title}: {n.Body}", n.Kind is NotificationKinds.Overdue or NotificationKinds.Rejected or NotificationKinds.Failed
+                ? Severity.Warning : Severity.Info, o =>
             {
                 if (n.WorkTaskId is not { } id) return;
                 o.Action = "Aç";
@@ -149,6 +253,18 @@ else
             await Presenter.ShowAsync(n.Title, n.Body, n.WorkTaskId);
         });
     }
+
+    private void OnArrived(WorkTaskDto task, double meters) => _ = InvokeAsync(() =>
+    {
+        // Görev ekranı kendi önerisini gösterir; diğer ekranlarda bildirim çubuğu.
+        if (Nav.Uri.Contains($"/field/tasks/{task.Id}")) return;
+        Snackbar.Add($"{task.Title}: adrese ulaştınız ({Ui.Distance(meters)}).", Severity.Success, o =>
+        {
+            o.Action = "Vardım'ı işaretle";
+            o.VisibleStateDuration = 15000;
+            o.OnClick = _ => { Nav.NavigateTo($"/field/tasks/{task.Id}"); return Task.CompletedTask; };
+        });
+    });
 
     private void OnTaskChanged(WorkTaskDto task)
     {
@@ -167,6 +283,7 @@ else
         var refresh = Session.Current?.RefreshToken;
         await Notifications.StopAsync();
         await Field.ClearAsync();
+        ThemeState.SetTenant(null);
         if (refresh is not null)
         {
             try { await Api.LogoutAsync(refresh); } catch (ApiException) { }
@@ -174,12 +291,20 @@ else
         await Session.SetAsync(null);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         Session.Changed -= OnSessionChanged;
+        ThemeState.Changed -= Refresh;
+        LayoutState.Changed -= Refresh;
         Notifications.Changed -= Refresh;
         Notifications.Received -= OnNotification;
         Realtime.TaskChanged -= OnTaskChanged;
         Field.Changed -= Refresh;
+        Arrival.Arrived -= OnArrived;
+        if (_ref is not null)
+        {
+            await Js.Run("unregisterHotkeys");
+            _ref.Dispose();
+        }
     }
 }

@@ -2,55 +2,59 @@
 @inject WfmApiClient Api
 @inject NavigationManager Nav
 
-<PageTitle>Görev tipleri · WFM</PageTitle>
-
 <RequirePolicy Policy="@Policies.ManageTaskTypes">
-    <div class="d-flex align-center mb-1">
-        <MudText Typo="Typo.h5">Görev tipleri</MudText>
-        <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/task-types/new">Yeni tip</MudButton>
-    </div>
-    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-        Her görev tipi kendi alanlarını ve tamamlama kurallarını belirler: ör. çiçek teslimatında imza, arıza onarımında önce/sonra fotoğrafı.
-    </MudText>
+    <PageHeader Title="Görev tipleri" Subtitle="Her görev tipi kendi alanlarını ve tamamlama kurallarını belirler: ör. çiçek teslimatında imza, arıza onarımında önce/sonra fotoğrafı.">
+        <Actions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/task-types/new">Yeni tip</MudButton>
+        </Actions>
+    </PageHeader>
 
     @if (_types is null)
     {
         <MudProgressLinear Indeterminate />
     }
+    else if (_types.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Category" Title="Henüz görev tipi yok" Text="Görev oluşturabilmek için en az bir görev tipi tanımlayın.">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/task-types/new">İlk görev tipini oluştur</MudButton>
+        </EmptyState>
+    }
     else
     {
         <MudGrid Spacing="3">
-            @foreach (var t in _types)
+            @foreach (var t in _types.OrderByDescending(t => t.IsActive).ThenBy(t => t.Name))
             {
                 <MudItem xs="12" sm="6" lg="4">
-                    <MudCard Elevation="1" Class="wfm-clickable" Style="@(t.IsActive ? "" : "opacity:.6")" @onclick="@(() => Nav.NavigateTo($"/task-types/{t.Id}"))">
-                        <MudCardContent>
-                            <div class="d-flex align-center gap-3 mb-2">
-                                <TypeIcon Icon="@t.Icon" Color="@t.Color" />
-                                <div style="flex:1">
-                                    <MudText Typo="Typo.h6">@t.Name</MudText>
-                                    @if (!t.IsActive)
-                                    {
-                                        <MudChip T="string" Size="Size.Small">Pasif</MudChip>
-                                    }
+                    <Tap OnClick="@(() => Nav.NavigateTo($"/task-types/{t.Id}"))" AriaLabel="@($"{t.Name} düzenle")" Style="height:100%">
+                        <MudCard Elevation="1" Style="@(t.IsActive ? "height:100%" : "height:100%;opacity:.6")">
+                            <MudCardContent>
+                                <div class="d-flex align-center gap-3 mb-2">
+                                    <TypeIcon Icon="@t.Icon" Color="@t.Color" />
+                                    <div style="flex:1">
+                                        <MudText Typo="Typo.h6">@t.Name</MudText>
+                                        @if (!t.IsActive)
+                                        {
+                                            <MudChip T="string" Size="Size.Small">Pasif</MudChip>
+                                        }
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Secondary" aria-hidden="true" />
                                 </div>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(t.Description))
-                            {
-                                <MudText Typo="Typo.body2" Class="mb-2">@t.Description</MudText>
-                            }
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                @t.Fields.Count(f => !f.FilledOnCompletion) oluşturma alanı · @t.Fields.Count(f => f.FilledOnCompletion) saha alanı
-                            </MudText>
-                            <div class="d-flex flex-wrap gap-1 mt-2">
-                                @if (t.Completion.RequireSignature) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Draw">İmza</MudChip> }
-                                @if (t.Completion.RequirePhoto || t.Completion.MinPhotoCount > 0) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.PhotoCamera">En az @Math.Max(1, t.Completion.MinPhotoCount) foto</MudChip> }
-                                @if (t.Completion.RequireNote) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Notes">Not</MudChip> }
-                                @if (t.Completion.MaxDistanceMeters > 0) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.MyLocation">≤ @t.Completion.MaxDistanceMeters m</MudChip> }
-                            </div>
-                        </MudCardContent>
-                    </MudCard>
+                                @if (!string.IsNullOrWhiteSpace(t.Description))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mb-2">@t.Description</MudText>
+                                }
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @t.Fields.Count(f => !f.FilledOnCompletion) oluşturma alanı · @t.Fields.Count(f => f.FilledOnCompletion) saha alanı
+                                </MudText>
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    @if (t.Completion.RequireSignature) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Draw">İmza</MudChip> }
+                                    @if (t.Completion.RequirePhoto || t.Completion.MinPhotoCount > 0) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.PhotoCamera">En az @Math.Max(1, t.Completion.MinPhotoCount) foto</MudChip> }
+                                    @if (t.Completion.RequireNote) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Notes">Not</MudChip> }
+                                    @if (t.Completion.MaxDistanceMeters > 0) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.MyLocation">≤ @t.Completion.MaxDistanceMeters m</MudChip> }
+                                </div>
+                            </MudCardContent>
+                        </MudCard>
+                    </Tap>
                 </MudItem>
             }
         </MudGrid>

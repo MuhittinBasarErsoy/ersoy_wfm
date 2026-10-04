@@ -24,6 +24,8 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<WorkShift> Shifts => Set<WorkShift>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<TaskComment> TaskComments => Set<TaskComment>();
+    public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
 
     // Global filtre bu alanlara bakar; EF her sorguda güncel değeri kullanır.
     private Guid? CurrentTenantId => tenant.TenantId;
@@ -46,6 +48,17 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Slug).HasMaxLength(100);
             e.HasIndex(x => x.Slug).IsUnique();
+            e.Property(x => x.BrandColor).HasMaxLength(20);
+            e.Property(x => x.LogoUrl).HasMaxLength(500);
+            e.Property(x => x.LogoPath).HasMaxLength(300);
+            e.Property(x => x.LogoContentType).HasMaxLength(50);
+        });
+
+        b.Entity<SavedFilter>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Query).HasMaxLength(2000);
+            e.HasIndex(x => new { x.TenantId, x.UserId });
         });
 
         b.Entity<Team>(e => e.Property(x => x.Name).HasMaxLength(200));
@@ -73,6 +86,15 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.HasMany(x => x.Attachments).WithOne().HasForeignKey(x => x.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.TenantId, x.Status });
             e.HasIndex(x => new { x.TenantId, x.AssigneeId, x.UpdatedAt });
+            e.Property(x => x.TrackingToken).HasMaxLength(64);
+            e.HasIndex(x => x.TrackingToken).IsUnique().HasFilter("[TrackingToken] IS NOT NULL");
+        });
+
+        b.Entity<TaskComment>(e =>
+        {
+            e.Property(x => x.Body).HasMaxLength(2000);
+            e.HasOne<WorkTask>().WithMany().HasForeignKey(x => x.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.WorkTaskId, x.CreatedAt });
         });
 
         b.Entity<TaskAttachment>(e =>
@@ -88,7 +110,11 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.HasIndex(x => new { x.TenantId, x.RecordedAt });
         });
 
-        b.Entity<Notification>(e => e.HasIndex(x => new { x.UserId, x.CreatedAt }));
+        b.Entity<Notification>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.Property(x => x.Kind).HasMaxLength(30);
+        });
         b.Entity<WorkShift>(e => e.HasIndex(x => new { x.UserId, x.EndedAt }));
         b.Entity<RefreshToken>(e => e.HasIndex(x => x.TokenHash).IsUnique());
 

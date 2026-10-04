@@ -1,4 +1,5 @@
 @inject WfmApiClient Api
+@inject IDialogService Dialogs
 
 @if (Attachments.Count == 0)
 {
@@ -7,22 +8,29 @@
 else
 {
     <div class="wfm-thumbs">
-        @foreach (var a in Attachments)
+        @for (var i = 0; i < Attachments.Count; i++)
         {
-            <div class="wfm-thumb" style="@(a.Kind == AttachmentKind.Signature ? "width:160px;background:#fff;border:1px solid #e0e0e0" : "")">
+            var a = Attachments[i];
+            var signature = a.Kind == AttachmentKind.Signature;
+            var label = signature ? "İmzayı büyüt" : $"Fotoğraf {i + 1} büyüt";
+            <div class="wfm-thumb-wrap">
                 @if (a.ContentType.StartsWith("image/"))
                 {
-                    <a href="@Src(a)" target="_blank"><img src="@Src(a)" alt="@a.FileName" style="@(a.Kind == AttachmentKind.Signature ? "object-fit:contain" : "")" /></a>
+                    <button type="button" class="@(signature ? "wfm-thumb wfm-thumb-signature" : "wfm-thumb")" @onclick="@(() => OpenAsync(a))" aria-label="@label">
+                        <img src="@Src(a)" alt="" loading="lazy" />
+                        <span class="wfm-thumb-badge">@(signature ? "İmza" : Ui.Local(a.CapturedAt, "HH:mm"))</span>
+                    </button>
                 }
                 else
                 {
-                    <a href="@Src(a)" target="_blank" class="d-flex align-center justify-center" style="height:100%"><MudIcon Icon="@Icons.Material.Filled.Description" /></a>
+                    <a href="@Src(a)" target="_blank" rel="noopener" class="wfm-thumb d-flex align-center justify-center" aria-label="@a.FileName">
+                        <MudIcon Icon="@Icons.Material.Filled.Description" />
+                    </a>
                 }
-                <span class="wfm-thumb-badge">@(a.Kind == AttachmentKind.Signature ? "İmza" : Ui.Local(a.CapturedAt, "HH:mm"))</span>
                 @if (OnRemove.HasDelegate)
                 {
                     <MudIconButton Class="wfm-thumb-remove" Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error"
-                                   Style="background:rgba(255,255,255,.85)" OnClick="@(() => OnRemove.InvokeAsync(a))" aria-label="Kaldır" />
+                                   OnClick="@(() => RemoveAsync(a))" aria-label="@(signature ? "İmzayı kaldır" : "Fotoğrafı kaldır")" />
                 }
             </div>
         }
@@ -36,4 +44,25 @@ else
 
     // Offline eklenen dosyalar data: URL'idir; sunucudakiler göreli imzalı URL.
     private string Src(AttachmentDto a) => a.Url.StartsWith("data:") ? a.Url : Api.AbsoluteUrl(a.Url);
+
+    private async Task OpenAsync(AttachmentDto a)
+    {
+        var images = Attachments.Where(x => x.ContentType.StartsWith("image/")).ToList();
+        var parameters = new DialogParameters<ImageViewer>
+        {
+            { x => x.Items, images },
+            { x => x.Index, images.IndexOf(a) },
+            { x => x.Src, Src }
+        };
+        await Dialogs.ShowAsync<ImageViewer>(null, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, CloseButton = true });
+    }
+
+    private async Task RemoveAsync(AttachmentDto a)
+    {
+        var what = a.Kind == AttachmentKind.Signature ? "İmza" : "Fotoğraf";
+        if (await Dialogs.ShowMessageBoxAsync($"{what} kaldırılsın mı?", $"{what} görevden silinecek. Bu işlem geri alınamaz.",
+                "Kaldır", cancelText: "Vazgeç") != true) return;
+        await OnRemove.InvokeAsync(a);
+    }
 }

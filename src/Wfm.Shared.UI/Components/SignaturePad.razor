@@ -1,22 +1,44 @@
+@implements IDisposable
 @inject WfmJs Js
 
 <div>
-    <canvas id="@_id" class="wfm-signature"></canvas>
+    <canvas id="@_id" class="wfm-signature" role="img" aria-label="İmza alanı: parmağınızla veya fareyle imzalayın"></canvas>
     <div class="d-flex justify-space-between align-center mt-1">
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Parmağınızla veya fareyle imzalayın</MudText>
-        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Clear" OnClick="ClearAsync">Temizle</MudButton>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">@(_hasInk ? "İmza alındı" : "Müşteri parmağıyla veya fareyle imzalasın")</MudText>
+        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Clear" OnClick="ClearAsync" Disabled="!_hasInk">Temizle</MudButton>
     </div>
 </div>
 
 @code {
     private readonly string _id = "sig-" + Guid.NewGuid().ToString("N")[..8];
+    private DotNetObjectReference<SignaturePad>? _ref;
+    private bool _hasInk;
+
+    /// <summary>İmza alanına çizildiğinde (true) veya temizlendiğinde (false).</summary>
+    [Parameter] public EventCallback<bool> OnChange { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) await Js.Run("initSignature", _id);
+        if (!firstRender) return;
+        _ref = DotNetObjectReference.Create(this);
+        await Js.Run("initSignature", _id, _ref);
     }
 
-    public async Task ClearAsync() => await Js.Run("clearSignature", _id);
+    [JSInvokable]
+    public async Task OnInk()
+    {
+        if (_hasInk) return;
+        _hasInk = true;
+        await OnChange.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    public async Task ClearAsync()
+    {
+        await Js.Run("clearSignature", _id);
+        _hasInk = false;
+        await OnChange.InvokeAsync(false);
+    }
 
     /// <summary>İmza PNG baytları; boşsa null.</summary>
     public async Task<byte[]?> GetPngAsync()
@@ -24,4 +46,6 @@
         var b64 = await Js.Invoke<string?>("getSignature", _id);
         return b64 is null ? null : Convert.FromBase64String(b64);
     }
+
+    public void Dispose() => _ref?.Dispose();
 }

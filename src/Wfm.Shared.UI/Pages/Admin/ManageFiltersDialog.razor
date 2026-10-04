@@ -1,0 +1,49 @@
+@inject WfmApiClient Api
+@inject UserContext Me
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<MudDialog>
+    <DialogContent>
+        @if (Filters.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.BookmarkBorder" Title="Kayıtlı filtre yok" Text="Görevler listesinde filtreleyip 'Bu filtreyi kaydet' ile ekleyin." />
+        }
+        @foreach (var f in Filters)
+        {
+            <div class="wfm-row">
+                <MudIcon Icon="@(f.IsShared ? Icons.Material.Filled.Groups : Icons.Material.Filled.Bookmark)" Size="Size.Small" Color="Color.Secondary"
+                         aria-label="@(f.IsShared ? "Paylaşılan" : "Kişisel")" />
+                <div style="flex:1;min-width:0">
+                    <MudText Typo="Typo.body2" Class="wfm-ellipsis"><b>@f.Name</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@(f.IsMine ? (f.IsShared ? "Sizin · ekiple paylaşılıyor" : "Sizin · kişisel") : $"{f.OwnerName} paylaştı")</MudText>
+                </div>
+                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Dialog.Close(DialogResult.Ok(f)))">Uygula</MudButton>
+                @if (f.IsMine || Me.Can(Policies.ManageUsers))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(f))" aria-label="@($"{f.Name} filtresini sil")" />
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Kapat</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public List<SavedFilterDto> Filters { get; set; } = [];
+
+    private async Task DeleteAsync(SavedFilterDto f)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Filtreyi sil", f.IsShared ? $"'{f.Name}' ekipteki herkes için silinecek." : $"'{f.Name}' silinecek.",
+                "Sil", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeleteSavedFilterAsync(f.Id);
+            Filters.Remove(f);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+}

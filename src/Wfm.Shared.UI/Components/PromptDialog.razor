@@ -1,0 +1,18 @@
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="Value" Label="@Label" Placeholder="@Placeholder" Variant="Variant.Outlined" Immediate AutoFocus
+                      OnKeyDown="@(e => { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(Value)) Dialog.Close(DialogResult.Ok(Value.Trim())); })" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="string.IsNullOrWhiteSpace(Value)"
+                   OnClick="@(() => Dialog.Close(DialogResult.Ok(Value!.Trim())))">Tamam</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Value { get; set; }
+}
