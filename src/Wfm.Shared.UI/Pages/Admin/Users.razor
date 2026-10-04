@@ -3,29 +3,39 @@
 @inject UserContext Me
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
-
-<PageTitle>Kullanıcılar · WFM</PageTitle>
+@inject NavigationManager Nav
 
 <RequirePolicy Policy="@Policies.ManageUsers">
-    <MudText Typo="Typo.h5" Class="mb-3">Kullanıcılar ve ekipler</MudText>
+    <PageHeader Title="Kullanıcılar ve ekipler" Subtitle="@($"{_users.Count(u => u.IsActive)} aktif kullanıcı · {_teams.Count} ekip")" />
     <MudTabs Elevation="1" Rounded ApplyEffectsToContainer TabPanelsClass="pa-4">
         <MudTabPanel Text="Kullanıcılar" Icon="@Icons.Material.Filled.People">
-            <div class="d-flex mb-3 gap-2 flex-wrap">
-                <MudTextField T="string" @bind-Value="_search" Placeholder="Ara" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Style="max-width:300px" />
+            <div class="d-flex mb-3 gap-2 flex-wrap align-center">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Ad veya e-posta ara" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Clearable Style="max-width:300px" aria-label="Kullanıcı ara" />
+                <MudSelect T="string" @bind-Value="_role" Label="Rol" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Style="max-width:200px">
+                    @foreach (var r in Roles.TenantAssignable)
+                    {
+                        <MudSelectItem T="string" Value="r">@Roles.DisplayName(r)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSwitch T="bool" @bind-Value="_showInactive" Label="Pasifleri göster" Color="Color.Primary" />
                 <MudSpacer />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => EditUserAsync(null))">Yeni kullanıcı</MudButton>
             </div>
-            <MudTable T="UserDto" Items="FilteredUsers" Hover Dense Elevation="0" Breakpoint="Breakpoint.Sm">
+            <MudTable T="UserDto" Items="FilteredUsers" Hover Dense Elevation="0" Breakpoint="Breakpoint.Sm" Loading="!_loaded"
+                      OnRowClick="@(e => EditUserAsync(e.Item))" RowClass="wfm-clickable">
                 <HeaderContent>
-                    <MudTh>Ad</MudTh><MudTh>E-posta</MudTh><MudTh>Rol</MudTh><MudTh>Ekip</MudTh><MudTh>Durum</MudTh><MudTh></MudTh>
+                    <MudTh><MudTableSortLabel T="UserDto" SortBy="u => u.FullName" InitialDirection="SortDirection.Ascending">Ad</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel T="UserDto" SortBy="u => u.Email">E-posta</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel T="UserDto" SortBy="u => u.Roles.FirstOrDefault() ?? string.Empty">Rol</MudTableSortLabel></MudTh>
+                    <MudTh>Ekip</MudTh><MudTh>Durum</MudTh><MudTh></MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Ad">
                         <div class="d-flex align-center gap-2">
-                            <MudAvatar Size="Size.Small" Color="Color.Primary">@Ui.Initials(context.FullName)</MudAvatar>
+                            <MudAvatar Size="Size.Small" Color="@(context.IsActive ? Color.Primary : Color.Default)">@Ui.Initials(context.FullName)</MudAvatar>
                             <div>
-                                <MudText Typo="Typo.body2">@context.FullName</MudText>
+                                <MudText Typo="Typo.body2">@context.FullName@(context.Id == Me.User?.Id ? " (siz)" : "")</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Phone</MudText>
                             </div>
                         </div>
@@ -36,25 +46,52 @@
                     <MudTd DataLabel="Durum">
                         <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Aktif" : "Pasif")</MudChip>
                     </MudTd>
-                    <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditUserAsync(context))" aria-label="Düzenle" /></MudTd>
+                    <MudTd>
+                        <span @onclick:stopPropagation>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditUserAsync(context))" aria-label="@($"{context.FullName} düzenle")" />
+                        </span>
+                    </MudTd>
                 </RowTemplate>
+                <NoRecordsContent>
+                    <EmptyState Icon="@Icons.Material.Outlined.PersonSearch" Title="Kullanıcı bulunamadı" Text="Aramayı ya da rol filtresini değiştirin." />
+                </NoRecordsContent>
             </MudTable>
         </MudTabPanel>
         <MudTabPanel Text="Ekipler" Icon="@Icons.Material.Filled.Groups">
-            <div class="d-flex gap-2 mb-3 flex-wrap">
-                <MudTextField T="string" @bind-Value="_teamName" Label="Ekip adı" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:260px" />
-                <MudTextField T="string" @bind-Value="_teamDesc" Label="Açıklama" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:360px" />
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddTeamAsync" Disabled="string.IsNullOrWhiteSpace(_teamName)">Ekle</MudButton>
-            </div>
+            <MudPaper Outlined Class="pa-3 mb-3">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Yeni ekip</MudText>
+                <div class="d-flex gap-2 flex-wrap align-start">
+                    <MudTextField T="string" @bind-Value="_teamName" Label="Ekip adı *" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:260px" Immediate />
+                    <MudTextField T="string" @bind-Value="_teamDesc" Label="Açıklama" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:360px" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddTeamAsync" Disabled="string.IsNullOrWhiteSpace(_teamName)" StartIcon="@Icons.Material.Filled.Add">Ekle</MudButton>
+                </div>
+            </MudPaper>
+            @if (_teams.Count == 0 && _loaded)
+            {
+                <EmptyState Icon="@Icons.Material.Outlined.Groups" Title="Henüz ekip yok" Text="Ekipler çalışanları bölge ya da uzmanlığa göre gruplamanızı sağlar." />
+            }
             @foreach (var t in _teams)
             {
-                <MudPaper Outlined Class="pa-3 mb-2 d-flex align-center gap-3">
-                    <MudIcon Icon="@Icons.Material.Filled.Groups" Color="Color.Primary" />
-                    <div style="flex:1">
-                        <MudText><b>@t.Name</b></MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@t.Description · @_users.Count(u => u.TeamId == t.Id) üye</MudText>
+                var members = _users.Where(u => u.TeamId == t.Id).ToList();
+                <MudPaper Outlined Class="pa-3 mb-2">
+                    <div class="d-flex align-center gap-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Groups" Color="Color.Primary" aria-hidden="true" />
+                        <div style="flex:1;min-width:0">
+                            <MudText><b>@t.Name</b></MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@(string.IsNullOrWhiteSpace(t.Description) ? "" : t.Description + " · ")@members.Count üye</MudText>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => RenameTeamAsync(t))" aria-label="@($"{t.Name} ekibini yeniden adlandır")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteTeamAsync(t))" aria-label="@($"{t.Name} ekibini sil")" />
                     </div>
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteTeamAsync(t))" aria-label="Sil" />
+                    @if (members.Count > 0)
+                    {
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            @foreach (var m in members)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@m.FullName</MudChip>
+                            }
+                        </div>
+                    }
                 </MudPaper>
             }
         </MudTabPanel>
@@ -64,23 +101,38 @@
 @code {
     private List<UserDto> _users = [];
     private List<TeamDto> _teams = [];
-    private string? _search, _teamName, _teamDesc;
+    private string? _search, _teamName, _teamDesc, _role;
+    private bool _showInactive = true, _loaded;
 
-    private IEnumerable<UserDto> FilteredUsers => string.IsNullOrWhiteSpace(_search) ? _users :
-        _users.Where(u => u.FullName.Contains(_search, StringComparison.CurrentCultureIgnoreCase) || u.Email.Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserDto> FilteredUsers => _users
+        .Where(u => _showInactive || u.IsActive)
+        .Where(u => _role is null || u.Roles.Contains(_role))
+        .Where(u => string.IsNullOrWhiteSpace(_search) || u.FullName.Contains(_search, StringComparison.CurrentCultureIgnoreCase) ||
+                    u.Email.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Bildirimden (parola sıfırlama talebi) gelindiyse kullanıcı aranmış olarak açılır.
+        if (QueryString.Parse(new Uri(Nav.Uri).Query).TryGetValue("q", out var q)) _search = q[0];
+        await LoadAsync();
+        if (_search is not null && FilteredUsers.ToList() is [var only]) await EditUserAsync(only);
+    }
 
     private async Task LoadAsync()
     {
-        _users = await Api.GetUsersAsync();
-        _teams = await Api.GetTeamsAsync();
+        try
+        {
+            _users = await Api.GetUsersAsync();
+            _teams = await Api.GetTeamsAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        _loaded = true;
     }
 
     private async Task EditUserAsync(UserDto? user)
     {
         var parameters = new DialogParameters<UserDialog> { { x => x.Existing, user }, { x => x.Teams, _teams }, { x => x.IsSelf, user?.Id == Me.User?.Id } };
-        var dialog = await Dialogs.ShowAsync<UserDialog>(null, parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await Dialogs.ShowAsync<UserDialog>(null, parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
         if (await dialog.Result is { Canceled: false }) await LoadAsync();
     }
 
@@ -88,8 +140,21 @@
     {
         try
         {
-            await Api.CreateTeamAsync(new SaveTeamRequest(_teamName!, _teamDesc));
+            await Api.CreateTeamAsync(new SaveTeamRequest(_teamName!.Trim(), _teamDesc));
+            Snackbar.Add($"'{_teamName}' ekibi eklendi.", Severity.Success);
             _teamName = _teamDesc = null;
+            _teams = await Api.GetTeamsAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task RenameTeamAsync(TeamDto t)
+    {
+        var name = await Prompt.AskAsync(Dialogs, "Ekibi yeniden adlandır", "Ekip adı", initial: t.Name);
+        if (string.IsNullOrWhiteSpace(name) || name == t.Name) return;
+        try
+        {
+            await Api.UpdateTeamAsync(t.Id, new SaveTeamRequest(name, t.Description));
             _teams = await Api.GetTeamsAsync();
         }
         catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
@@ -97,8 +162,15 @@
 
     private async Task DeleteTeamAsync(TeamDto t)
     {
-        if (await Dialogs.ShowMessageBoxAsync("Ekibi sil", $"'{t.Name}' silinecek; üyeler ekipsiz kalacak.", "Sil", cancelText: "Vazgeç") != true) return;
-        await Api.DeleteTeamAsync(t.Id);
-        await LoadAsync();
+        var count = _users.Count(u => u.TeamId == t.Id);
+        if (await Dialogs.ShowMessageBoxAsync("Ekibi sil", count > 0 ? $"'{t.Name}' silinecek; {count} üye ekipsiz kalacak." : $"'{t.Name}' silinecek.",
+                "Sil", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeleteTeamAsync(t.Id);
+            Snackbar.Add("Ekip silindi.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 }

@@ -1,0 +1,21 @@
+@* Tıklanınca ilgili filtreli listeye götüren gösterge kartı. *@
+<a href="@Href" class="wfm-kpi-link" aria-label="@($"{Label}: {Value}. {Hint}")">
+    <MudPaper Class="wfm-kpi" Elevation="1">
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icon" Size="Size.Small" Style="@($"color:{Color ?? "var(--mud-palette-text-secondary)"}")" />
+            <MudText Typo="Typo.caption" Color="MudBlazor.Color.Secondary">@Label</MudText>
+        </div>
+        <div class="wfm-kpi-value" style="@(Color is null ? null : $"color:{Color}")">@Value</div>
+        <MudText Typo="Typo.caption" Color="MudBlazor.Color.Secondary">@Hint</MudText>
+    </MudPaper>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string Href { get; set; } = "#";
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Insights;
+    /// <summary>Değer rengi (ör. gecikme için kırmızı); null ise tema metin rengi.</summary>
+    [Parameter] public string? Color { get; set; }
+}

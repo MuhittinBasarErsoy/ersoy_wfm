@@ -1,0 +1,19 @@
+@* Klavye ve ekran okuyucuyla da kullanılabilen tıklanabilir alan (Enter / Boşluk). *@
+<div class="wfm-tap @Class" style="@Style" role="@Role" tabindex="0" aria-label="@AriaLabel"
+     @onclick="OnClick" @onkeydown="KeyAsync">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public string Role { get; set; } = "button";
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") await OnClick.InvokeAsync();
+    }
+}

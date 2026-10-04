@@ -1,0 +1,21 @@
+<div class="wfm-empty @Class" role="status">
+    <div class="wfm-empty-icon"><MudIcon Icon="@Icon" Size="Size.Large" /></div>
+    <MudText Typo="Typo.subtitle1"><b>@Title</b></MudText>
+    @if (Text is not null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width:420px">@Text</MudText>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="mt-2">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Class { get; set; }
+    /// <summary>İsteğe bağlı eylem butonu.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

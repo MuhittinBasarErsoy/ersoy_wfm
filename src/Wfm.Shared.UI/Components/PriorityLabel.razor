@@ -1,0 +1,12 @@
+@if (!HideNormal || Priority != TaskPriority.Normal)
+{
+    <span class="wfm-priority" style="color:@Ui.PriorityHex(Priority)" title="Öncelik: @Ui.Priority(Priority)">
+        <MudIcon Icon="@Ui.PriorityIcon(Priority)" Style="font-size:16px" aria-hidden="true" />@Ui.Priority(Priority)
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public TaskPriority Priority { get; set; }
+    /// <summary>Kart görünümlerinde "Normal" önceliği gizler; yalnızca dikkat gerektirenler görünür.</summary>
+    [Parameter] public bool HideNormal { get; set; }
+}

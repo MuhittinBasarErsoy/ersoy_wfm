@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Wfm.Api\Wfm.Api.csproj" />
     <ProjectReference Include="..\..\src\Wfm.Client\Wfm.Client.csproj" />
+    <ProjectReference Include="..\..\src\Wfm.Shared.UI\Wfm.Shared.UI.csproj" />
   </ItemGroup>
 
 </Project>

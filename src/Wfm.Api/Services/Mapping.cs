@@ -14,7 +14,13 @@ public static class Mapping
 
     public static TeamDto ToDto(this Team t) => new(t.Id, t.Name, t.Description);
 
-    public static NotificationDto ToDto(this Notification n) => new(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt);
+    public static NotificationDto ToDto(this Notification n) => new(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt, n.Kind);
+
+    public static TenantDto ToDto(this Tenant t) =>
+        new(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude, t.BrandColor, t.LogoUrl);
+
+    public static TaskCommentDto ToDto(this TaskComment c, IReadOnlyDictionary<Guid, string> userNames) =>
+        new(c.Id, c.WorkTaskId, c.UserId, userNames.TryGetValue(c.UserId, out var n) ? n : null, c.Body, c.CreatedAt);
 
     public static WorkTaskDto ToDto(this WorkTask t, IReadOnlyDictionary<Guid, string> userNames) => new()
     {
@@ -43,7 +49,8 @@ public static class Mapping
         CustomFieldValues = t.CustomFieldValues,
         CreatedAt = t.CreatedAt,
         UpdatedAt = t.UpdatedAt,
-        RowVersion = Convert.ToBase64String(t.RowVersion)
+        RowVersion = Convert.ToBase64String(t.RowVersion),
+        TrackingToken = t.TrackingToken
     };
 
     public static WorkTaskDetailDto ToDetailDto(this WorkTask t, IReadOnlyDictionary<Guid, string> userNames, FileUrlSigner signer)
@@ -58,7 +65,7 @@ public static class Mapping
             CustomerPhone = dto.CustomerPhone, ScheduledStart = dto.ScheduledStart, ScheduledEnd = dto.ScheduledEnd,
             StartedAt = dto.StartedAt, CompletedAt = dto.CompletedAt, CompletionNote = dto.CompletionNote,
             CustomFieldValues = dto.CustomFieldValues, CreatedAt = dto.CreatedAt, UpdatedAt = dto.UpdatedAt,
-            RowVersion = dto.RowVersion,
+            RowVersion = dto.RowVersion, TrackingToken = dto.TrackingToken,
             TaskType = t.TaskType?.ToDto(),
             Events = t.Events.OrderBy(e => e.CreatedAt).Select(e => new TaskEventDto(e.Id, e.UserId,
                 userNames.TryGetValue(e.UserId, out var un) ? un : null, e.FromStatus, e.ToStatus, e.Note,

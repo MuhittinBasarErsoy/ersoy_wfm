@@ -7,7 +7,11 @@
 }
 else
 {
-    <MudAlert Severity="Severity.Warning" Class="mt-4">Bu sayfayı görüntüleme yetkiniz yok.</MudAlert>
+    <PageTitle>Yetki yok · WFM</PageTitle>
+    <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Bu sayfayı görüntüleme yetkiniz yok"
+                Text="@($"Rolünüz: {Me.RoleName}. Erişim gerekiyorsa şirket yöneticinize başvurun.")" Class="mt-6">
+        <MudButton Href="/" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Home">Ana sayfaya dön</MudButton>
+    </EmptyState>
 }
 
 @code {

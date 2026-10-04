@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Wfm.Application.Contracts;
 using Wfm.Client;
+using Wfm.Shared.UI.Services;
 
 namespace Wfm.Mobile.Services;
 
@@ -8,7 +9,7 @@ namespace Wfm.Mobile.Services;
 /// Cihazdan gelen konumları sunucuya iletir: bağlantı varsa SignalR ile anlık, yoksa SQLite kuyruğuna yazıp sonra toplu gönderir.
 /// Platforma özel konum kaynakları (Android servisi, iOS CLLocationManager) buraya konum besler.
 /// </summary>
-public class LocationPipeline(WfmRealtime realtime, WfmApiClient api, LocalDb local, AuthSession session)
+public class LocationPipeline(WfmRealtime realtime, WfmApiClient api, LocalDb local, AuthSession session, ArrivalDetector arrival)
 {
     private const int FlushThreshold = 20;
     private static readonly SemaphoreSlim FlushLock = new(1, 1);
@@ -21,6 +22,8 @@ public class LocationPipeline(WfmRealtime realtime, WfmApiClient api, LocalDb lo
         int? battery = null;
         try { battery = (int)Math.Round(Battery.Default.ChargeLevel * 100); } catch { /* desteklenmiyor */ }
         var ping = new LocationPingDto(lat, lng, accuracy, speed, heading, battery, DateTime.UtcNow);
+        // Arka planda da çalışır: "Yolda" görevin adresine yaklaşınca yerel bildirimle "Vardım" önerilir.
+        await arrival.OnLocationAsync(lat, lng);
 
         if (await realtime.TrySendLocationAsync(ping)) return;
 

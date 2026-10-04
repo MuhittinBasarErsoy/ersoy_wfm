@@ -1,18 +1,35 @@
 @page "/reports"
 @inject WfmApiClient Api
-
-<PageTitle>Raporlar · WFM</PageTitle>
+@inject WfmJs Js
+@inject ISnackbar Snackbar
 
 <RequirePolicy Policy="@Policies.ViewReports">
-    <div class="d-flex align-center mb-3 gap-3">
-        <MudText Typo="Typo.h5">Raporlar</MudText>
-        <MudSpacer />
-        <MudSelect T="int" @bind-Value="_days" @bind-Value:after="LoadAsync" Label="Dönem" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px">
-            <MudSelectItem T="int" Value="7">Son 7 gün</MudSelectItem>
-            <MudSelectItem T="int" Value="30">Son 30 gün</MudSelectItem>
-            <MudSelectItem T="int" Value="90">Son 90 gün</MudSelectItem>
-        </MudSelect>
-    </div>
+    <PageHeader Title="Raporlar" Subtitle="@PeriodText">
+        <Actions>
+            <MudSelect T="int" @bind-Value="_days" @bind-Value:after="LoadAsync" Label="Dönem" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:160px">
+                <MudSelectItem T="int" Value="1">Bugün</MudSelectItem>
+                <MudSelectItem T="int" Value="7">Son 7 gün</MudSelectItem>
+                <MudSelectItem T="int" Value="30">Son 30 gün</MudSelectItem>
+                <MudSelectItem T="int" Value="90">Son 90 gün</MudSelectItem>
+                <MudSelectItem T="int" Value="365">Son 1 yıl</MudSelectItem>
+                <MudSelectItem T="int" Value="0">Özel aralık…</MudSelectItem>
+            </MudSelect>
+            @if (_days == 0)
+            {
+                <MudDateRangePicker @bind-DateRange="_range" @bind-DateRange:after="LoadAsync" Label="Tarih aralığı" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                    DateFormat="dd.MM.yyyy" Culture="Ui.Tr" MaxDate="DateTime.Today" Style="min-width:240px" AutoClose />
+            }
+            <MudMenu Label="Dışa aktar" StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem OnClick="ExportExcelAsync" Icon="@Icons.Material.Filled.TableView">Tüm rapor (Excel)</MudMenuItem>
+                <MudDivider />
+                <MudMenuItem OnClick="ExportWorkersAsync">Çalışan performansı (CSV)</MudMenuItem>
+                <MudMenuItem OnClick="ExportDailyAsync">Günlük görev sayıları (CSV)</MudMenuItem>
+                <MudMenuItem OnClick="ExportTypesAsync">Görev tipine göre (CSV)</MudMenuItem>
+                <MudDivider />
+                <MudMenuItem OnClick="@(() => Js.Run("print").AsTask())" Icon="@Icons.Material.Filled.Print">Yazdır / PDF</MudMenuItem>
+            </MudMenu>
+        </Actions>
+    </PageHeader>
 
     @if (_report is null)
     {
@@ -20,58 +37,85 @@
     }
     else
     {
-        <MudPaper Elevation="1" Class="pa-4 mb-3">
-            <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Çalışan performansı</b></MudText>
-            <MudTable T="WorkerStatsDto" Items="_report.Workers" Dense Hover Elevation="0" Breakpoint="Breakpoint.Sm">
-                <HeaderContent>
-                    <MudTh>Çalışan</MudTh>
-                    <MudTh Style="text-align:right">Tamamlanan</MudTh>
-                    <MudTh Style="text-align:right">Başarısız</MudTh>
-                    <MudTh Style="text-align:right">Açık</MudTh>
-                    <MudTh Style="text-align:right">Ort. süre</MudTh>
-                    <MudTh Style="width:30%">Başarı oranı</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    @{ var total = context.Completed + context.Failed; var rate = total == 0 ? 0 : context.Completed * 100.0 / total; }
-                    <MudTd DataLabel="Çalışan">@context.FullName</MudTd>
-                    <MudTd DataLabel="Tamamlanan" Style="text-align:right">@context.Completed</MudTd>
-                    <MudTd DataLabel="Başarısız" Style="text-align:right">@context.Failed</MudTd>
-                    <MudTd DataLabel="Açık" Style="text-align:right">@context.Open</MudTd>
-                    <MudTd DataLabel="Ort. süre" Style="text-align:right">@(context.AvgCompletionMinutes is { } m ? $"{m:0} dk" : "-")</MudTd>
-                    <MudTd DataLabel="Başarı oranı">
-                        @if (total > 0)
-                        {
-                            <div class="d-flex align-center gap-2">
-                                <MudProgressLinear Value="rate" Color="@(rate >= 90 ? Color.Success : rate >= 70 ? Color.Warning : Color.Error)" Rounded Size="Size.Medium" />
-                                <MudText Typo="Typo.caption">%@rate.ToString("0")</MudText>
-                            </div>
-                        }
-                    </MudTd>
-                </RowTemplate>
-                <NoRecordsContent><MudText Class="pa-3">Saha çalışanı yok.</MudText></NoRecordsContent>
-            </MudTable>
-        </MudPaper>
+        var created = Daily.Sum(d => d.Created);
+        var completed = Daily.Sum(d => d.Completed);
+        var failed = _report.Workers.Sum(w => w.Failed);
+        <MudGrid Spacing="3" Class="mb-1">
+            <MudItem xs="6" md="3"><KpiCard Label="Oluşturulan" Value="@created.ToString()" Hint="@PeriodText" Href="/tasks" Icon="@Icons.Material.Filled.AddTask" /></MudItem>
+            <MudItem xs="6" md="3"><KpiCard Label="Tamamlanan" Value="@completed.ToString()" Hint="@(created == 0 ? "-" : $"oluşturulanın %{completed * 100.0 / created:0}'i")" Href="/tasks?status=Completed" Icon="@Icons.Material.Filled.CheckCircle" Color="#2e7d32" /></MudItem>
+            <MudItem xs="6" md="3"><KpiCard Label="Başarısız" Value="@failed.ToString()" Hint="yapılamadı olarak kapanan" Href="/tasks?status=Failed" Icon="@Icons.Material.Filled.ErrorOutline" Color="@(failed > 0 ? "#ad1457" : null)" /></MudItem>
+            <MudItem xs="6" md="3"><KpiCard Label="Ort. tamamlama" Value="@(_report.AvgCompletionMinutes is { } a ? $"{a:0} dk" : "-")" Hint="yola çıkış → tamamlama" Href="/reports" Icon="@Icons.Material.Filled.Timer" /></MudItem>
+        </MudGrid>
 
         <MudGrid Spacing="3">
-            <MudItem xs="12" md="6">
-                <MudPaper Elevation="1" Class="pa-4">
-                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Günlük görevler (son 7 gün)</b></MudText>
-                    <BarChart Data="@_report.Last7Days.Select(d => new BarChart.Point(d.Day.ToString("dd.MM"), d.Created, d.Completed)).ToList()" LabelA="Oluşturulan" LabelB="Tamamlanan" />
+            <MudItem xs="12" lg="7">
+                <MudPaper Elevation="1" Class="pa-4" Style="height:100%">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Günlük görevler</b> <MudText Typo="Typo.caption" Color="Color.Secondary" HtmlTag="span">(@PeriodText)</MudText></MudText>
+                    <BarChart Data="@Daily.Select(d => new BarChart.Point(d.Day.ToString("dd.MM"), d.Created, d.Completed)).ToList()" LabelA="Oluşturulan" LabelB="Tamamlanan" />
                 </MudPaper>
             </MudItem>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" lg="5">
+                <MudPaper Elevation="1" Class="pa-4" Style="height:100%">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Görev tipine göre</b></MudText>
+                    @if (_report.Types is not { Count: > 0 } types)
+                    {
+                        <EmptyState Icon="@Icons.Material.Outlined.Category" Title="Bu dönemde görev yok" />
+                    }
+                    else
+                    {
+                        var max = Math.Max(1, types.Max(t => t.Created));
+                        @foreach (var t in types)
+                        {
+                            <div class="mb-2">
+                                <div class="d-flex align-center gap-2">
+                                    <span style="width:10px;height:10px;border-radius:50%;background:@t.Color;display:inline-block" aria-hidden="true"></span>
+                                    <MudText Typo="Typo.body2" Style="flex:1"><b>@t.Name</b></MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@t.Completed / @t.Created tamamlandı@(t.AvgCompletionMinutes is { } m ? $" · ort. {m:0} dk" : "")</MudText>
+                                </div>
+                                <div style="height:8px;border-radius:4px;background:var(--mud-palette-action-default-hover);overflow:hidden;margin-top:4px" aria-hidden="true">
+                                    <div style="height:100%;width:@((t.Created * 100.0 / max).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%;background:@t.Color"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
                 <MudPaper Elevation="1" Class="pa-4">
-                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Özet</b></MudText>
-                    <MudSimpleTable Dense Elevation="0">
-                        <tbody>
-                            <tr><td>Ortalama tamamlama süresi (yola çıkış → tamamlama)</td><td style="text-align:right"><b>@(_report.AvgCompletionMinutes is { } a ? $"{a:0} dk" : "-")</b></td></tr>
-                            <tr><td>Şu an mesaide olan çalışan</td><td style="text-align:right"><b>@_report.ActiveWorkers</b></td></tr>
-                            @foreach (var (s, c) in _report.CountsByStatus.OrderBy(kv => kv.Key))
-                            {
-                                <tr><td>@Ui.Status(s)</td><td style="text-align:right">@c</td></tr>
-                            }
-                        </tbody>
-                    </MudSimpleTable>
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Çalışan performansı</b> <MudText Typo="Typo.caption" Color="Color.Secondary" HtmlTag="span">(@PeriodText; açık = şu an)</MudText></MudText>
+                    <MudTable T="WorkerStatsDto" Items="_report.Workers" Dense Hover Elevation="0" Breakpoint="Breakpoint.Sm" SortLabel="Sırala">
+                        <HeaderContent>
+                            <MudTh><MudTableSortLabel T="WorkerStatsDto" SortBy="x => x.FullName">Çalışan</MudTableSortLabel></MudTh>
+                            <MudTh Style="text-align:right"><MudTableSortLabel T="WorkerStatsDto" SortBy="x => x.Completed" InitialDirection="SortDirection.Descending">Tamamlanan</MudTableSortLabel></MudTh>
+                            <MudTh Style="text-align:right"><MudTableSortLabel T="WorkerStatsDto" SortBy="x => x.Failed">Başarısız</MudTableSortLabel></MudTh>
+                            <MudTh Style="text-align:right"><MudTableSortLabel T="WorkerStatsDto" SortBy="x => x.Open">Açık</MudTableSortLabel></MudTh>
+                            <MudTh Style="text-align:right"><MudTableSortLabel T="WorkerStatsDto" SortBy="x => x.AvgCompletionMinutes ?? double.MaxValue">Ort. süre</MudTableSortLabel></MudTh>
+                            <MudTh Style="width:30%"><MudTableSortLabel T="WorkerStatsDto" SortBy="x => Rate(x)">Başarı oranı</MudTableSortLabel></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            @{ var total = context.Completed + context.Failed; var rate = Rate(context); }
+                            <MudTd DataLabel="Çalışan"><a href="/tasks?assignee=@context.UserId" style="color:inherit">@context.FullName</a></MudTd>
+                            <MudTd DataLabel="Tamamlanan" Style="text-align:right">@context.Completed</MudTd>
+                            <MudTd DataLabel="Başarısız" Style="text-align:right">@context.Failed</MudTd>
+                            <MudTd DataLabel="Açık" Style="text-align:right">@context.Open</MudTd>
+                            <MudTd DataLabel="Ort. süre" Style="text-align:right">@(context.AvgCompletionMinutes is { } m ? $"{m:0} dk" : "-")</MudTd>
+                            <MudTd DataLabel="Başarı oranı">
+                                @if (total > 0)
+                                {
+                                    <div class="d-flex align-center gap-2">
+                                        <MudProgressLinear Value="rate" Color="@(rate >= 90 ? Color.Success : rate >= 70 ? Color.Warning : Color.Error)" Rounded Size="Size.Medium" aria-label="@($"Başarı oranı yüzde {rate:0}")" />
+                                        <MudText Typo="Typo.caption">%@rate.ToString("0")</MudText>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">kapanan görev yok</MudText>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><EmptyState Icon="@Icons.Material.Outlined.Groups" Title="Saha çalışanı yok" Text="Kullanıcılar sayfasından saha çalışanı ekleyin." /></NoRecordsContent>
+                    </MudTable>
                 </MudPaper>
             </MudItem>
         </MudGrid>
@@ -81,8 +125,74 @@
 @code {
     private ReportSummaryDto? _report;
     private int _days = 30;
+    private DateRange _range = new(DateTime.Today.AddDays(-13), DateTime.Today);
+
+    private List<DailyCountDto> Daily => _report?.Daily ?? _report?.Last7Days ?? [];
+    private string PeriodText => _days switch
+    {
+        0 => _range.Start is { } s && _range.End is { } e ? $"{s:dd.MM.yyyy} – {e:dd.MM.yyyy}" : "özel aralık",
+        1 => "bugün",
+        365 => "son 1 yıl",
+        _ => $"son {_days} gün"
+    };
+    private string FileTag => _days == 0 && _range.Start is { } s && _range.End is { } e ? $"{s:yyyyMMdd}-{e:yyyyMMdd}" : $"{_days}gun";
+
+    private static double Rate(WorkerStatsDto w) => w.Completed + w.Failed == 0 ? -1 : w.Completed * 100.0 / (w.Completed + w.Failed);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
-    private async Task LoadAsync() => _report = await Api.GetReportAsync(_days);
+    private async Task LoadAsync()
+    {
+        try
+        {
+            if (_days == 0)
+            {
+                if (_range.Start is not { } s || _range.End is not { } e) return;
+                _report = await Api.GetReportAsync(DateOnly.FromDateTime(s), DateOnly.FromDateTime(e));
+            }
+            else _report = await Api.GetReportAsync(_days);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private Task Download(string name, string csv) =>
+        Js.Run("downloadText", $"{name}-{FileTag}.csv", csv, "text/csv;charset=utf-8").AsTask();
+
+    /// <summary>Çalışan performansı tek sayfa .xlsx (sayılar sayı olarak; Excel'de toplanabilir).</summary>
+    private async Task ExportExcelAsync()
+    {
+        if (_report is null) return;
+        var rows = new List<IReadOnlyList<object?>>();
+        rows.AddRange(_report.Workers.Select(w => (IReadOnlyList<object?>)new object?[]
+        {
+            "Çalışan", w.FullName, w.Completed, w.Failed, w.Open, w.AvgCompletionMinutes is { } m ? Math.Round(m) : null,
+            Rate(w) < 0 ? null : Math.Round(Rate(w), 1)
+        }));
+        rows.AddRange((_report.Types ?? []).Select(t => (IReadOnlyList<object?>)new object?[]
+        {
+            "Görev tipi", t.Name, t.Completed, t.Failed, null, t.AvgCompletionMinutes is { } m ? Math.Round(m) : null, null, t.Created
+        }));
+        rows.AddRange(Daily.Select(d => (IReadOnlyList<object?>)new object?[]
+        {
+            "Gün", d.Day.ToString("dd.MM.yyyy"), d.Completed, null, null, null, null, d.Created
+        }));
+        var bytes = Xlsx.Build($"Rapor {FileTag}", ["Kırılım", "Ad / gün", "Tamamlanan", "Başarısız", "Açık", "Ort. süre (dk)", "Başarı oranı (%)", "Oluşturulan"], rows);
+        await Js.Run("downloadBytes", $"rapor-{FileTag}.xlsx", Convert.ToBase64String(bytes),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private Task ExportWorkersAsync() => _report is null ? Task.CompletedTask : Download("calisan-performansi",
+        Csv.Build(["Çalışan", "Tamamlanan", "Başarısız", "Açık", "Ort. süre (dk)", "Başarı oranı (%)"],
+            _report.Workers.Select(w => new[]
+            {
+                w.FullName, w.Completed.ToString(), w.Failed.ToString(), w.Open.ToString(),
+                w.AvgCompletionMinutes?.ToString("0", Ui.Tr) ?? "", Rate(w) < 0 ? "" : Rate(w).ToString("0", Ui.Tr)
+            })));
+
+    private Task ExportDailyAsync() => Download("gunluk-gorevler",
+        Csv.Build(["Gün", "Oluşturulan", "Tamamlanan"], Daily.Select(d => new[] { d.Day.ToString("dd.MM.yyyy"), d.Created.ToString(), d.Completed.ToString() })));
+
+    private Task ExportTypesAsync() => Download("gorev-tipleri",
+        Csv.Build(["Görev tipi", "Oluşturulan", "Tamamlanan", "Başarısız", "Ort. süre (dk)"],
+            (_report?.Types ?? []).Select(t => new[] { t.Name, t.Created.ToString(), t.Completed.ToString(), t.Failed.ToString(), t.AvgCompletionMinutes?.ToString("0", Ui.Tr) ?? "" })));
 }

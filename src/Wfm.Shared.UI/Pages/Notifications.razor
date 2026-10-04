@@ -4,45 +4,81 @@
 @inject UserContext Me
 @inject NavigationManager Nav
 
-<PageTitle>Bildirimler · WFM</PageTitle>
+@if (Me.IsFieldWorker)
+{
+    <AppTitle Title="Bildirimler" />
+}
+else
+{
+    <PageHeader Title="Bildirimler" Subtitle="@(Center.Unread > 0 ? $"{Center.Unread} okunmamış" : "Hepsi okundu")" />
+}
 
-<div class="d-flex align-center mb-3">
-    <MudText Typo="Typo.h5">Bildirimler</MudText>
+<div class="d-flex align-center flex-wrap gap-2 mb-3">
+    <MudChipSet T="string" @bind-SelectedValue="_filter" SelectionMode="SelectionMode.SingleSelection" CheckMark Size="Size.Small">
+        <MudChip T="string" Value="@("all")" Default>Tümü</MudChip>
+        <MudChip T="string" Value="@("unread")">Okunmamış (@Center.Unread)</MudChip>
+    </MudChipSet>
     <MudSpacer />
     @if (Center.Unread > 0)
     {
-        <MudButton Size="Size.Small" OnClick="Center.MarkAllReadAsync">Tümünü okundu say</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.DoneAll" OnClick="Center.MarkAllReadAsync">Tümünü okundu say</MudButton>
     }
 </div>
 
-@if (Center.Items.Count == 0)
+@if (Visible.Count == 0)
 {
-    <MudText Color="Color.Secondary">Bildirim yok.</MudText>
+    <EmptyState Icon="@Icons.Material.Outlined.NotificationsNone" Title="@(_filter == "unread" ? "Okunmamış bildirim yok" : "Bildirim yok")"
+                Text="Görev atamaları, iptaller, gecikmeler ve mesajlar burada görünür." />
 }
-@foreach (var n in Center.Items)
+@foreach (var group in Visible.GroupBy(n => Ui.DayLabel(n.CreatedAt)))
 {
-    <MudPaper Elevation="@(n.ReadAt is null ? 2 : 0)" Outlined="n.ReadAt is not null" Class="pa-3 mb-2 wfm-clickable" @onclick="@(() => Open(n))">
-        <div class="d-flex align-center gap-2">
-            <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="@(n.ReadAt is null ? Color.Primary : Color.Default)" />
-            <div style="flex:1">
-                <MudText Typo="Typo.body1"><b>@n.Title</b></MudText>
-                <MudText Typo="Typo.body2">@n.Body</MudText>
-            </div>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@Ui.Ago(n.CreatedAt)</MudText>
-        </div>
-    </MudPaper>
+    <MudText Typo="Typo.overline" Color="Color.Secondary" Class="d-block mt-2">@group.Key</MudText>
+    @foreach (var n in group)
+    {
+        var unread = n.ReadAt is null;
+        <Tap Class="mb-2" OnClick="@(() => OpenAsync(n))" AriaLabel="@($"{(unread ? "Okunmamış: " : "")}{n.Title}. {n.Body}")">
+            <MudPaper Elevation="@(unread ? 2 : 0)" Outlined="!unread" Class="pa-3"
+                      Style="@(unread ? "box-shadow:inset 3px 0 0 var(--mud-palette-primary)" : null)">
+                <div class="d-flex align-center gap-3">
+                    <MudIcon Icon="@Ui.NotificationIcon(n.Kind)" Color="@(unread ? Ui.NotificationColor(n.Kind) : Color.Default)" aria-hidden="true" />
+                    <div style="flex:1;min-width:0">
+                        <MudText Typo="Typo.body1">@if (unread) { <b>@n.Title</b> } else { @n.Title }</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@n.Body</MudText>
+                    </div>
+                    <div class="d-flex flex-column align-end">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap">@Ui.Local(n.CreatedAt, "HH:mm")</MudText>
+                        @if (n.WorkTaskId is not null)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" aria-hidden="true" />
+                        }
+                    </div>
+                </div>
+            </MudPaper>
+        </Tap>
+    }
 }
 
 @code {
+    private string? _filter = "all";
+
+    private List<NotificationDto> Visible => Center.Items.Where(n => _filter != "unread" || n.ReadAt is null).ToList();
+
     protected override async Task OnInitializedAsync()
     {
         Center.Changed += Refresh;
         await Center.RefreshAsync();
     }
 
-    private void Open(NotificationDto n)
+    private async Task OpenAsync(NotificationDto n)
     {
+        await Center.MarkReadAsync(n.Id);
         if (n.WorkTaskId is { } id) Nav.NavigateTo(Me.IsFieldWorker ? $"/field/tasks/{id}" : $"/tasks/{id}");
+        else if (n.Kind == NotificationKinds.PasswordReset && Me.Can(Policies.ManageUsers))
+        {
+            // Gövde "Ad Soyad (e-posta) ..." biçiminde; kullanıcıyı listede bulup açmak için e-postayı al.
+            var m = System.Text.RegularExpressions.Regex.Match(n.Body, @"\(([^)]+@[^)]+)\)");
+            Nav.NavigateTo(m.Success ? $"/users?q={Uri.EscapeDataString(m.Groups[1].Value)}" : "/users");
+        }
     }
 
     private void Refresh() => _ = InvokeAsync(StateHasChanged);

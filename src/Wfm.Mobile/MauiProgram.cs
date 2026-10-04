@@ -46,15 +46,20 @@ public static class MauiProgram
         return builder.Build();
     }
 
+    /// <summary>Canlı sunucu (Tailscale Funnel, bkz. deploy/README.md).</summary>
+    private const string ProductionApiUrl = "https://wfm-api.tailc23b56.ts.net";
+
     /// <summary>
-    /// API adresi. Geliştirmede Android emülatörü bilgisayara 10.0.2.2 üzerinden erişir.
-    /// Gerçek cihaz/üretim için "api_base_url" tercihini ayarlayın veya burayı değiştirin.
+    /// API adresi. "api_base_url" tercihi her zaman önceliklidir. Release derlemeleri canlı sunucuya,
+    /// Debug derlemeleri yerel API'ye bağlanır (Android emülatörü bilgisayara 10.0.2.2 üzerinden erişir).
     /// </summary>
     private static string ApiBaseUrl()
     {
         var configured = Preferences.Default.Get("api_base_url", "");
         if (!string.IsNullOrWhiteSpace(configured)) return configured;
-#if ANDROID
+#if !DEBUG
+        return ProductionApiUrl;
+#elif ANDROID
         return "http://10.0.2.2:5211";
 #else
         return "http://localhost:5211";

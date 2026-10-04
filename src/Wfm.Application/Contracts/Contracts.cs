@@ -7,9 +7,21 @@ namespace Wfm.Application.Contracts;
 public record LoginRequest(string Email, string Password);
 public record RefreshRequest(string RefreshToken);
 public record AuthResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserDto User);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+public record UpdateProfileRequest(string FullName, string? Phone);
+public record ForgotPasswordRequest(string Email);
+
+// ---------- Kayıtlı filtreler ----------
+public record SavedFilterDto(Guid Id, string Name, string Query, bool IsShared, bool IsMine, string? OwnerName);
+public record SaveFilterRequest(string Name, string Query, bool IsShared);
+
+/// <summary>Giriş ekranında gösterilen şirket markası (oturum gerektirmez).</summary>
+public record PublicTenantBrandDto(string Name, string Slug, string? BrandColor, string? LogoUrl);
 
 // ---------- Tenants ----------
-public record TenantDto(Guid Id, string Name, string Slug, bool IsActive, double DefaultLatitude, double DefaultLongitude);
+public record TenantDto(Guid Id, string Name, string Slug, bool IsActive, double DefaultLatitude, double DefaultLongitude,
+    string? BrandColor = null, string? LogoUrl = null);
+public record UpdateTenantSettingsRequest(string Name, double DefaultLatitude, double DefaultLongitude, string? BrandColor, string? LogoUrl);
 public record CreateTenantRequest(string Name, string Slug, string AdminEmail, string AdminPassword, string AdminFullName);
 
 // ---------- Users / Teams ----------
@@ -58,6 +70,11 @@ public record WorkTaskDto
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
     public string RowVersion { get; init; } = "";
+    public string? TrackingToken { get; init; }
+
+    /// <summary>Planlanan bitiş zamanı geçtiği hâlde açık.</summary>
+    public bool IsOverdue => Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)
+                             && ScheduledEnd is { } end && end < DateTime.UtcNow;
 }
 
 public record WorkTaskDetailDto : WorkTaskDto
@@ -116,6 +133,11 @@ public record TaskQuery
     public DateTime? To { get; set; }
     public string? Search { get; set; }
     public bool OnlyOpen { get; set; }
+    /// <summary>Yalnızca planlanan bitişi geçmiş açık görevler.</summary>
+    public bool Overdue { get; set; }
+    /// <summary>Sıralama alanı: priority (varsayılan), scheduled, created, updated, title, status, assignee.</summary>
+    public string? Sort { get; set; }
+    public bool Desc { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
 }
@@ -132,7 +154,22 @@ public record WorkerLocationDto(Guid UserId, string FullName, double Latitude, d
 public record ShiftDto(Guid Id, DateTime StartedAt, DateTime? EndedAt);
 
 // ---------- Notifications ----------
-public record NotificationDto(Guid Id, string Title, string Body, Guid? WorkTaskId, DateTime CreatedAt, DateTime? ReadAt);
+public record NotificationDto(Guid Id, string Title, string Body, Guid? WorkTaskId, DateTime CreatedAt, DateTime? ReadAt,
+    string Kind = "general");
+
+// ---------- Comments ----------
+public record TaskCommentDto(Guid Id, Guid WorkTaskId, Guid UserId, string? UserName, string Body, DateTime CreatedAt);
+public record AddCommentRequest(string Body);
+
+// ---------- Public tracking (müşteri) ----------
+public record TrackingLinkDto(string Token);
+public record PublicTrackingEventDto(WorkTaskStatus Status, DateTime At);
+public record PublicTrackingDto(
+    string TenantName, string? BrandColor, string? LogoUrl,
+    string Title, WorkTaskStatus Status, string Address, double Latitude, double Longitude,
+    DateTime? ScheduledStart, DateTime? ScheduledEnd, DateTime? CompletedAt,
+    string? WorkerFirstName, double? WorkerLatitude, double? WorkerLongitude, DateTime? WorkerSeenAt,
+    List<PublicTrackingEventDto> Events);
 
 // ---------- Sync ----------
 public record SyncResponse(DateTime ServerTime, List<WorkTaskDetailDto> Tasks, List<TaskTypeDto> TaskTypes,
@@ -146,7 +183,13 @@ public record ReportSummaryDto(
     double? AvgCompletionMinutes,
     int ActiveWorkers,
     List<WorkerStatsDto> Workers,
-    List<DailyCountDto> Last7Days);
+    List<DailyCountDto> Last7Days,
+    int OverdueCount = 0,
+    int UnassignedCount = 0,
+    List<DailyCountDto>? Daily = null,
+    List<TypeStatsDto>? Types = null);
+
+public record TypeStatsDto(Guid TaskTypeId, string Name, string Color, int Created, int Completed, int Failed, double? AvgCompletionMinutes);
 
 public record WorkerStatsDto(Guid UserId, string FullName, int Completed, int Failed, int Open, double? AvgCompletionMinutes);
 public record DailyCountDto(DateOnly Day, int Created, int Completed);
@@ -168,6 +211,7 @@ public static class HubMethods
     public const string TaskChanged = "TaskChanged";
     public const string NotificationReceived = "NotificationReceived";
     public const string ShiftChanged = "ShiftChanged";
+    public const string CommentAdded = "CommentAdded";
     // İstemci → sunucu
     public const string SendLocation = "SendLocation";
 }

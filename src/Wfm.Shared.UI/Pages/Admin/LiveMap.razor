@@ -3,49 +3,81 @@
 @inject WfmApiClient Api
 @inject WfmRealtime Realtime
 @inject ISnackbar Snackbar
-
-<PageTitle>Canlı harita · WFM</PageTitle>
+@inject NavigationManager Nav
 
 <RequirePolicy Policy="@Policies.ViewTracking">
+    <PageTitle>Canlı harita · WFM</PageTitle>
     <MudGrid Spacing="3">
-        <MudItem xs="12" md="3">
-            <MudPaper Elevation="1" Class="pa-3" Style="height:calc(100vh - 120px);overflow:auto">
-                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Saha çalışanları</b></MudText>
-                <MudSwitch T="bool" @bind-Value="_showTasks" @bind-Value:after="DrawTasksAsync" Color="Color.Primary" Label="Açık görevleri göster" Class="mb-2" />
-                @if (_workers.Count == 0 && _loaded)
+        <MudItem xs="12" md="4" lg="3" Class="order-2 order-md-1">
+            <MudPaper Elevation="1" Class="pa-3 wfm-map-side">
+                <div class="d-flex align-center mb-2">
+                    <h1 tabindex="-1" class="mud-typography mud-typography-subtitle1" style="margin:0"><b>Saha çalışanları</b></h1>
+                    <MudSpacer />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_workers.Count(w => w.OnShift) / @_workers.Count mesaide</MudText>
+                </div>
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Çalışan ara" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Clearable
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-1" aria-label="Çalışan ara" />
+                <div class="d-flex flex-wrap">
+                    <MudSwitch T="bool" @bind-Value="_onlyOnShift" Color="Color.Primary" Label="Yalnız mesaidekiler" Class="ma-0" />
+                    <MudSwitch T="bool" @bind-Value="_showTasks" @bind-Value:after="DrawTasksAsync" Color="Color.Primary" Label="Açık görevler" Class="ma-0" />
+                </div>
+                <MudDivider Class="my-2" />
+                @if (_loaded && Visible.Count == 0)
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Son 24 saatte konum gönderen çalışan yok.</MudText>
+                    <EmptyState Icon="@Icons.Material.Outlined.LocationOff" Title="Gösterilecek çalışan yok"
+                                Text="@(_workers.Count == 0 ? "Son 24 saatte konum gönderen çalışan yok. Çalışanlar mobil uygulamada mesaiye başladığında burada görünür." : "Filtreye uyan çalışan yok.")" />
                 }
-                @foreach (var w in _workers.OrderByDescending(w => w.OnShift).ThenBy(w => w.FullName))
+                @foreach (var w in Visible)
                 {
                     var selected = _selected == w.UserId;
-                    <MudPaper Elevation="0" Outlined Class="@($"pa-2 mb-2 wfm-clickable {(selected ? "mud-theme-primary" : "")}")" @onclick="@(() => SelectAsync(w))">
-                        <div class="d-flex align-center gap-2">
-                            <MudAvatar Size="Size.Small" Style="@($"background:{MapMarker.ForWorker(w).Color};color:#fff")">@Ui.Initials(w.FullName)</MudAvatar>
-                            <div style="flex:1;min-width:0">
-                                <MudText Typo="Typo.body2"><b>@w.FullName</b></MudText>
-                                <MudText Typo="Typo.caption">@(w.OnShift ? "Mesaide" : "Mesai dışı") · @Ui.Ago(w.RecordedAt)@(w.BatteryLevel is { } b ? $" · 🔋%{b}" : "")</MudText>
-                                @if (w.ActiveTaskTitle is not null)
-                                {
-                                    <MudText Typo="Typo.caption" Style="display:block">📋 @w.ActiveTaskTitle</MudText>
-                                }
+                    var stale = MapMarker.IsStale(w);
+                    <Tap Class="mb-2" OnClick="@(() => SelectAsync(w))" AriaLabel="@($"{w.FullName}, {(w.OnShift ? "mesaide" : "mesai dışı")}, son konum {Ui.Ago(w.RecordedAt)}")">
+                        <MudPaper Elevation="0" Outlined Class="pa-2" Style="@(selected ? "border-color:var(--mud-palette-primary);box-shadow:inset 3px 0 0 var(--mud-palette-primary)" : null)">
+                            <div class="d-flex align-center gap-2">
+                                <MudAvatar Size="Size.Small" Style="@($"background:{MapMarker.WorkerColor(w)};color:#fff")">@Ui.Initials(w.FullName)</MudAvatar>
+                                <div style="flex:1;min-width:0">
+                                    <MudText Typo="Typo.body2" Class="wfm-ellipsis"><b>@w.FullName</b></MudText>
+                                    <MudText Typo="Typo.caption" Color="@(w.OnShift && stale ? Color.Warning : Color.Secondary)" Style="display:block">
+                                        @(w.OnShift ? (stale ? "Konum gelmiyor" : "Mesaide") : "Mesai dışı") · @Ui.Ago(w.RecordedAt)
+                                        @if (w.BatteryLevel is { } b)
+                                        {
+                                            <span style="@(b <= 20 ? "color:var(--mud-palette-error)" : null)"> · pil %@b</span>
+                                        }
+                                    </MudText>
+                                    @if (w.ActiveTaskTitle is not null)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="wfm-ellipsis" Style="display:block">
+                                            <MudIcon Icon="@Icons.Material.Filled.Assignment" Style="font-size:12px;vertical-align:-1px" aria-hidden="true" /> @w.ActiveTaskTitle
+                                        </MudText>
+                                    }
+                                </div>
                             </div>
-                        </div>
-                    </MudPaper>
+                        </MudPaper>
+                    </Tap>
                 }
-                @if (_selected is not null)
+                @if (_selected is { } sel)
                 {
                     <MudDivider Class="my-2" />
-                    <MudText Typo="Typo.subtitle2">Rota geçmişi</MudText>
-                    <MudDatePicker Label="Tarih" @bind-Date="_historyDate" @bind-Date:after="LoadHistoryAsync" DateFormat="dd.MM.yyyy" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    <MudText Typo="Typo.caption">@_historyCount konum noktası</MudText>
-                    <MudButton Size="Size.Small" OnClick="ClearSelectionAsync" Class="mt-1">Seçimi temizle</MudButton>
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Rota geçmişi · @_workers.FirstOrDefault(w => w.UserId == sel)?.FullName</MudText>
+                    <MudDatePicker Label="Tarih" @bind-Date="_historyDate" @bind-Date:after="LoadHistoryAsync" DateFormat="dd.MM.yyyy" Variant="Variant.Outlined"
+                                   Margin="Margin.Dense" MaxDate="DateTime.Today" Culture="Ui.Tr" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@(_historyCount == 0 ? "Bu gün için konum kaydı yok." : $"{_historyCount} konum noktası")</MudText>
+                    <div class="d-flex gap-2 mt-1">
+                        @if (_workers.FirstOrDefault(w => w.UserId == sel)?.ActiveTaskId is { } taskId)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Href="@($"/tasks/{taskId}")">Aktif göreve git</MudButton>
+                        }
+                        <MudButton Size="Size.Small" OnClick="ClearSelectionAsync">Seçimi temizle</MudButton>
+                    </div>
                 }
             </MudPaper>
         </MudItem>
-        <MudItem xs="12" md="9">
-            <MudPaper Elevation="1" Class="pa-2" Style="height:calc(100vh - 120px)">
-                <LeafletMap @ref="_map" Height="100%" Latitude="_center.Latitude" Longitude="_center.Longitude" Zoom="12" OnReady="DrawAsync" />
+        <MudItem xs="12" md="8" lg="9" Class="order-1 order-md-2">
+            <MudPaper Elevation="1" Class="pa-2">
+                <div class="wfm-map-main">
+                    <LeafletMap @ref="_map" Height="100%" Latitude="_center.Latitude" Longitude="_center.Longitude" Zoom="12" OnReady="DrawAsync" OnMarkerClick="MarkerClicked" />
+                </div>
+                <MapLegend Tasks="_showTasks" />
             </MudPaper>
         </MudItem>
     </MudGrid>
@@ -55,12 +87,17 @@
     private LeafletMap? _map;
     private List<WorkerLocationDto> _workers = [];
     private List<WorkTaskDto> _tasks = [];
-    private bool _showTasks = true;
-    private bool _loaded;
+    private bool _showTasks = true, _onlyOnShift, _loaded;
+    private string? _search;
     private Guid? _selected;
     private DateTime? _historyDate = DateTime.Today;
     private int _historyCount;
     private GeoPoint _center = new(41.0082, 28.9784);
+
+    private List<WorkerLocationDto> Visible => _workers
+        .Where(w => !_onlyOnShift || w.OnShift)
+        .Where(w => string.IsNullOrWhiteSpace(_search) || w.FullName.Contains(_search.Trim(), StringComparison.CurrentCultureIgnoreCase))
+        .OrderByDescending(w => w.OnShift).ThenBy(w => MapMarker.IsStale(w)).ThenBy(w => w.FullName).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -89,11 +126,20 @@
         await _map.SetMarkersAsync("tasks", _showTasks ? _tasks.Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")) : []);
     }
 
+    private async Task MarkerClicked(MarkerClick click)
+    {
+        if (click.Layer == "workers" && Guid.TryParse(click.Id, out var id) && _workers.FirstOrDefault(w => w.UserId == id) is { } w)
+        {
+            _selected = w.UserId;
+            await LoadHistoryAsync();
+        }
+    }
+
     private async Task SelectAsync(WorkerLocationDto w)
     {
         _selected = w.UserId;
         await LoadHistoryAsync();
-        if (_historyCount == 0 && _map is not null) await _map.OpenPopupAsync("workers", w.UserId.ToString());
+        if (_map is not null) await _map.OpenPopupAsync("workers", w.UserId.ToString());
     }
 
     private async Task LoadHistoryAsync()
@@ -129,7 +175,7 @@
     private void OnTaskChanged(WorkTaskDto t) => _ = InvokeAsync(async () =>
     {
         _tasks.RemoveAll(x => x.Id == t.Id);
-        if (t.Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)) _tasks.Add(t);
+        if (!Ui.IsClosed(t.Status)) _tasks.Add(t);
         await DrawTasksAsync();
     });
 

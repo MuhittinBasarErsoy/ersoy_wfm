@@ -1,0 +1,20 @@
+@* Görev listesi filtresini kaydetme: ad + ekiple paylaşma. *@
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_name" Label="Filtre adı *" Placeholder="ör. Bugün geciken teslimatlar" Variant="Variant.Outlined" Immediate AutoFocus
+                      MaxLength="100" Class="mb-2" />
+        <MudSwitch T="bool" @bind-Value="_shared" Color="Color.Primary" Label="Ekiple paylaş (şirketteki tüm dispeçer ve yöneticiler görür)" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">Aynı adla kaydederseniz mevcut filtreniz güncellenir.</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="string.IsNullOrWhiteSpace(_name)"
+                   OnClick="@(() => Dialog.Close(DialogResult.Ok((_name!.Trim(), _shared))))">Kaydet</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    private string? _name;
+    private bool _shared;
+}

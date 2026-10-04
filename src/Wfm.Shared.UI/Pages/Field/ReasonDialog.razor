@@ -1,7 +1,14 @@
 <MudDialog>
     <TitleContent><MudText Typo="Typo.h6">@Title</MudText></TitleContent>
     <DialogContent>
-        <MudTextField T="string" @bind-Value="_reason" Label="Neden? *" Variant="Variant.Outlined" Lines="3" Immediate AutoFocus />
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Hızlı seçim</MudText>
+        <div class="d-flex flex-wrap gap-1 mb-2">
+            @foreach (var r in Quick)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="@(_reason == r ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => _reason = r)">@r</MudChip>
+            }
+        </div>
+        <MudTextField T="string" @bind-Value="_reason" Label="Neden? *" Variant="Variant.Outlined" Lines="3" Immediate AutoFocus HelperText="Dispeçere iletilir" />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
@@ -14,4 +21,5 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
     [Parameter] public string Title { get; set; } = "";
     private string? _reason;
+    private static readonly string[] Quick = ["Müşteri adreste yok", "Adres bulunamadı", "Müşteri iptal etti", "Malzeme/parça eksik", "Ulaşım sorunu", "Mesai yoğunluğu"];
 }

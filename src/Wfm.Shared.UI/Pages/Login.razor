@@ -3,42 +3,100 @@
 @inject WfmApiClient Api
 @inject AuthSession Session
 @inject NavigationManager Nav
+@inject ThemeState ThemeState
+@inject WfmJs Js
 
-<PageTitle>Giriş · WFM</PageTitle>
+<PageTitle>Giriş · @(ThemeState.TenantName ?? Ui.ProductName)</PageTitle>
 
-<div class="d-flex align-center justify-center" style="min-height:100vh;background:linear-gradient(135deg,#1565c0,#00897b)">
+<main class="wfm-login-bg">
     <MudPaper Elevation="8" Class="pa-6 ma-4" Style="width:100%;max-width:400px">
         <div class="d-flex align-center mb-4 gap-3">
-            <MudIcon Icon="@Icons.Material.Filled.Engineering" Color="Color.Primary" Size="Size.Large" />
-            <div>
-                <MudText Typo="Typo.h5">Saha Yönetimi</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary">Hesabınızla giriş yapın</MudText>
+            @if (!string.IsNullOrWhiteSpace(ThemeState.LogoUrl))
+            {
+                <img src="@Api.AbsoluteUrl(ThemeState.LogoUrl!)" alt="@ThemeState.TenantName logosu" class="wfm-logo" />
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Engineering" Color="Color.Primary" Size="Size.Large" aria-hidden="true" />
+            }
+            <div style="min-width:0">
+                <h1 class="mud-typography mud-typography-h5" style="margin:0">@(ThemeState.TenantName ?? Ui.ProductName)</h1>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    @(ThemeState.TenantName is null ? "Şirket hesabınızla giriş yapın" : $"{Ui.ProductName} · hesabınızla giriş yapın")
+                </MudText>
             </div>
         </div>
-        <EditForm Model="_model" OnValidSubmit="LoginAsync">
-            <MudTextField T="string" @bind-Value="_model.Email" Label="E-posta" Variant="Variant.Outlined" InputType="InputType.Email"
-                          Required RequiredError="E-posta gerekli" Class="mb-3" autocomplete="username" />
-            <MudTextField T="string" @bind-Value="_model.Password" Label="Parola" Variant="Variant.Outlined" InputType="InputType.Password"
-                          Required RequiredError="Parola gerekli" Class="mb-3" autocomplete="current-password" />
-            @if (_error is not null)
+
+        @if (_forgot)
+        {
+            @* ---------- Parola sıfırlama talebi ---------- *@
+            @if (_forgotSent)
             {
-                <MudAlert Severity="Severity.Error" Dense Class="mb-3">@_error</MudAlert>
+                <MudAlert Severity="Severity.Success" Class="mb-3" role="status">
+                    Talebiniz alındı. Bu e-posta ile kayıtlı bir hesap varsa şirket yöneticinize bildirim gitti; size yeni bir parola iletecek.
+                </MudAlert>
             }
-            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth Size="Size.Large" Disabled="_busy">
-                @if (_busy)
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">E-posta adresinizi yazın; şirket yöneticinize parola sıfırlama talebi gönderelim.</MudText>
+                <MudTextField T="string" @bind-Value="_model.Email" Label="E-posta" Variant="Variant.Outlined" InputType="InputType.Email"
+                              Class="mb-3" autocomplete="username" AutoFocus Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Email" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Size="Size.Large" OnClick="ForgotAsync"
+                           Disabled="@(_busy || string.IsNullOrWhiteSpace(_model.Email))">Talep gönder</MudButton>
+            }
+            <MudButton Variant="Variant.Text" FullWidth Class="mt-2" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => { _forgot = false; _forgotSent = false; })">Girişe dön</MudButton>
+        }
+        else
+        {
+            <EditForm Model="_model" OnValidSubmit="LoginAsync">
+                <MudTextField T="string" @bind-Value="_model.Email" Label="E-posta" Variant="Variant.Outlined" InputType="InputType.Email"
+                              Required RequiredError="E-posta gerekli" Class="mb-3" autocomplete="username" AutoFocus
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Email" />
+                <MudTextField T="string" @bind-Value="_model.Password" Label="Parola" Variant="Variant.Outlined"
+                              InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                              Required RequiredError="Parola gerekli" Class="mb-1" autocomplete="current-password"
+                              Adornment="Adornment.End" AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                              OnAdornmentClick="@(() => _showPassword = !_showPassword)" AdornmentAriaLabel="@(_showPassword ? "Parolayı gizle" : "Parolayı göster")" />
+                <div class="d-flex justify-end mb-3">
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _forgot = true)">Parolamı unuttum</MudButton>
+                </div>
+                @if (_error is not null)
                 {
-                    <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                    <MudAlert Severity="Severity.Error" Dense Class="mb-3" role="alert">@_error</MudAlert>
                 }
-                Giriş yap
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth Size="Size.Large" Disabled="_busy">
+                    @if (_busy)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                    }
+                    Giriş yap
+                </MudButton>
+            </EditForm>
+        }
+
+        <div class="d-flex justify-center flex-wrap gap-1 mt-4">
+            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@(ThemeState.IsDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       OnClick="@(() => ThemeState.SetModeAsync(Js, ThemeState.IsDark ? "light" : "dark"))">
+                @(ThemeState.IsDark ? "Açık tema" : "Koyu tema")
             </MudButton>
-        </EditForm>
+            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Contrast"
+                       OnClick="@(() => ThemeState.SetHighContrastAsync(Js, !ThemeState.HighContrast))">
+                @(ThemeState.HighContrast ? "Normal kontrast" : "Yüksek kontrast")
+            </MudButton>
+            @if (ThemeState.TenantName is not null)
+            {
+                <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.SwapHoriz" OnClick="@(() => ThemeState.ForgetBrandAsync(Js))">
+                    Farklı şirket
+                </MudButton>
+            }
+        </div>
     </MudPaper>
-</div>
+</main>
 
 @code {
     private readonly LoginModel _model = new();
     private string? _error;
-    private bool _busy;
+    private bool _busy, _showPassword, _forgot, _forgotSent;
 
     private sealed class LoginModel
     {
@@ -49,6 +107,23 @@
     protected override async Task OnInitializedAsync()
     {
         if (await Session.GetAsync() is not null) Nav.NavigateTo("/", replace: true);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        // ?sirket=kisa-ad ile gelen link öncelikli; yoksa bu cihazda son giriş yapılan şirket.
+        var qs = QueryString.Parse(new Uri(Nav.Uri).Query);
+        if (qs.TryGetValue("sirket", out var slug) && !string.IsNullOrWhiteSpace(slug[0]))
+        {
+            try { ThemeState.SetBrand(await Api.GetBrandAsync(slug[0])); }
+            catch (ApiException) { await ThemeState.RestoreBrandAsync(Js); }
+        }
+        else
+        {
+            await ThemeState.RestoreBrandAsync(Js);
+        }
+        StateHasChanged();
     }
 
     private async Task LoginAsync()
@@ -70,5 +145,17 @@
         {
             _busy = false;
         }
+    }
+
+    private async Task ForgotAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Api.ForgotPasswordAsync(_model.Email.Trim());
+            _forgotSent = true;
+        }
+        catch (ApiException ex) { _error = ex.Message; _forgot = false; }
+        finally { _busy = false; }
     }
 }

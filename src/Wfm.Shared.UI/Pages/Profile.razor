@@ -1,0 +1,111 @@
+@page "/profile"
+@inject WfmApiClient Api
+@inject AuthSession Session
+@inject UserContext Me
+@inject ThemeState ThemeState
+@inject WfmJs Js
+@inject ISnackbar Snackbar
+
+@if (Me.IsFieldWorker)
+{
+    <AppTitle Title="Profil" />
+}
+else
+{
+    <PageHeader Title="Profil ve parola" Subtitle="@($"{Me.User?.Email} · {Me.RoleName}")" />
+}
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4 mb-3">
+            <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Bilgilerim</b></MudText>
+            <MudTextField T="string" @bind-Value="_name" Label="Ad soyad *" Variant="Variant.Outlined" Class="mb-3" Immediate
+                          Error="@string.IsNullOrWhiteSpace(_name)" ErrorText="Ad soyad zorunlu" />
+            <MudTextField T="string" @bind-Value="_phone" Label="Telefon" Variant="Variant.Outlined" InputType="InputType.Telephone" Class="mb-3" />
+            <MudTextField T="string" Value="@Me.User?.Email" Label="E-posta" Variant="Variant.Outlined" ReadOnly Class="mb-3"
+                          HelperText="E-posta adresini yalnızca şirket yöneticisi değiştirebilir" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveProfileAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_name))">Kaydet</MudButton>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Görünüm</b></MudText>
+            <MudRadioGroup T="string" Value="ThemeState.Mode" ValueChanged="@(m => ThemeState.SetModeAsync(Js, m))">
+                <MudRadio T="string" Value="@("system")" Color="Color.Primary">Cihaz ayarını kullan</MudRadio>
+                <MudRadio T="string" Value="@("light")" Color="Color.Primary">Açık tema</MudRadio>
+                <MudRadio T="string" Value="@("dark")" Color="Color.Primary">Koyu tema</MudRadio>
+            </MudRadioGroup>
+            <MudSwitch T="bool" Value="ThemeState.HighContrast" ValueChanged="@(v => ThemeState.SetHighContrastAsync(Js, v))" Color="Color.Primary" Class="mt-2"
+                       Label="Yüksek kontrast (güneş altında ve az görenler için daha belirgin metin ve çizgiler)" />
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Parola değiştir</b></MudText>
+            <MudTextField T="string" @bind-Value="_current" Label="Mevcut parola" Variant="Variant.Outlined" InputType="@(_show ? InputType.Text : InputType.Password)"
+                          Class="mb-3" autocomplete="current-password" />
+            <MudTextField T="string" @bind-Value="_new" Label="Yeni parola" Variant="Variant.Outlined" InputType="@(_show ? InputType.Text : InputType.Password)"
+                          Class="mb-1" autocomplete="new-password" Immediate />
+            <ul class="wfm-checklist mb-2" aria-label="Parola kuralları">
+                @foreach (var (text, ok) in Rules)
+                {
+                    <li class="@(ok ? "ok" : "todo")"><MudIcon Icon="@(ok ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.Circle)" Size="Size.Small" aria-hidden="true" />@text</li>
+                }
+            </ul>
+            <MudTextField T="string" @bind-Value="_confirm" Label="Yeni parola (tekrar)" Variant="Variant.Outlined" InputType="@(_show ? InputType.Text : InputType.Password)"
+                          Class="mb-2" autocomplete="new-password" Immediate
+                          Error="@(!string.IsNullOrEmpty(_confirm) && _confirm != _new)" ErrorText="Parolalar eşleşmiyor" />
+            <MudCheckBox T="bool" @bind-Value="_show" Label="Parolaları göster" Dense Color="Color.Primary" />
+            @if (_pwError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense Class="mb-2" role="alert">@_pwError</MudAlert>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ChangePasswordAsync" Class="mt-2"
+                       Disabled="@(_busy || string.IsNullOrEmpty(_current) || !Rules.All(r => r.Ok) || _confirm != _new)">Parolayı değiştir</MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string? _name, _phone, _current, _new, _confirm, _pwError;
+    private bool _busy, _show;
+
+    private IEnumerable<(string Text, bool Ok)> Rules
+    {
+        get
+        {
+            var p = _new ?? "";
+            yield return ("En az 6 karakter", p.Length >= 6);
+            yield return ("Büyük ve küçük harf", p.Any(char.IsUpper) && p.Any(char.IsLower));
+            yield return ("En az bir rakam", p.Any(char.IsDigit));
+        }
+    }
+
+    protected override void OnInitialized() => (_name, _phone) = (Me.User?.FullName, Me.User?.Phone);
+
+    private async Task SaveProfileAsync()
+    {
+        _busy = true;
+        try
+        {
+            var updated = await Api.UpdateProfileAsync(new UpdateProfileRequest(_name!, _phone));
+            if (Session.Current is { } auth) await Session.SetAsync(auth with { User = updated });
+            Snackbar.Add("Bilgileriniz kaydedildi.", Severity.Success);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _busy = true;
+        _pwError = null;
+        try
+        {
+            await Api.ChangePasswordAsync(new ChangePasswordRequest(_current!, _new!));
+            _current = _new = _confirm = null;
+            Snackbar.Add("Parolanız değiştirildi.", Severity.Success);
+        }
+        catch (ApiException ex) { _pwError = ex.Message; }
+        finally { _busy = false; }
+    }
+}

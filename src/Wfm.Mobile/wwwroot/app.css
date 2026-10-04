@@ -15,7 +15,7 @@ html, body {
         position: sticky;
         top: 0;
         height: env(safe-area-inset-top);
-        background-color: #1565c0;
+        background-color: var(--mud-palette-appbar-background, #1565c0);
         width: 100%;
         z-index: 1300;
     }

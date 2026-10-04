@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Wfm.Application;
 using Microsoft.EntityFrameworkCore;
 using Wfm.Api.Services;
 using Wfm.Application.Contracts;
@@ -34,6 +36,30 @@ public static class AuthEndpoints
             return Results.Ok(await tokens.IssueAsync(user));
         }).AllowAnonymous();
 
+        // Parola sıfırlama talebi: e-posta altyapısı olmadığı için şirket yöneticilerine bildirim gider.
+        // Kullanıcının var olup olmadığı dışarı sızmasın diye yanıt her zaman aynıdır.
+        g.MapPost("/forgot-password", async (ForgotPasswordRequest req, UserManager<AppUser> users, WfmDbContext db, NotificationService notify) =>
+        {
+            var email = req.Email?.Trim() ?? "";
+            var user = email.Length == 0 ? null : await users.FindByEmailAsync(email);
+            if (user is null || !user.IsActive) return Results.NoContent();
+            var since = DateTime.UtcNow.AddMinutes(-10);
+            var tid = user.TenantId;
+            if (await db.Notifications.IgnoreQueryFilters().AnyAsync(n => n.TenantId == tid && n.Kind == NotificationKinds.PasswordReset &&
+                    n.CreatedAt >= since && n.Body.Contains(user.Email!)))
+                return Results.NoContent();
+            var admins = await (from u in db.Users
+                                join ur in db.UserRoles on u.Id equals ur.UserId
+                                join r in db.Roles on ur.RoleId equals r.Id
+                                where u.TenantId == tid && u.IsActive && r.Name == Roles.TenantAdmin && u.Id != user.Id
+                                select u.Id).ToListAsync();
+            foreach (var a in admins)
+                await notify.NotifyAsync(tid, a, "Parola sıfırlama talebi",
+                    $"{user.FullName} ({user.Email}) parolasını unuttuğunu bildirdi. Kullanıcılar sayfasından yeni parola verin.", null,
+                    NotificationKinds.PasswordReset);
+            return Results.NoContent();
+        }).AllowAnonymous();
+
         g.MapPost("/refresh", async (RefreshRequest req, TokenService tokens) =>
             await tokens.RefreshAsync(req.RefreshToken) is { } res
                 ? Results.Ok(res)
@@ -53,12 +79,82 @@ public static class AuthEndpoints
             return Results.Ok(Mapping.ToDto(user, await users.GetRolesAsync(user), tenant.Name));
         }).RequireAuthorization();
 
+        g.MapPut("/me", async (UpdateProfileRequest req, HttpContext ctx, UserManager<AppUser> users, WfmDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.FullName)) return Results.BadRequest(new ApiError("Ad soyad zorunlu."));
+            var user = await users.FindByIdAsync(ctx.User.UserId().ToString());
+            if (user is null) return Results.NotFound();
+            user.FullName = req.FullName.Trim();
+            user.PhoneNumber = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim();
+            await users.UpdateAsync(user);
+            var tenant = await db.Tenants.FirstAsync(t => t.Id == user.TenantId);
+            return Results.Ok(Mapping.ToDto(user, await users.GetRolesAsync(user), tenant.Name));
+        }).RequireAuthorization();
+
+        g.MapPost("/change-password", async (ChangePasswordRequest req, HttpContext ctx, UserManager<AppUser> users) =>
+        {
+            var user = await users.FindByIdAsync(ctx.User.UserId().ToString());
+            if (user is null) return Results.NotFound();
+            var res = await users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
+            if (!res.Succeeded)
+                return Results.BadRequest(new ApiError(res.Errors.Any(e => e.Code == "PasswordMismatch")
+                    ? "Mevcut parola hatalı."
+                    : string.Join(" ", res.Errors.Select(e => e.Description))));
+            return Results.NoContent();
+        }).RequireAuthorization();
+
         g.MapGet("/tenant", async (HttpContext ctx, WfmDbContext db) =>
         {
             var tid = ctx.User.TenantId();
             var t = await db.Tenants.FirstAsync(x => x.Id == tid);
-            return new TenantDto(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude);
+            return t.ToDto();
         }).RequireAuthorization();
+
+        g.MapPut("/tenant", async (UpdateTenantSettingsRequest req, HttpContext ctx, WfmDbContext db, IFileStorage storage) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest(new ApiError("Şirket adı zorunlu."));
+            if (req.DefaultLatitude is < -90 or > 90 || req.DefaultLongitude is < -180 or > 180)
+                return Results.BadRequest(new ApiError("Geçerli bir harita merkezi seçin."));
+            if (!string.IsNullOrWhiteSpace(req.BrandColor) && !System.Text.RegularExpressions.Regex.IsMatch(req.BrandColor, "^#[0-9a-fA-F]{6}$"))
+                return Results.BadRequest(new ApiError("Marka rengi #rrggbb biçiminde olmalı."));
+            var uploaded = req.LogoUrl?.StartsWith(PublicEndpoints.LogoPathPrefix) == true;
+            if (!string.IsNullOrWhiteSpace(req.LogoUrl) && !uploaded && !(Uri.TryCreate(req.LogoUrl, UriKind.Absolute, out var u) && u.Scheme == "https"))
+                return Results.BadRequest(new ApiError("Logo adresi https:// ile başlayan geçerli bir adres olmalı."));
+            var tid = ctx.User.TenantId();
+            var t = await db.Tenants.FirstAsync(x => x.Id == tid);
+            t.Name = req.Name.Trim();
+            t.DefaultLatitude = req.DefaultLatitude;
+            t.DefaultLongitude = req.DefaultLongitude;
+            t.BrandColor = string.IsNullOrWhiteSpace(req.BrandColor) ? null : req.BrandColor.ToLowerInvariant();
+            t.LogoUrl = string.IsNullOrWhiteSpace(req.LogoUrl) ? null : req.LogoUrl.Trim();
+            if (!uploaded && t.LogoPath is { } old)
+            {
+                // Yüklenmiş logo yerine adres girildi ya da logo kaldırıldı: eski dosyayı sil.
+                await storage.DeleteAsync(old);
+                (t.LogoPath, t.LogoContentType) = (null, null);
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok(t.ToDto());
+        }).RequireAuthorization(Policies.ManageUsers);
+
+        g.MapPost("/tenant/logo", async ([FromForm] IFormFile file, HttpContext ctx, WfmDbContext db, IFileStorage storage) =>
+        {
+            string[] allowed = ["image/png", "image/jpeg", "image/webp"];
+            if (file.Length is 0 or > 1024 * 1024) return Results.BadRequest(new ApiError("Logo boş ya da 1 MB'tan büyük."));
+            if (!allowed.Contains(file.ContentType)) return Results.BadRequest(new ApiError("Logo PNG, JPEG ya da WebP olmalı."));
+            var tid = ctx.User.TenantId();
+            var t = await db.Tenants.FirstAsync(x => x.Id == tid);
+            var stamp = DateTime.UtcNow.Ticks;
+            var ext = file.ContentType switch { "image/png" => ".png", "image/webp" => ".webp", _ => ".jpg" };
+            string path;
+            await using (var s = file.OpenReadStream())
+                path = await storage.SaveAsync(s, $"{tid:N}/brand/logo-{stamp}{ext}");
+            if (t.LogoPath is { } old) await storage.DeleteAsync(old);
+            (t.LogoPath, t.LogoContentType) = (path, file.ContentType);
+            t.LogoUrl = $"{PublicEndpoints.LogoPathPrefix}{tid}?v={stamp}";
+            await db.SaveChangesAsync();
+            return Results.Ok(t.ToDto());
+        }).RequireAuthorization(Policies.ManageUsers).DisableAntiforgery();
     }
 
     public static void MapTenantEndpoints(this IEndpointRouteBuilder app)
@@ -67,7 +163,7 @@ public static class AuthEndpoints
 
         g.MapGet("/", async (WfmDbContext db) =>
             await db.Tenants.Where(t => t.Slug != "system").OrderBy(t => t.Name)
-                .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude))
+                .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude, t.BrandColor, t.LogoUrl))
                 .ToListAsync());
 
         g.MapPost("/", async (CreateTenantRequest req, WfmDbContext db, UserManager<AppUser> users) =>
@@ -88,7 +184,7 @@ public static class AuthEndpoints
             await users.AddToRoleAsync(admin, Roles.TenantAdmin);
             await tx.CommitAsync();
 
-            return Results.Ok(new TenantDto(tenant.Id, tenant.Name, tenant.Slug, true, tenant.DefaultLatitude, tenant.DefaultLongitude));
+            return Results.Ok(tenant.ToDto());
         });
 
         g.MapPut("/{id:guid}/active", async (Guid id, bool active, WfmDbContext db) =>

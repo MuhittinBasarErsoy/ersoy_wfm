@@ -1,8 +1,34 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject ThemeState ThemeState
+@inject WfmJs Js
 
-<MudThemeProvider Theme="Ui.Theme" />
+<MudThemeProvider @ref="_themeProvider" Theme="ThemeState.Theme" IsDarkMode="ThemeState.IsDark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-@Body
+<div class="@ThemeState.CssClass">
+    @Body
+</div>
+
+@code {
+    private MudThemeProvider? _themeProvider;
+
+    protected override void OnInitialized() => ThemeState.Changed += Refresh;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await ThemeState.LoadAsync(Js);
+        try
+        {
+            if (_themeProvider is not null) ThemeState.SetSystemDark(await _themeProvider.GetSystemDarkModeAsync());
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    private void Refresh() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ThemeState.Changed -= Refresh;
+}

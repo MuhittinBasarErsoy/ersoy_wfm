@@ -1,0 +1,13 @@
+@* Saha arayüzünde üst bardaki başlığı ve tarayıcı sekmesi başlığını ayarlar. *@
+@implements IDisposable
+@inject LayoutState Layout
+
+<PageTitle>@Title · WFM</PageTitle>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    protected override void OnParametersSet() => Layout.SetTitle(Title);
+
+    public void Dispose() => Layout.SetTitle(null);
+}

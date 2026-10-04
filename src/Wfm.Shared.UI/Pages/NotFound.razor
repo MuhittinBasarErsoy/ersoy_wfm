@@ -1,5 +1,21 @@
 @page "/not-found"
-<MudContainer Class="mt-8">
-    <MudText Typo="Typo.h5">Sayfa bulunamadı</MudText>
-    <MudButton Href="/" Variant="Variant.Text" Color="Color.Primary" Class="mt-4">Ana sayfaya dön</MudButton>
-</MudContainer>
+@layout BlankLayout
+
+<PageTitle>Sayfa bulunamadı · WFM</PageTitle>
+
+<main class="d-flex align-center justify-center" style="min-height:100vh;padding:16px">
+    <MudPaper Elevation="2" Class="pa-6" Style="max-width:440px;width:100%">
+        <EmptyState Icon="@Icons.Material.Outlined.TravelExplore" Title="Sayfa bulunamadı"
+                    Text="Aradığınız sayfa taşınmış, silinmiş ya da adres yanlış yazılmış olabilir.">
+            <div class="d-flex gap-2 justify-center flex-wrap">
+                <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Home">Ana sayfaya dön</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="GoBack" StartIcon="@Icons.Material.Filled.ArrowBack">Geri</MudButton>
+            </div>
+        </EmptyState>
+    </MudPaper>
+</main>
+
+@code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    private async Task GoBack() { try { await JS.InvokeVoidAsync("history.back"); } catch (JSException) { } }
+}

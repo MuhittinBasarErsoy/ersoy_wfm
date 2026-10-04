@@ -1,0 +1,194 @@
+@page "/track/{Token}"
+@layout BlankLayout
+@implements IAsyncDisposable
+@inject WfmApiClient Api
+
+@* Müşterinin oturum açmadan görevini izlediği sayfa (dispeçerin paylaştığı link). *@
+<PageTitle>@(_data is null ? "Görev takibi" : $"{_data.Title} · {_data.TenantName}")</PageTitle>
+
+<main style="min-height:100vh;background:var(--mud-palette-background)">
+    <div style="@($"background:{Brand};color:#fff")" class="pa-4">
+        <div class="d-flex align-center gap-3" style="max-width:640px;margin:0 auto">
+            @if (!string.IsNullOrWhiteSpace(_data?.LogoUrl))
+            {
+                <img src="@_data.LogoUrl" alt="" class="wfm-appbar-logo" />
+            }
+            <div>
+                <MudText Typo="Typo.subtitle1"><b>@(_data?.TenantName ?? "Görev takibi")</b></MudText>
+                <MudText Typo="Typo.caption" Style="opacity:.85">Canlı görev takibi</MudText>
+            </div>
+        </div>
+    </div>
+
+    <div style="max-width:640px;margin:0 auto" class="pa-3">
+        @if (_notFound)
+        {
+            <MudPaper Elevation="1" Class="pa-4 mt-3">
+                <EmptyState Icon="@Icons.Material.Outlined.LinkOff" Title="Bu takip linki geçerli değil"
+                            Text="Link süresi dolmuş ya da hatalı olabilir. Görev tamamlandıktan bir gün sonra link kapanır." />
+            </MudPaper>
+        }
+        else if (_data is null)
+        {
+            <MudProgressLinear Indeterminate Class="mt-3" />
+        }
+        else
+        {
+            var d = _data;
+            <MudPaper Elevation="1" Class="pa-4 mt-3">
+                <h1 class="mud-typography mud-typography-h6" style="margin:0">@d.Title</h1>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@d.Address</MudText>
+                @if (d.ScheduledStart is not null)
+                {
+                    <MudText Typo="Typo.body2" Class="mt-1">
+                        Planlanan: <b>@Ui.Local(d.ScheduledStart, "d MMMM HH:mm")@(d.ScheduledEnd is null ? "" : " – " + Ui.Local(d.ScheduledEnd, "HH:mm"))</b>
+                    </MudText>
+                }
+
+                <div class="mt-4 mb-2" role="status" aria-live="polite">
+                    <MudText Typo="Typo.h5" Style="@($"color:{Ui.StatusHex(d.Status == WorkTaskStatus.OnSite ? WorkTaskStatus.Accepted : d.Status)}")"><b>@Headline</b></MudText>
+                    @if (Sub is not null)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@Sub</MudText>
+                    }
+                </div>
+
+                @if (d.Status is not (WorkTaskStatus.Cancelled or WorkTaskStatus.Failed))
+                {
+                    <ol class="d-flex gap-1 mt-3" style="list-style:none;padding:0;margin:0" aria-label="Görev adımları">
+                        @for (var i = 0; i < Steps.Length; i++)
+                        {
+                            var step = Steps[i];
+                            var done = i <= StepIndex;
+                            <li style="flex:1">
+                                <div style="@($"height:6px;border-radius:3px;background:{(done ? Brand : "var(--mud-palette-action-default-hover)")}")"></div>
+                                <MudText Typo="Typo.caption" Color="@(done ? Color.Default : Color.Secondary)" Style="display:block;margin-top:4px">
+                                    @step.Label
+                                    @if (EventTime(step.Status) is { } at)
+                                    {
+                                        <br /><span style="opacity:.8">@Ui.Local(at, "HH:mm")</span>
+                                    }
+                                </MudText>
+                            </li>
+                        }
+                    </ol>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-2 mt-3">
+                <div style="height:320px">
+                    <LeafletMap @ref="_map" Height="100%" Latitude="d.Latitude" Longitude="d.Longitude" Zoom="14" OnReady="DrawAsync" />
+                </div>
+                @if (d.WorkerLatitude is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1">
+                        Ekibin konumu @Ui.Ago(d.WorkerSeenAt!.Value) güncellendi · sayfa otomatik yenilenir
+                    </MudText>
+                }
+            </MudPaper>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-3" Align="Align.Center">
+                Bu sayfa yalnızca bu görev için oluşturulmuştur. Ekibin konumu yalnızca size doğru yoldayken gösterilir.
+            </MudText>
+        }
+    </div>
+</main>
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private PublicTrackingDto? _data;
+    private bool _notFound;
+    private LeafletMap? _map;
+    private PeriodicTimer? _timer;
+    private readonly CancellationTokenSource _cts = new();
+
+    private static readonly (WorkTaskStatus Status, string Label)[] Steps =
+    [
+        (WorkTaskStatus.Assigned, "Planlandı"), (WorkTaskStatus.EnRoute, "Yolda"), (WorkTaskStatus.OnSite, "Adreste"), (WorkTaskStatus.Completed, "Tamamlandı")
+    ];
+
+    private string Brand => string.IsNullOrWhiteSpace(_data?.BrandColor) ? Ui.DefaultPrimary : _data.BrandColor;
+
+    private int StepIndex => _data?.Status switch
+    {
+        WorkTaskStatus.EnRoute => 1,
+        WorkTaskStatus.OnSite => 2,
+        WorkTaskStatus.Completed => 3,
+        _ => 0
+    };
+
+    private DateTime? EventTime(WorkTaskStatus s) => _data?.Events.LastOrDefault(e => e.Status == s ||
+        (s == WorkTaskStatus.Assigned && e.Status == WorkTaskStatus.Accepted))?.At;
+
+    private double? DistanceMeters => _data is { WorkerLatitude: { } la, WorkerLongitude: { } lo }
+        ? Wfm.Domain.Entities.Geo.DistanceMeters(la, lo, _data.Latitude, _data.Longitude) : null;
+
+    private string Headline => _data?.Status switch
+    {
+        WorkTaskStatus.EnRoute => $"{_data.WorkerFirstName ?? "Ekibimiz"} yolda",
+        WorkTaskStatus.OnSite => $"{_data.WorkerFirstName ?? "Ekibimiz"} adreste",
+        WorkTaskStatus.Completed => "Tamamlandı",
+        WorkTaskStatus.Cancelled => "Görev iptal edildi",
+        WorkTaskStatus.Failed => "Görev gerçekleştirilemedi",
+        _ => "Planlandı"
+    };
+
+    private string? Sub => _data?.Status switch
+    {
+        WorkTaskStatus.EnRoute when DistanceMeters is { } m =>
+            $"Size yaklaşık {Ui.Distance(m)} uzaklıkta · tahmini varış ~{Math.Max(2, (int)Math.Ceiling(m / 1000 / 25 * 60))} dk",
+        WorkTaskStatus.EnRoute => "Ekibimiz adresinize doğru yola çıktı.",
+        WorkTaskStatus.Completed => $"{Ui.Local(_data.CompletedAt, "d MMMM HH:mm")} tarihinde tamamlandı. Teşekkür ederiz!",
+        WorkTaskStatus.Cancelled or WorkTaskStatus.Failed => "Ayrıntılar için firmayla iletişime geçebilirsiniz.",
+        WorkTaskStatus.OnSite => null,
+        _ => _data?.WorkerFirstName is { } n ? $"Görev {n} adlı ekip üyemize atandı." : "Görev planlandı; ekip atandığında burada görünecek."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollAsync();
+    }
+
+    private async Task PollAsync()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(_cts.Token))
+            {
+                if (_data?.Status is WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed) break;
+                await LoadAsync();
+                await DrawAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _data = await Api.GetPublicTrackingAsync(Token); }
+        catch (ApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) { _notFound = true; _data = null; }
+        catch (ApiException) { /* geçici hata: eski veri kalsın */ }
+    }
+
+    private async Task DrawAsync()
+    {
+        if (_map is null || _data is null) return;
+        await _map.SetMarkersAsync("task", [new MapMarker("task", _data.Latitude, _data.Longitude, Brand, "●", "Adres")]);
+        if (_data.WorkerLatitude is { } la && _data.WorkerLongitude is { } lo)
+            await _map.SetMarkersAsync("worker", [new MapMarker("worker", la, lo, MapMarker.WorkerOnShift, Ui.Initials(_data.WorkerFirstName ?? "E"), "Ekip", Pulse: true)]);
+        else
+            await _map.SetMarkersAsync("worker", []);
+        await _map.FitAllAsync();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _timer?.Dispose();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

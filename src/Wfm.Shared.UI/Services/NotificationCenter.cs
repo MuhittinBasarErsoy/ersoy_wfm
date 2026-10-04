@@ -54,6 +54,16 @@ public sealed class NotificationCenter(WfmApiClient api, WfmRealtime realtime) :
         catch (ApiException) { }
     }
 
+    public async Task MarkReadAsync(Guid id)
+    {
+        var i = _items.FindIndex(n => n.Id == id);
+        if (i < 0 || _items[i].ReadAt is not null) return;
+        _items[i] = _items[i] with { ReadAt = DateTime.UtcNow };
+        Changed?.Invoke();
+        try { await api.MarkNotificationReadAsync(id); }
+        catch (ApiException) { /* offline: bir sonraki yenilemede düzelir */ }
+    }
+
     public async Task StopAsync()
     {
         if (!_started) return;

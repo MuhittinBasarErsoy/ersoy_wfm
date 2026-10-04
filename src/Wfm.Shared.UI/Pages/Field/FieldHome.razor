@@ -1,100 +1,185 @@
 @page "/field"
-@implements IDisposable
+@implements IAsyncDisposable
 @inject IFieldService Field
 @inject ILocationTracker Tracker
+@inject IGeolocationService Geo
 @inject UserContext Me
 @inject ISnackbar Snackbar
+@inject IDialogService Dialogs
 @inject NavigationManager Nav
+@inject WfmJs Js
 
-<PageTitle>Görevlerim · WFM</PageTitle>
+<AppTitle Title="Görevlerim" />
 
-<SyncBanner />
-
-<MudPaper Elevation="1" Class="pa-3 mb-3">
-    <div class="d-flex align-center gap-3">
-        <MudIcon Icon="@(_shift is not null ? Icons.Material.Filled.MyLocation : Icons.Material.Filled.LocationDisabled)"
-                 Color="@(_shift is not null ? Color.Success : Color.Default)" Size="Size.Large" />
-        <div style="flex:1">
-            <MudText Typo="Typo.subtitle1"><b>@(_shift is not null ? "Mesaidesiniz" : "Mesai dışı")</b></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                @if (_shift is not null)
-                {
-                    <span>@Ui.Local(_shift.StartedAt, "HH:mm")'den beri · @(Tracker.IsRunning ? "konum paylaşılıyor" : "konum izni bekleniyor")</span>
-                }
-                else
-                {
-                    <span>Mesaiye başladığınızda konumunuz yöneticinizle paylaşılır.</span>
-                }
-            </MudText>
-        </div>
-        <MudSwitch T="bool" Value="_shift is not null" ValueChanged="ToggleShiftAsync" Color="Color.Success" Disabled="_busy" aria-label="Mesai" />
+<div id="@_pullId">
+    <div class="wfm-pull-indicator" aria-hidden="true">
+        <MudIcon Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Class="mr-1" /> Yenilemek için bırakın
     </div>
-</MudPaper>
 
-<div class="d-flex align-center mb-2">
-    <MudText Typo="Typo.h6">Merhaba, @Me.User?.FullName.Split(' ')[0]</MudText>
-    <MudSpacer />
-    <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="RefreshAsync" Disabled="_busy" aria-label="Yenile" />
+    <SyncBanner />
+
+    @* ---------- Mesai ---------- *@
+    <MudPaper Elevation="1" Class="@(_shift is not null ? "pa-3 mb-3 wfm-shift-card on" : "pa-3 mb-3 wfm-shift-card")">
+        <div class="d-flex align-center gap-3">
+            <MudIcon Icon="@(_shift is not null ? Icons.Material.Filled.MyLocation : Icons.Material.Filled.LocationDisabled)"
+                     Color="@(_shift is not null ? Color.Success : Color.Default)" Size="Size.Large" aria-hidden="true" />
+            <div style="flex:1;min-width:0">
+                <MudText Typo="Typo.subtitle1"><b>@(_shift is not null ? "Mesaidesiniz" : "Mesai dışı")</b></MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @if (_shift is not null)
+                    {
+                        <span>Başlangıç @Ui.Local(_shift.StartedAt, "HH:mm") · @Ui.Duration(DateTime.UtcNow - _shift.StartedAt) · @(Tracker.IsRunning ? "konumunuz paylaşılıyor" : "konum izni bekleniyor")</span>
+                    }
+                    else
+                    {
+                        <span>Mesaiye başladığınızda konumunuz yöneticinizle paylaşılır; mesai bitince durur.</span>
+                    }
+                </MudText>
+            </div>
+        </div>
+        <MudButton Variant="@(_shift is null ? Variant.Filled : Variant.Outlined)" Color="@(_shift is null ? Color.Success : Color.Error)" Size="Size.Large"
+                   FullWidth Class="mt-3" Disabled="_busy" OnClick="ToggleShiftAsync"
+                   StartIcon="@(_shift is null ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.Stop)">
+            @(_shift is null ? "Mesaiye başla" : "Mesaiyi bitir")
+        </MudButton>
+    </MudPaper>
+
+    <div class="d-flex align-center mb-1">
+        <MudText Typo="Typo.h6">Merhaba, @Me.User?.FullName.Split(' ')[0]</MudText>
+        <MudSpacer />
+        <MudToggleGroup T="string" @bind-Value="_view" @bind-Value:after="ViewChangedAsync" Size="Size.Small" Outlined aria-label="Görünüm">
+            <MudToggleItem Value="@("list")" aria-label="Liste"><MudIcon Icon="@Icons.Material.Filled.ViewList" Size="Size.Small" /></MudToggleItem>
+            <MudToggleItem Value="@("map")" aria-label="Harita"><MudIcon Icon="@Icons.Material.Filled.Map" Size="Size.Small" /></MudToggleItem>
+        </MudToggleGroup>
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="RefreshAsync" Disabled="_busy" aria-label="Yenile" />
+    </div>
+
+    <MudTabs Elevation="0" ApplyEffectsToContainer Class="mb-2" @bind-ActivePanelIndex="_tab">
+        <MudTabPanel Text="@($"Aktif ({Active.Count()})")" />
+        <MudTabPanel Text="@($"Biten ({Done.Count()})")" />
+        @if (Rejected.Any())
+        {
+            <MudTabPanel Text="@($"Reddettiklerim ({Rejected.Count()})")" />
+        }
+    </MudTabs>
+
+    @if (_tasks is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else if (_view == "map" && _tab == 0)
+    {
+        <MudPaper Elevation="1" Class="pa-1 mb-2">
+            <div style="height:60vh">
+                <LeafletMap @ref="_map" Height="100%" Latitude="_me?.Latitude ?? 41.0082" Longitude="_me?.Longitude ?? 28.9784" Zoom="12" OnReady="DrawMapAsync" />
+            </div>
+        </MudPaper>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Görev pinine dokunup "Detay" ile açın. Yeşil nokta sizin konumunuz.</MudText>
+    }
+    else
+    {
+        var list = (_tab switch { 0 => Active, 1 => Done, _ => Rejected }).ToList();
+        @if (_tab == 2 && list.Count > 0)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">Reddettiğiniz görevler dispeçere iletildi; başka birine atanana kadar burada görünür.</MudText>
+        }
+        @if (list.Count == 0)
+        {
+            <EmptyState Icon="@(_tab == 0 ? Icons.Material.Outlined.TaskAlt : Icons.Material.Outlined.History)"
+                        Title="@(_tab == 0 ? "Şu an atanmış göreviniz yok" : "Son iki günde biten görev yok")"
+                        Text="@(_tab == 0 ? "Yeni görev atandığında bildirim alacaksınız." : null)" />
+        }
+        @if (_tab == 0 && _sortByDistance is false && _me is not null && list.Count > 1)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.NearMe" OnClick="@(() => _sortByDistance = true)" Class="mb-1">En yakına göre sırala</MudButton>
+        }
+        else if (_tab == 0 && _sortByDistance && list.Count > 1)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Sort" OnClick="@(() => _sortByDistance = false)" Class="mb-1">Duruma ve önceliğe göre sırala</MudButton>
+        }
+        @for (var i = 0; i < list.Count; i++)
+        {
+            var t = list[i];
+            var next = _tab == 0 && i == 0;
+            <Tap Class="mb-2" OnClick="@(() => Nav.NavigateTo($"/field/tasks/{t.Id}"))" AriaLabel="@($"{t.Title}, {Ui.Status(t.Status)}, {t.Address}")">
+                <MudCard Elevation="@(next ? 3 : 1)" Class="wfm-field-card" Style="@($"--accent:{t.TaskTypeColor}")">
+                    <MudCardContent Class="pa-3">
+                        @if (next)
+                        {
+                            <MudText Typo="Typo.overline" Color="Color.Primary" Style="line-height:1.4">Sıradaki görev</MudText>
+                        }
+                        <div class="d-flex align-center gap-2 mb-1">
+                            <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" />
+                            <div style="flex:1;min-width:0">
+                                <MudText Typo="Typo.subtitle1" Style="line-height:1.2"><b>@t.Title</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName</MudText>
+                            </div>
+                            <StatusChip Status="t.Status" />
+                        </div>
+                        <div class="d-flex align-start gap-1 mt-1">
+                            <MudIcon Icon="@Icons.Material.Filled.Place" Size="Size.Small" Color="Color.Secondary" aria-hidden="true" />
+                            <MudText Typo="Typo.body2">@t.Address</MudText>
+                        </div>
+                        <div class="d-flex flex-wrap align-center gap-3 mt-1">
+                            @if (t.ScheduledStart is not null)
+                            {
+                                <span class="d-inline-flex align-center gap-1">
+                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Style="font-size:16px" Color="Color.Secondary" aria-hidden="true" />
+                                    <MudText Typo="Typo.caption">@Ui.Local(t.ScheduledStart, "dd.MM HH:mm")@(t.ScheduledEnd is null ? "" : "–" + Ui.Local(t.ScheduledEnd, "HH:mm"))</MudText>
+                                </span>
+                            }
+                            @if (DistanceTo(t) is { } d)
+                            {
+                                <span class="d-inline-flex align-center gap-1">
+                                    <MudIcon Icon="@Icons.Material.Filled.NearMe" Style="font-size:16px" Color="Color.Secondary" aria-hidden="true" />
+                                    <MudText Typo="Typo.caption">@Ui.Distance(d)</MudText>
+                                </span>
+                            }
+                            <PriorityLabel Priority="t.Priority" HideNormal />
+                            <OverdueBadge Task="t" />
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            </Tap>
+        }
+    }
 </div>
-
-<MudTabs Elevation="0" ApplyEffectsToContainer Class="mb-2" @bind-ActivePanelIndex="_tab">
-    <MudTabPanel Text="@($"Aktif ({Active.Count()})")" />
-    <MudTabPanel Text="@($"Biten ({Done.Count()})")" />
-</MudTabs>
-
-@if (_tasks is null)
-{
-    <MudProgressLinear Indeterminate />
-}
-else
-{
-    var list = (_tab == 0 ? Active : Done).ToList();
-    @if (list.Count == 0)
-    {
-        <MudText Color="Color.Secondary" Class="pa-4" Align="Align.Center">@(_tab == 0 ? "Şu an atanmış göreviniz yok 🎉" : "Son iki günde biten görev yok.")</MudText>
-    }
-    @foreach (var t in list)
-    {
-        <MudCard Elevation="1" Class="mb-2 wfm-field-card" Style="@($"--accent:{t.TaskTypeColor}")" @onclick="@(() => Nav.NavigateTo($"/field/tasks/{t.Id}"))">
-            <MudCardContent Class="pa-3">
-                <div class="d-flex align-center gap-2 mb-1">
-                    <TypeIcon Icon="@t.TaskTypeIcon" Color="@t.TaskTypeColor" />
-                    <div style="flex:1;min-width:0">
-                        <MudText Typo="Typo.subtitle1" Style="line-height:1.2"><b>@t.Title</b></MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName</MudText>
-                    </div>
-                    <StatusChip Status="t.Status" />
-                </div>
-                <MudText Typo="Typo.body2" Class="mt-1">📍 @t.Address</MudText>
-                <div class="d-flex gap-3 mt-1">
-                    @if (t.ScheduledStart is not null)
-                    {
-                        <MudText Typo="Typo.caption">🕑 @Ui.Local(t.ScheduledStart, "dd.MM HH:mm")</MudText>
-                    }
-                    @if (t.Priority >= TaskPriority.High)
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Error"><b>@Ui.Priority(t.Priority)</b></MudText>
-                    }
-                </div>
-            </MudCardContent>
-        </MudCard>
-    }
-}
 
 @code {
     private IReadOnlyList<WorkTaskDetailDto>? _tasks;
     private ShiftDto? _shift;
-    private bool _busy;
+    private GeoPoint? _me;
+    private bool _busy, _sortByDistance;
     private int _tab;
+    private string _view = "list";
+    private LeafletMap? _map;
+    private readonly string _pullId = "pull-" + Guid.NewGuid().ToString("N")[..8];
+    private DotNetObjectReference<FieldHome>? _ref;
 
     private static readonly WorkTaskStatus[] ActiveStatuses =
         [WorkTaskStatus.OnSite, WorkTaskStatus.EnRoute, WorkTaskStatus.Accepted, WorkTaskStatus.Assigned];
 
-    private IEnumerable<WorkTaskDetailDto> Active => (_tasks ?? []).Where(t => ActiveStatuses.Contains(t.Status))
-        .OrderBy(t => Array.IndexOf(ActiveStatuses, t.Status)).ThenByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt);
+    private IEnumerable<WorkTaskDetailDto> Active
+    {
+        get
+        {
+            var q = (_tasks ?? []).Where(t => ActiveStatuses.Contains(t.Status));
+            return _sortByDistance && _me is not null
+                ? q.OrderBy(t => DistanceTo(t) ?? double.MaxValue)
+                : q.OrderBy(t => Array.IndexOf(ActiveStatuses, t.Status)).ThenByDescending(t => t.IsOverdue)
+                    .ThenByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt);
+        }
+    }
 
-    private IEnumerable<WorkTaskDetailDto> Done => (_tasks ?? []).Where(t => !ActiveStatuses.Contains(t.Status))
+    private IEnumerable<WorkTaskDetailDto> Done => (_tasks ?? []).Where(t => Ui.IsClosed(t.Status))
         .OrderByDescending(t => t.CompletedAt ?? t.UpdatedAt);
+
+    /// <summary>Reddedilen görevler biten işlerle karışmasın diye ayrı sekmede.</summary>
+    private IEnumerable<WorkTaskDetailDto> Rejected => (_tasks ?? []).Where(t => t.Status == WorkTaskStatus.Rejected)
+        .OrderByDescending(t => t.UpdatedAt);
+
+    private double? DistanceTo(WorkTaskDto t) =>
+        _me is null ? null : Wfm.Domain.Entities.Geo.DistanceMeters(_me.Latitude, _me.Longitude, t.Latitude, t.Longitude);
 
     protected override async Task OnInitializedAsync()
     {
@@ -104,20 +189,62 @@ else
         // Uygulama kapanıp açıldıysa ve mesai açıksa takibi sürdür.
         if (_shift is not null && Tracker.IsSupported && !Tracker.IsRunning) await Tracker.StartAsync();
         _ = RefreshAsync();
+        _ = LocateAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _ref = DotNetObjectReference.Create(this);
+        await Js.Run("registerPullToRefresh", _pullId, _ref);
+    }
+
+    [JSInvokable]
+    public Task OnPullRefresh() => InvokeAsync(RefreshAsync);
+
+    private async Task LocateAsync()
+    {
+        _me = await Geo.GetCurrentAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RefreshAsync()
     {
         _busy = true;
+        await InvokeAsync(StateHasChanged);
         await Field.SyncAsync();
         _tasks = await Field.GetTasksAsync();
         _shift = await Field.GetShiftAsync();
         _busy = false;
         await InvokeAsync(StateHasChanged);
+        if (_map is not null) await DrawMapAsync();
     }
 
-    private async Task ToggleShiftAsync(bool on)
+    private async Task ViewChangedAsync()
     {
+        if (_view == "map") _tab = 0;
+        if (_view == "map" && _me is null) await LocateAsync();
+    }
+
+    private async Task DrawMapAsync()
+    {
+        if (_map is null) return;
+        await _map.SetMarkersAsync("tasks", Active.Select(t => MapMarker.ForTask(t, $"/field/tasks/{t.Id}")));
+        if (_me is not null)
+            await _map.SetMarkersAsync("me", [new MapMarker("me", _me.Latitude, _me.Longitude, MapMarker.WorkerOnShift, "Ben", Title: "Konumunuz", Pulse: true)]);
+        await _map.FitAllAsync();
+    }
+
+    private async Task ToggleShiftAsync()
+    {
+        var on = _shift is null;
+        if (!on)
+        {
+            var open = Active.Count(t => t.Status is WorkTaskStatus.EnRoute or WorkTaskStatus.OnSite);
+            if (await Dialogs.ShowMessageBoxAsync("Mesaiyi bitir", open > 0
+                    ? $"Devam eden {open} göreviniz var. Mesaiyi bitirince konum paylaşımı durur. Yine de bitirilsin mi?"
+                    : "Konum paylaşımı duracak. Mesaiyi bitirmek istiyor musunuz?", "Bitir", cancelText: "Vazgeç") != true) return;
+        }
         _busy = true;
         try
         {
@@ -128,7 +255,7 @@ else
             }
             _shift = await Field.SetShiftAsync(on);
             if (!on) await Tracker.StopAsync();
-            Snackbar.Add(on ? "Mesai başladı." : "Mesai bitti, konum paylaşımı durdu.", Severity.Success);
+            Snackbar.Add(on ? "Mesai başladı, iyi çalışmalar." : "Mesai bitti, konum paylaşımı durdu.", Severity.Success);
         }
         catch (ApiException ex)
         {
@@ -147,5 +274,13 @@ else
         StateHasChanged();
     });
 
-    public void Dispose() => Field.Changed -= OnChanged;
+    public async ValueTask DisposeAsync()
+    {
+        Field.Changed -= OnChanged;
+        if (_ref is not null)
+        {
+            await Js.Run("unregisterPullToRefresh", _pullId);
+            _ref.Dispose();
+        }
+    }
 }

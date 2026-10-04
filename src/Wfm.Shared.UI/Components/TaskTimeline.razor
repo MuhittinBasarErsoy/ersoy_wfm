@@ -13,7 +13,9 @@ else
                     @Ui.Local(e.CreatedAt)
                     @if (e.Latitude is not null)
                     {
-                        <span> · 📍 @e.Latitude?.ToString("0.0000"), @e.Longitude?.ToString("0.0000")</span>
+                        <span> · </span>
+                        <MudIcon Icon="@Icons.Material.Filled.Place" Style="font-size:13px;vertical-align:-2px" aria-label="Konum" />
+                        <span>@Ui.Coord(e.Latitude, e.Longitude)</span>
                     }
                 </MudText>
                 @if (!string.IsNullOrEmpty(e.Note))

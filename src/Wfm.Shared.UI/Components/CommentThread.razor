@@ -1,0 +1,110 @@
+@* Görev üzerinde dispeçer ↔ saha çalışanı yazışması. Yeni mesajlar SignalR ile anında gelir. *@
+@implements IAsyncDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject WfmJs Js
+@inject ISnackbar Snackbar
+
+@if (_items is null)
+{
+    <MudProgressLinear Indeterminate Size="Size.Small" />
+}
+else
+{
+    @if (_items.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@Empty</MudText>
+    }
+    else
+    {
+        <div class="wfm-chat mb-2" id="@_id" role="log" aria-live="polite" aria-label="Mesajlar">
+            @foreach (var m in _items)
+            {
+                var mine = m.UserId == Me.User?.Id;
+                <div class="@(mine ? "wfm-msg mine" : "wfm-msg")">
+                    <div class="wfm-msg-meta">@(mine ? "Siz" : m.UserName ?? "—") · @Ui.Local(m.CreatedAt, m.CreatedAt.ToLocalTime().Date == DateTime.Today ? "HH:mm" : "dd.MM HH:mm")</div>
+                    <div style="white-space:pre-wrap;word-break:break-word">@m.Body</div>
+                </div>
+            }
+        </div>
+    }
+    @if (CanPost)
+    {
+        <div class="d-flex align-end gap-2">
+            <MudTextField T="string" @bind-Value="_text" Placeholder="Mesaj yazın…" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="1" Sizing="InputSizing.Auto" MaxLines="4"
+                          Immediate MaxLength="2000" Style="flex:1" aria-label="Mesaj" OnKeyDown="KeyAsync" Disabled="_busy" />
+            <MudIconButton Icon="@Icons.Material.Filled.Send" Color="Color.Primary" Variant="Variant.Filled" OnClick="SendAsync"
+                           Disabled="@(_busy || string.IsNullOrWhiteSpace(_text))" aria-label="Gönder" />
+        </div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid TaskId { get; set; }
+    [Parameter] public bool CanPost { get; set; } = true;
+    [Parameter] public string Empty { get; set; } = "Henüz mesaj yok.";
+
+    private readonly string _id = "chat-" + Guid.NewGuid().ToString("N")[..8];
+    private List<TaskCommentDto>? _items;
+    private string? _text;
+    private bool _busy, _scroll;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.CommentAdded += OnComment;
+        try { _items = await Api.GetCommentsAsync(TaskId); }
+        catch (ApiException) { _items = []; }
+        _scroll = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scroll) return;
+        _scroll = false;
+        await Js.Run("scrollToBottom", _id);
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        // Enter gönderir, Shift+Enter yeni satır.
+        if (e.Key == "Enter" && !e.ShiftKey) await SendAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        var body = _text?.Trim();
+        if (string.IsNullOrEmpty(body) || _busy) return;
+        _busy = true;
+        try
+        {
+            var dto = await Api.AddCommentAsync(TaskId, body);
+            Add(dto);
+            _text = null;
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.IsNetworkError ? "Mesaj gönderilemedi: bağlantı yok." : ex.Message, Severity.Error);
+        }
+        finally { _busy = false; }
+    }
+
+    private void Add(TaskCommentDto dto)
+    {
+        if (_items is null || _items.Any(x => x.Id == dto.Id)) return;
+        _items.Add(dto);
+        _scroll = true;
+    }
+
+    private void OnComment(TaskCommentDto c)
+    {
+        if (c.WorkTaskId != TaskId) return;
+        _ = InvokeAsync(() => { Add(c); StateHasChanged(); });
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Realtime.CommentAdded -= OnComment;
+        return ValueTask.CompletedTask;
+    }
+}

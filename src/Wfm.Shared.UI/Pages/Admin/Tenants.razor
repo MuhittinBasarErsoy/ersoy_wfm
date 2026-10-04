@@ -1,34 +1,44 @@
 @page "/tenants"
 @inject WfmApiClient Api
 @inject ISnackbar Snackbar
-
-<PageTitle>Şirketler · WFM</PageTitle>
+@inject IDialogService Dialogs
 
 <RequirePolicy Policy="@Policies.ManageTenants">
-    <MudText Typo="Typo.h5" Class="mb-3">Şirketler</MudText>
+    <PageHeader Title="Şirketler" Subtitle="@($"{_tenants.Count(t => t.IsActive)} aktif / {_tenants.Count} şirket")" />
     <MudGrid Spacing="3">
         <MudItem xs="12" md="7">
             <MudPaper Elevation="1">
-                <MudTable T="TenantDto" Items="_tenants" Dense Hover Elevation="0">
+                <MudTable T="TenantDto" Items="_tenants" Dense Hover Elevation="0" Loading="!_loaded" Breakpoint="Breakpoint.Sm">
                     <HeaderContent><MudTh>Şirket</MudTh><MudTh>Kısa ad</MudTh><MudTh>Durum</MudTh></HeaderContent>
                     <RowTemplate>
-                        <MudTd>@context.Name</MudTd>
-                        <MudTd>@context.Slug</MudTd>
-                        <MudTd><MudSwitch T="bool" Value="context.IsActive" ValueChanged="@(v => ToggleAsync(context, v))" Color="Color.Success" /></MudTd>
+                        <MudTd DataLabel="Şirket">
+                            <div class="d-flex align-center gap-2">
+                                <span style="@($"width:10px;height:10px;border-radius:50%;background:{context.BrandColor ?? Ui.DefaultPrimary};display:inline-block")" aria-hidden="true"></span>
+                                @context.Name
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Kısa ad">@context.Slug</MudTd>
+                        <MudTd DataLabel="Durum">
+                            <MudSwitch T="bool" Value="context.IsActive" ValueChanged="@(v => ToggleAsync(context, v))" Color="Color.Success"
+                                       Label="@(context.IsActive ? "Aktif" : "Pasif")" aria-label="@($"{context.Name} aktif")" />
+                        </MudTd>
                     </RowTemplate>
+                    <NoRecordsContent><EmptyState Icon="@Icons.Material.Outlined.Business" Title="Henüz şirket yok" Text="Sağdaki formdan ilk şirketi oluşturun." /></NoRecordsContent>
                 </MudTable>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" md="5">
             <MudPaper Elevation="1" Class="pa-4">
                 <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Yeni şirket</b></MudText>
-                <MudTextField T="string" @bind-Value="_name" Label="Şirket adı" Variant="Variant.Outlined" Class="mb-3" />
-                <MudTextField T="string" @bind-Value="_slug" Label="Kısa ad (ör. cicekci-ali)" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField T="string" Value="_name" ValueChanged="NameChanged" Label="Şirket adı *" Variant="Variant.Outlined" Class="mb-3" Immediate />
+                <MudTextField T="string" @bind-Value="_slug" Label="Kısa ad *" Variant="Variant.Outlined" Class="mb-3" HelperText="Küçük harf, rakam ve tire (ör. cicekci-ali)" Immediate
+                              Error="@(!string.IsNullOrEmpty(_slug) && !System.Text.RegularExpressions.Regex.IsMatch(_slug, "^[a-z0-9-]+$"))" ErrorText="Yalnızca küçük harf, rakam ve tire" />
                 <MudText Typo="Typo.subtitle2" Class="mb-2">İlk yönetici</MudText>
-                <MudTextField T="string" @bind-Value="_adminName" Label="Ad soyad" Variant="Variant.Outlined" Class="mb-3" />
-                <MudTextField T="string" @bind-Value="_adminEmail" Label="E-posta" Variant="Variant.Outlined" Class="mb-3" />
-                <MudTextField T="string" @bind-Value="_adminPassword" Label="Parola" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" />
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" FullWidth>Oluştur</MudButton>
+                <MudTextField T="string" @bind-Value="_adminName" Label="Ad soyad *" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField T="string" @bind-Value="_adminEmail" Label="E-posta *" Variant="Variant.Outlined" Class="mb-3" InputType="InputType.Email" />
+                <MudTextField T="string" @bind-Value="_adminPassword" Label="Parola *" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3"
+                              HelperText="En az 6 karakter, büyük/küçük harf ve rakam" autocomplete="new-password" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" FullWidth Disabled="@(_busy || !CanCreate)">Oluştur</MudButton>
             </MudPaper>
         </MudItem>
     </MudGrid>
@@ -37,24 +47,55 @@
 @code {
     private List<TenantDto> _tenants = [];
     private string _name = "", _slug = "", _adminName = "", _adminEmail = "", _adminPassword = "";
+    private bool _loaded, _busy, _slugTouched;
 
-    protected override async Task OnInitializedAsync() => _tenants = await Api.GetTenantsAsync();
+    private bool CanCreate => !string.IsNullOrWhiteSpace(_name) && System.Text.RegularExpressions.Regex.IsMatch(_slug, "^[a-z0-9-]+$") &&
+                              !string.IsNullOrWhiteSpace(_adminName) && !string.IsNullOrWhiteSpace(_adminEmail) && _adminPassword.Length >= 6;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tenants = await Api.GetTenantsAsync();
+        _loaded = true;
+    }
+
+    private void NameChanged(string? v)
+    {
+        _name = v ?? "";
+        // Kısa adı elle değiştirilmediyse addan üret.
+        if (!_slugTouched || string.IsNullOrEmpty(_slug)) _slug = Slug(_name);
+    }
+
+    private static string Slug(string s)
+    {
+        var map = new Dictionary<char, char> { ['ç'] = 'c', ['ğ'] = 'g', ['ı'] = 'i', ['ö'] = 'o', ['ş'] = 's', ['ü'] = 'u' };
+        var chars = s.ToLower(Ui.Tr).Select(c => map.GetValueOrDefault(c, c)).Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-');
+        return string.Join('-', new string(chars.ToArray()).Split('-', StringSplitOptions.RemoveEmptyEntries));
+    }
 
     private async Task CreateAsync()
     {
+        _busy = true;
         try
         {
             await Api.CreateTenantAsync(new CreateTenantRequest(_name, _slug, _adminEmail, _adminPassword, _adminName));
-            Snackbar.Add("Şirket oluşturuldu.", Severity.Success);
+            Snackbar.Add($"'{_name}' oluşturuldu. Yönetici {_adminEmail} ile giriş yapabilir.", Severity.Success);
             _name = _slug = _adminName = _adminEmail = _adminPassword = "";
+            _slugTouched = false;
             _tenants = await Api.GetTenantsAsync();
         }
         catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
     }
 
     private async Task ToggleAsync(TenantDto t, bool active)
     {
-        await Api.SetTenantActiveAsync(t.Id, active);
-        _tenants = await Api.GetTenantsAsync();
+        if (!active && await Dialogs.ShowMessageBoxAsync("Şirketi pasifleştir", $"'{t.Name}' kullanıcıları giriş yapamayacak. Devam edilsin mi?",
+                "Pasifleştir", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.SetTenantActiveAsync(t.Id, active);
+            _tenants = await Api.GetTenantsAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 }
