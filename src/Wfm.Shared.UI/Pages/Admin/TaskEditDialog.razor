@@ -210,12 +210,15 @@
                 if (errors.Count == 0) continue;
                 _step = i;
                 _errors = errors;
+                Dialog.StateHasChanged();
                 return Task.CompletedTask;
             }
         }
         _step = step;
         _maxStep = Math.Max(_maxStep, step);
         if (step == 2) UpdateSuggestions();
+        // Adım göstergesi diyaloğun başlığında; başlık içerikle birlikte yeniden çizilmediği için ayrıca güncellenir.
+        Dialog.StateHasChanged();
         return Task.CompletedTask;
     }
 
