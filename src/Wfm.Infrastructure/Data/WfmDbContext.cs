@@ -26,6 +26,8 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
+    public DbSet<Job> Jobs => Set<Job>();
+    public DbSet<JobTemplate> JobTemplates => Set<JobTemplate>();
 
     // Global filtre bu alanlara bakar; EF her sorguda güncel değeri kullanır.
     private Guid? CurrentTenantId => tenant.TenantId;
@@ -90,6 +92,24 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.HasIndex(x => new { x.TenantId, x.AssigneeId, x.UpdatedAt });
             e.Property(x => x.TrackingToken).HasMaxLength(64);
             e.HasIndex(x => x.TrackingToken).IsUnique().HasFilter("[TrackingToken] IS NOT NULL");
+            e.HasIndex(x => new { x.JobId, x.StepOrder });
+        });
+
+        b.Entity<Job>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(300);
+            e.Property(x => x.Address).HasMaxLength(500);
+            e.Property(x => x.CustomerName).HasMaxLength(200);
+            e.Property(x => x.CustomerPhone).HasMaxLength(50);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasMany(x => x.Tasks).WithOne().HasForeignKey(x => x.JobId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.TenantId, x.Status });
+        });
+
+        b.Entity<JobTemplate>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Steps).HasConversion(JsonConverter<List<JobTemplateStep>>(), JsonComparer<List<JobTemplateStep>>());
         });
 
         b.Entity<TaskEvent>(e => e.Property(x => x.Stage).HasMaxLength(100));

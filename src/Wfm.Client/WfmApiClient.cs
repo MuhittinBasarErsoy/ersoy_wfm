@@ -109,6 +109,29 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<TaskCommentDto> AddCommentAsync(Guid taskId, string body) => Post<TaskCommentDto>($"/api/tasks/{taskId}/comments", new AddCommentRequest(body));
     public Task<PublicTrackingDto> GetPublicTrackingAsync(string token) => Get<PublicTrackingDto>($"/api/public/track/{Uri.EscapeDataString(token)}");
 
+    // ---------- İşler (çok adımlı akışlar) ----------
+    public Task<List<JobTemplateDto>> GetJobTemplatesAsync() => Get<List<JobTemplateDto>>("/api/job-templates");
+    public Task<JobTemplateDto> GetJobTemplateAsync(Guid id) => Get<JobTemplateDto>($"/api/job-templates/{id}");
+    public Task<JobTemplateDto> CreateJobTemplateAsync(SaveJobTemplateRequest req) => Post<JobTemplateDto>("/api/job-templates", req);
+    public Task<JobTemplateDto> UpdateJobTemplateAsync(Guid id, SaveJobTemplateRequest req) => Put<JobTemplateDto>($"/api/job-templates/{id}", req);
+    public Task DeleteJobTemplateAsync(Guid id) => Send(HttpMethod.Delete, $"/api/job-templates/{id}", null);
+
+    public Task<List<JobDto>> GetJobsAsync(JobQuery? q = null)
+    {
+        var qs = new List<string>();
+        if (q?.Status is { } s) qs.Add($"status={s}");
+        if (!string.IsNullOrWhiteSpace(q?.Search)) qs.Add($"search={Uri.EscapeDataString(q.Search)}");
+        return Get<List<JobDto>>("/api/jobs" + (qs.Count > 0 ? "?" + string.Join('&', qs) : ""));
+    }
+    public Task<JobDetailDto> GetJobAsync(Guid id) => Get<JobDetailDto>($"/api/jobs/{id}");
+    public Task<JobDetailDto> CreateJobAsync(SaveJobRequest req) => Post<JobDetailDto>("/api/jobs", req);
+    public Task<JobDetailDto> UpdateJobStepsAsync(Guid id, List<JobStepInput> steps) =>
+        Put<JobDetailDto>($"/api/jobs/{id}/steps", new UpdateJobStepsRequest(steps));
+    public Task<JobDetailDto> RetryJobStepAsync(Guid id, Guid taskId, Guid assigneeId) =>
+        Post<JobDetailDto>($"/api/jobs/{id}/steps/{taskId}/retry", new AssignRequest(assigneeId));
+    public Task<JobDetailDto> SkipJobStepAsync(Guid id, Guid taskId) => Post<JobDetailDto>($"/api/jobs/{id}/steps/{taskId}/skip", null);
+    public Task<JobDetailDto> CancelJobAsync(Guid id) => Post<JobDetailDto>($"/api/jobs/{id}/cancel", null);
+
     /// <summary>Filtreye uyan tüm görevleri sayfa sayfa çeker (dışa aktarma için, en fazla <paramref name="max"/>).</summary>
     public async Task<List<WorkTaskDto>> GetAllTasksAsync(TaskQuery q, int max = 5000)
     {

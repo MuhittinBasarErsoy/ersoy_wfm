@@ -121,12 +121,13 @@ else
                         <MudNavLink Href="/map" Icon="@Icons.Material.Filled.Map">Canlı harita</MudNavLink>
                         <MudNavLink Href="/board" Icon="@Icons.Material.Filled.ViewKanban">Dispeç panosu</MudNavLink>
                         <MudNavLink Href="/tasks" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Assignment">Görevler</MudNavLink>
+                        <MudNavLink Href="/jobs" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AccountTree">İşler</MudNavLink>
                     }
                     @if (Me.Can(Policies.ViewReports))
                     {
                         <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.BarChart">Raporlar</MudNavLink>
                     }
-                    @if (Me.Can(Policies.ManageTaskTypes) || Me.Can(Policies.ManageUsers))
+                    @if (Me.Can(Policies.ManageTaskTypes) || Me.Can(Policies.ManageUsers) || Me.Can(Policies.ManageTasks))
                     {
                         <MudDivider Class="my-2" />
                         <MudText Typo="Typo.overline" Class="px-4" Color="Color.Secondary">Yönetim</MudText>
@@ -134,6 +135,10 @@ else
                     @if (Me.Can(Policies.ManageTaskTypes))
                     {
                         <MudNavLink Href="/task-types" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Category">Görev tipleri</MudNavLink>
+                    }
+                    @if (Me.Can(Policies.ManageTasks))
+                    {
+                        <MudNavLink Href="/job-templates" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Schema">İş şablonları</MudNavLink>
                     }
                     @if (Me.Can(Policies.ManageUsers))
                     {

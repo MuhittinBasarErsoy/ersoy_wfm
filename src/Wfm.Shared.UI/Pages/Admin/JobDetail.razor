@@ -1,0 +1,238 @@
+@page "/jobs/{Id:guid}"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    @if (_job is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        <PageHeader Title="@_job.Title" BackHref="/jobs" BackLabel="İşlere dön"
+                    Subtitle="@($"{_job.DoneSteps}/{_job.StepCount} adım bitti · {Ui.Local(_job.CreatedAt)} açıldı")">
+            <Badges><JobStatusChip Status="_job.Status" /></Badges>
+            <Actions>
+                @if (CanManage && IsOpen)
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Cancel" OnClick="CancelJobAsync" Disabled="_busy">İşi iptal et</MudButton>
+                }
+                @if (Dirty)
+                {
+                    <MudButton Variant="Variant.Text" OnClick="ResetSteps" Disabled="_busy">Değişiklikleri geri al</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveStepsAsync" Disabled="_busy">Akışı kaydet</MudButton>
+                }
+            </Actions>
+        </PageHeader>
+
+        @foreach (var problem in Problems)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-3" Icon="@Icons.Material.Filled.PauseCircle">
+                <b>İş beklemede:</b> @(problem.AssigneeName ?? "Çalışan") <a href="/tasks/@problem.Id" style="color:inherit">"@problem.Title"</a> adımını
+                @(problem.Status == WorkTaskStatus.Rejected ? "reddetti" : "yapamadı"). Sonraki adımlar siz karar verene kadar başlamaz.
+                @if (CanManage)
+                {
+                    <div class="d-flex flex-wrap align-center gap-2 mt-2">
+                        <MudSelect T="Guid?" @bind-Value="_retryTo" Label="Kime verilsin?" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:200px;max-width:260px"
+                                   Dense>
+                            @foreach (var w in _workers.Where(w => w.IsActive))
+                            {
+                                <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="@(_retryTo is null || _busy)"
+                                   OnClick="@(() => RetryAsync(problem))">
+                            @(problem.Status == WorkTaskStatus.Rejected ? "Yeniden ata" : "Yeniden dene")
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => SkipAsync(problem))" Disabled="_busy">Adımı atla, devam et</MudButton>
+                    </div>
+                }
+            </MudAlert>
+        }
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" lg="9">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <div class="d-flex align-center mb-2">
+                        <MudText Typo="Typo.subtitle1" Style="flex:1"><b>Akış</b></MudText>
+                        @if (CanManage && IsOpen)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Başlamamış adımları sürükleyip düzenleyebilir, yenilerini ekleyebilirsiniz.</MudText>
+                        }
+                    </div>
+                    <FlowBuilder Steps="_steps" Types="_types" Workers="_workers" StepsChanged="StateHasChanged" ReadOnly="@(!CanManage || !IsOpen)"
+                                 IsLocked="IsLocked" MinOrder="@Math.Max(1, _job.CurrentOrder)" CurrentOrder="@(IsOpen ? _job.CurrentOrder : 0)" StatusOf="StatusOf" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" lg="3">
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Bilgiler</b></MudText>
+                    @if (!string.IsNullOrWhiteSpace(_job.Description))
+                    {
+                        <MudText Typo="Typo.body2" Class="mb-2">@_job.Description</MudText>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_job.CustomerName))
+                    {
+                        <MudText Typo="Typo.body2"><b>Müşteri:</b> @_job.CustomerName @_job.CustomerPhone</MudText>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_job.Address))
+                    {
+                        <MudText Typo="Typo.body2"><b>Adres:</b> @_job.Address</MudText>
+                    }
+                    <MudText Typo="Typo.body2"><b>Şu an kimde:</b> @(_job.ActiveAssignees.Count == 0 ? "—" : string.Join(", ", _job.ActiveAssignees))</MudText>
+                    @if (_job.CompletedAt is { } c)
+                    {
+                        <MudText Typo="Typo.body2"><b>Kapandı:</b> @Ui.Local(c)</MudText>
+                    }
+                </MudPaper>
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Adım notları</b></MudText>
+                    @{ var notes = _job.Steps.Where(s => !string.IsNullOrWhiteSpace(s.CompletionNote)).OrderBy(s => s.CompletedAt).ToList(); }
+                    @if (notes.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Henüz not yok.</MudText>
+                    }
+                    @foreach (var s in notes)
+                    {
+                        <div class="mb-2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@s.StepOrder. sıra · @s.Title · @s.AssigneeName</MudText>
+                            <MudText Typo="Typo.body2">@s.CompletionNote</MudText>
+                        </div>
+                    }
+                    @{ var retired = _job.Steps.Where(s => s.StepOrder is null).ToList(); }
+                    @if (retired.Count > 0)
+                    {
+                        <MudDivider Class="my-2" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1">Önceki denemeler</MudText>
+                        @foreach (var s in retired)
+                        {
+                            <div class="d-flex align-center gap-2 mb-1">
+                                <a href="/tasks/@s.Id" style="color:inherit;flex:1" class="mud-typography mud-typography-body2">@s.Title · @s.AssigneeName</a>
+                                <StatusChip Status="s.Status" />
+                            </div>
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private JobDetailDto? _job;
+    private List<JobStepInput> _steps = [];
+    private List<TaskTypeDto> _types = [];
+    private List<UserDto> _workers = [];
+    private Guid? _retryTo;
+    private bool _busy;
+    private string _snapshot = "";
+    private CancellationTokenSource? _reload;
+
+    private bool CanManage => Me.Can(Policies.ManageTasks);
+    private bool IsOpen => _job?.Status is JobStatus.Active or JobStatus.OnHold;
+    private bool Dirty => _job is not null && Snapshot() != _snapshot;
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(_steps);
+
+    private IEnumerable<WorkTaskDto> Problems => _job is { Status: JobStatus.OnHold }
+        ? _job.Steps.Where(s => s.StepOrder == _job.CurrentOrder && s.Status is WorkTaskStatus.Rejected or WorkTaskStatus.Failed)
+        : [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var types = Api.GetTaskTypesAsync(includeInactive: true);
+        var workers = Api.GetUsersAsync(Roles.FieldWorker);
+        _types = await types;
+        _workers = await workers;
+        await LoadAsync();
+        Realtime.TaskChanged += OnTaskChanged;
+    }
+
+    private async Task LoadAsync() => Show(await Api.GetJobAsync(Id));
+
+    private void Show(JobDetailDto job)
+    {
+        _job = job;
+        _steps = job.Steps.Where(s => s.StepOrder is not null).Select(s => new JobStepInput
+        {
+            TaskId = s.Id, Order = s.StepOrder!.Value, TaskTypeId = s.TaskTypeId, Title = s.Title, Description = s.Description,
+            AssigneeId = s.AssigneeId ?? s.PlannedAssigneeId
+        }).ToList();
+        _snapshot = Snapshot();
+    }
+
+    private WorkTaskDto? TaskOf(JobStepInput s) => s.TaskId is { } id ? _job?.Steps.FirstOrDefault(t => t.Id == id) : null;
+
+    /// <summary>Başlamış adımlar kilitli; yalnızca sırası gelmemiş taslak adımlar düzenlenir.</summary>
+    private bool IsLocked(JobStepInput s) => TaskOf(s) is { } t && (t.Status != WorkTaskStatus.Draft || t.StepOrder <= _job!.CurrentOrder);
+
+    private WorkTaskStatus? StatusOf(JobStepInput s) => TaskOf(s) is { } t && (t.Status != WorkTaskStatus.Draft || t.StepOrder <= _job!.CurrentOrder) ? t.Status : null;
+
+    private void ResetSteps() { if (_job is not null) Show(_job); }
+
+    private async Task SaveStepsAsync()
+    {
+        if (_steps.Any(s => string.IsNullOrWhiteSpace(s.Title))) { Snackbar.Add("Her adımın bir başlığı olmalı.", Severity.Warning); return; }
+        await RunAsync(() => Api.UpdateJobStepsAsync(Id, _steps), "Akış güncellendi.");
+    }
+
+    private Task RetryAsync(WorkTaskDto problem) =>
+        RunAsync(() => Api.RetryJobStepAsync(Id, problem.Id, _retryTo!.Value), "Adım yeniden başlatıldı, çalışana bildirildi.");
+
+    private Task SkipAsync(WorkTaskDto problem) => RunAsync(() => Api.SkipJobStepAsync(Id, problem.Id), "Adım atlandı, akış devam ediyor.");
+
+    private async Task CancelJobAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("İş iptal edilsin mi?", "Açık tüm adımlar iptal edilir ve ilgili çalışanlara bildirilir.", "İptal et",
+                cancelText: "Vazgeç") != true) return;
+        await RunAsync(() => Api.CancelJobAsync(Id), "İş iptal edildi.");
+    }
+
+    private async Task RunAsync(Func<Task<JobDetailDto>> call, string success)
+    {
+        _busy = true;
+        try
+        {
+            Show(await call());
+            _retryTo = null;
+            Snackbar.Add(success, Severity.Success);
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    // Adımlardan biri değişince işi yeniden yükle; kullanıcı akışı düzenliyorsa üzerine yazma.
+    private void OnTaskChanged(WorkTaskDto t)
+    {
+        if (t.JobId != Id || _busy) return;
+        _reload?.Cancel();
+        var cts = _reload = new CancellationTokenSource();
+        _ = InvokeAsync(async () =>
+        {
+            try { await Task.Delay(400, cts.Token); } catch (TaskCanceledException) { return; }
+            if (Dirty) return;
+            try { await LoadAsync(); StateHasChanged(); } catch (ApiException) { }
+        });
+    }
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (!Dirty) return;
+        if (await Dialogs.ShowMessageBoxAsync("Akış kaydedilmedi", "Akışta yaptığınız değişiklikler kaybolacak. Çıkmak istiyor musunuz?", "Çık",
+                cancelText: "Düzenlemeye dön") != true)
+            ctx.PreventNavigation();
+    }
+
+    public void Dispose()
+    {
+        Realtime.TaskChanged -= OnTaskChanged;
+        _reload?.Cancel();
+    }
+}

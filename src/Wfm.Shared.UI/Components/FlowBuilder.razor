@@ -1,0 +1,257 @@
+@* İş akışı düzenleyici: adımlar "sıra" sütunlarına sürüklenir. Aynı sütundakiler paralel yürür,
+   bir sütunun tüm adımları bitince sağdaki sütun başlar. Soldaki paletten görev tipi sürüklenerek adım eklenir. *@
+
+<MudDropContainer T="Card" @ref="_container" Items="AllCards" ItemsSelector="@((c, zone) => c.Zone == zone)"
+                  ItemDropped="Dropped" ItemDisabled="@(c => ReadOnly || c.Locked)" CanDrop="CanDrop"
+                  CanDropClass="wfm-flow-can-drop" NoDropClass="wfm-flow-no-drop" Class="wfm-flow">
+    <ChildContent>
+        @if (!ReadOnly)
+        {
+            <div class="wfm-flow-palette" aria-label="Görev tipleri">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Görev tipleri</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">Bir sıraya sürükleyin</MudText>
+                <MudDropZone T="Card" Identifier="@Palette" Class="wfm-flow-palette-zone" />
+            </div>
+        }
+        @for (var i = 1; i <= OrderCount; i++)
+        {
+            var order = i;
+            var count = Steps.Count(s => s.Order == order);
+            if (order > 1)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" Class="wfm-flow-arrow" aria-hidden="true" />
+            }
+            <section class="@($"wfm-flow-col {(order < MinOrder ? "locked" : "")} {(order == CurrentOrder ? "current" : "")}")" aria-label="@($"{order}. sıra")">
+                <div class="d-flex align-center gap-1 mb-1 px-1">
+                    <span class="wfm-flow-num">@order</span>
+                    <MudText Typo="Typo.subtitle2" Style="flex:1"><b>@(order). sıra</b></MudText>
+                    @if (order == CurrentOrder)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">Yürüyor</MudChip>
+                    }
+                    else if (count > 1)
+                    {
+                        <MudTooltip Text="Bu sıradaki adımlar aynı anda yürür">
+                            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.CallSplit">Paralel</MudChip>
+                        </MudTooltip>
+                    }
+                </div>
+                <MudDropZone T="Card" Identifier="@($"o{order}")" Class="wfm-flow-zone" />
+                @if (!ReadOnly && order >= MinOrder)
+                {
+                    <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => Add(order))" Class="mt-1">Paralel adım ekle</MudButton>
+                }
+            </section>
+        }
+        @if (!ReadOnly)
+        {
+            @if (OrderCount > 0)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" Class="wfm-flow-arrow" aria-hidden="true" />
+            }
+            <section class="wfm-flow-col wfm-flow-new" aria-label="Yeni sıra">
+                <MudText Typo="Typo.subtitle2" Class="px-1 mb-1" Color="Color.Secondary"><b>Yeni sıra</b></MudText>
+                <MudDropZone T="Card" Identifier="@NewZone" Class="wfm-flow-zone">
+                    <div class="wfm-flow-hint">
+                        <MudIcon Icon="@Icons.Material.Filled.AddCircleOutline" />
+                        <span>Buraya bırakınca öncekiler bittikten sonra başlayan yeni bir sıra açılır</span>
+                    </div>
+                </MudDropZone>
+                <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => Add(OrderCount + 1))" Class="mt-1">Sonraki adımı ekle</MudButton>
+            </section>
+        }
+    </ChildContent>
+    <ItemRenderer>
+        @if (context.Type is { } pt)
+        {
+            <div class="wfm-flow-type" style="@($"border-left:4px solid {pt.Color}")" title="Sürükleyin veya tıklayın"
+                 @onclick="@(() => Add(Math.Max(OrderCount, MinOrder), pt.Id))">
+                <TypeIcon Icon="@pt.Icon" Color="@pt.Color" />
+                <span class="wfm-ellipsis">@pt.Name</span>
+            </div>
+        }
+        else if (context.Step is { } s)
+        {
+            var type = Types.FirstOrDefault(t => t.Id == s.TaskTypeId);
+            <MudPaper Elevation="1" Class="@($"wfm-flow-card {(context.Locked ? "locked" : "")}")" Style="@($"border-left:4px solid {type?.Color ?? "#9e9e9e"}")">
+                <div class="d-flex align-center gap-1">
+                    @if (!context.Locked && !ReadOnly)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" Color="Color.Secondary" Class="wfm-flow-handle" aria-hidden="true" />
+                    }
+                    <TypeIcon Icon="@(type?.Icon ?? "assignment")" Color="@(type?.Color ?? "#9e9e9e")" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="wfm-ellipsis" Style="flex:1">@type?.Name</MudText>
+                    @if (StatusOf?.Invoke(s) is { } st)
+                    {
+                        <StatusChip Status="st" />
+                    }
+                    @if (!context.Locked && !ReadOnly)
+                    {
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense AriaLabel="@($"{s.Title} adımı")"
+                                 AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            @if (s.Order > MinOrder)
+                            {
+                                <MudMenuItem Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Move(s, s.Order - 1))">Önceki sıraya al</MudMenuItem>
+                            }
+                            <MudMenuItem Icon="@Icons.Material.Filled.ArrowForward" OnClick="@(() => Move(s, s.Order + 1))">Sonraki sıraya al</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => Duplicate(s))">Kopyala</MudMenuItem>
+                            <MudDivider />
+                            <MudMenuItem Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error" OnClick="@(() => Remove(s))">Sil</MudMenuItem>
+                        </MudMenu>
+                    }
+                </div>
+                @if (context.Locked || ReadOnly)
+                {
+                    @if (s.TaskId is { } taskId)
+                    {
+                        <a href="/tasks/@taskId" class="mud-typography mud-typography-body2 d-block mt-1" style="color:inherit"><b>@s.Title</b></a>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-1"><b>@s.Title</b></MudText>
+                    }
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@(WorkerName(s.AssigneeId) ?? "Atanmadı")</MudText>
+                }
+                else
+                {
+                    <MudTextField T="string" Value="s.Title" ValueChanged="@(v => { s.Title = v; Changed(); })" Placeholder="Ne yapılacak?"
+                                  Variant="Variant.Text" Margin="Margin.Dense" Immediate DebounceInterval="300"
+                                  Error="@string.IsNullOrWhiteSpace(s.Title)" aria-label="Adım başlığı" />
+                    <MudSelect T="Guid" Value="s.TaskTypeId" ValueChanged="@(v => SetType(s, v))" Variant="Variant.Text" Margin="Margin.Dense" Dense
+                               aria-label="Görev tipi" Label="Tip">
+                        @foreach (var t in Types)
+                        {
+                            <MudSelectItem T="Guid" Value="t.Id">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="Guid?" Value="s.AssigneeId" ValueChanged="@(v => { s.AssigneeId = v; Changed(); })" Variant="Variant.Text"
+                               Margin="Margin.Dense" Dense Clearable Label="Kim yapacak?" AdornmentIcon="@Icons.Material.Filled.Person">
+                        @foreach (var w in Workers.Where(w => w.IsActive || w.Id == s.AssigneeId))
+                        {
+                            <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+            </MudPaper>
+        }
+    </ItemRenderer>
+</MudDropContainer>
+@if (!ReadOnly && Steps.Count == 0)
+{
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">
+        Henüz adım yok. Soldan bir görev tipini "Yeni sıra" alanına sürükleyin veya "Sonraki adımı ekle"ye tıklayın.
+    </MudText>
+}
+
+@code {
+    private const string Palette = "palette";
+    private const string NewZone = "new";
+
+    /// <summary>Düzenlenen adımlar (yerinde değiştirilir). Sıra numaraları her değişiklikte 1'den başlayarak sıkıştırılır.</summary>
+    [Parameter, EditorRequired] public List<JobStepInput> Steps { get; set; } = [];
+    [Parameter] public List<TaskTypeDto> Types { get; set; } = [];
+    [Parameter] public List<UserDto> Workers { get; set; } = [];
+    [Parameter] public EventCallback StepsChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    /// <summary>Değiştirilemeyen (başlamış) adımlar; sürüklenemez ve düzenlenemez.</summary>
+    [Parameter] public Func<JobStepInput, bool>? IsLocked { get; set; }
+    /// <summary>Bu sıranın öncesine adım bırakılamaz (yürüyen işte başlamış sıralar).</summary>
+    [Parameter] public int MinOrder { get; set; } = 1;
+    /// <summary>Yürüyen sıra (vurgulanır); 0 = yok.</summary>
+    [Parameter] public int CurrentOrder { get; set; }
+    /// <summary>Mevcut işte adımın durumu (rozet olarak gösterilir).</summary>
+    [Parameter] public Func<JobStepInput, WorkTaskStatus?>? StatusOf { get; set; }
+
+    private sealed class Card
+    {
+        public string Zone { get; set; } = "";
+        public JobStepInput? Step { get; init; }
+        public TaskTypeDto? Type { get; init; }
+        public bool Locked { get; init; }
+    }
+
+    private MudDropContainer<Card>? _container;
+
+    // Kapsayıcı kartları kendi önbelleğinde tutar; dışarıdan gelen değişiklikleri (canlı durum güncellemesi) yansıtması için yenilenir.
+    // Yeni Items kapsayıcıya ancak bu bileşen çizildikten sonra ulaşır; bu yüzden yenileme çizimden sonra yapılır.
+    private bool _refresh;
+
+    protected override void OnParametersSet() => _refresh = true;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!_refresh) return;
+        _refresh = false;
+        _container?.Refresh();
+    }
+
+    private int OrderCount => Steps.Count == 0 ? 0 : Steps.Max(s => s.Order);
+
+    private List<Card> AllCards =>
+    [
+        .. ReadOnly ? [] : Types.Where(t => t.IsActive).Select(t => new Card { Zone = Palette, Type = t }),
+        .. Steps.Select(s => new Card { Zone = $"o{s.Order}", Step = s, Locked = IsLocked?.Invoke(s) == true })
+    ];
+
+    private string? WorkerName(Guid? id) => id is { } g ? Workers.FirstOrDefault(w => w.Id == g)?.FullName : null;
+
+    private bool CanDrop(Card card, string zone)
+    {
+        if (zone == Palette) return false;
+        if (zone == NewZone) return true;
+        return int.TryParse(zone.AsSpan(1), out var order) && order >= MinOrder;
+    }
+
+    private void Dropped(MudItemDropInfo<Card> info)
+    {
+        if (info.Item is not { } card || !CanDrop(card, info.DropzoneIdentifier)) return;
+        var order = info.DropzoneIdentifier == NewZone ? OrderCount + 1 : int.Parse(info.DropzoneIdentifier.AsSpan(1));
+        if (card.Type is { } type) Add(order, type.Id);
+        else if (card.Step is { } step) Move(step, order);
+    }
+
+    private void Add(int order, Guid? typeId = null)
+    {
+        var type = Types.FirstOrDefault(t => t.Id == typeId) ?? Types.FirstOrDefault(t => t.IsActive) ?? Types.FirstOrDefault();
+        if (type is null) return;
+        Steps.Add(new JobStepInput { Order = Math.Max(order, MinOrder), TaskTypeId = type.Id, Title = type.Name });
+        Changed();
+    }
+
+    private void Move(JobStepInput step, int order)
+    {
+        step.Order = Math.Min(Math.Max(order, MinOrder), OrderCount + 1);
+        Changed();
+    }
+
+    private void Duplicate(JobStepInput s)
+    {
+        Steps.Add(new JobStepInput { Order = s.Order, TaskTypeId = s.TaskTypeId, Title = s.Title, Description = s.Description, AssigneeId = s.AssigneeId });
+        Changed();
+    }
+
+    private void Remove(JobStepInput s)
+    {
+        Steps.Remove(s);
+        Changed();
+    }
+
+    private void SetType(JobStepInput s, Guid typeId)
+    {
+        var previous = Types.FirstOrDefault(t => t.Id == s.TaskTypeId)?.Name;
+        s.TaskTypeId = typeId;
+        // Başlık hâlâ önceki tipin adıysa yeni tipe göre güncelle.
+        if (string.IsNullOrWhiteSpace(s.Title) || s.Title == previous) s.Title = Types.FirstOrDefault(t => t.Id == typeId)?.Name ?? s.Title;
+        Changed();
+    }
+
+    /// <summary>Boşalan sıraları kapatır (1, 2, 3...) ve değişikliği bildirir.</summary>
+    private void Changed()
+    {
+        var map = Steps.Select(s => s.Order).Distinct().Order().Select((o, i) => (o, i)).ToDictionary(x => x.o, x => x.i + 1);
+        foreach (var s in Steps) s.Order = map[s.Order];
+        _refresh = true;
+        StepsChanged.InvokeAsync();
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,9 @@
+@{ var (color, icon) = JobUi.Look(Status); }
+<span class="wfm-status @Class" style="background:@color;color:#fff">
+    <span class="material-icons" aria-hidden="true">@icon</span>@JobUi.Status(Status)
+</span>
+
+@code {
+    [Parameter, EditorRequired] public JobStatus Status { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

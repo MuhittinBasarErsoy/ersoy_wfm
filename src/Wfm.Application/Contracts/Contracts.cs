@@ -77,6 +77,13 @@ public record WorkTaskDto
     public string RowVersion { get; init; } = "";
     public string? TrackingToken { get; init; }
 
+    /// <summary>Görev bir işin adımıysa iş kimliği ve sıra numarası.</summary>
+    public Guid? JobId { get; init; }
+    public int? StepOrder { get; init; }
+    /// <summary>Henüz sırası gelmemiş adımda, sırası gelince atanacak çalışan.</summary>
+    public Guid? PlannedAssigneeId { get; init; }
+    public string? PlannedAssigneeName { get; init; }
+
     /// <summary>Planlanan bitiş zamanı geçtiği hâlde açık.</summary>
     public bool IsOverdue => Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)
                              && ScheduledEnd is { } end && end < DateTime.UtcNow;
@@ -90,7 +97,12 @@ public record WorkTaskDetailDto : WorkTaskDto
     public TaskTypeDto? TaskType { get; init; }
     public List<TaskEventDto> Events { get; init; } = [];
     public List<AttachmentDto> Attachments { get; init; } = [];
+    /// <summary>Görev bir işin adımıysa işin özeti ve önceki adımların sonuçları.</summary>
+    public TaskJobContextDto? Job { get; init; }
 }
+
+public record TaskJobContextDto(Guid JobId, string Title, int StepOrder, int OrderCount, List<JobStepSummaryDto> PreviousSteps);
+public record JobStepSummaryDto(int Order, string Title, string? AssigneeName, WorkTaskStatus Status, string? Note, DateTime? CompletedAt);
 
 public record TaskEventDto(Guid Id, Guid UserId, string? UserName, WorkTaskStatus FromStatus, WorkTaskStatus ToStatus,
     string? Note, double? Latitude, double? Longitude, DateTime CreatedAt, string? Stage = null);
@@ -155,6 +167,68 @@ public record TaskQuery
 }
 
 public record PagedResult<T>(List<T> Items, int Total);
+
+// ---------- İşler (çok adımlı akışlar) ----------
+/// <summary>Akıştaki bir adım. Şablonda AssigneeId varsayılan kişidir; işte TaskId doluysa mevcut adımı temsil eder.</summary>
+public record JobStepInput
+{
+    public int Order { get; set; } = 1;
+    public Guid TaskTypeId { get; set; }
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public Guid? AssigneeId { get; set; }
+    public Guid? TaskId { get; set; }
+}
+
+public record JobTemplateDto(Guid Id, string Name, string? Description, List<JobStepInput> Steps);
+public record SaveJobTemplateRequest(string Name, string? Description, List<JobStepInput> Steps);
+
+public record SaveJobRequest
+{
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public Guid? TemplateId { get; set; }
+    public TaskPriority Priority { get; set; } = TaskPriority.Normal;
+    public string? CustomerName { get; set; }
+    public string? CustomerPhone { get; set; }
+    public string Address { get; set; } = "";
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public DateTime? ScheduledEnd { get; set; }
+    public List<JobStepInput> Steps { get; set; } = [];
+}
+
+public record UpdateJobStepsRequest(List<JobStepInput> Steps);
+
+public record JobDto
+{
+    public Guid Id { get; init; }
+    public string Title { get; init; } = "";
+    public string? Description { get; init; }
+    public JobStatus Status { get; init; }
+    public int CurrentOrder { get; init; }
+    public int OrderCount { get; init; }
+    public int StepCount { get; init; }
+    public int DoneSteps { get; init; }
+    public string? CustomerName { get; init; }
+    public string? CustomerPhone { get; init; }
+    public string Address { get; init; } = "";
+    public double Latitude { get; init; }
+    public double Longitude { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+    public DateTime? CompletedAt { get; init; }
+    /// <summary>Şu an yürüyen sıradaki çalışanlar.</summary>
+    public List<string> ActiveAssignees { get; init; } = [];
+}
+
+public record JobDetailDto : JobDto
+{
+    /// <summary>Adımlar (sıraya göre); yerine yenisi açılan eski denemeler Order = null ile en sonda.</summary>
+    public List<WorkTaskDto> Steps { get; init; } = [];
+}
+
+public record JobQuery(JobStatus? Status = null, string? Search = null);
 
 // ---------- Tracking ----------
 public record LocationPingDto(double Latitude, double Longitude, double? Accuracy, double? Speed, double? Heading,

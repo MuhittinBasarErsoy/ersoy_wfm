@@ -34,6 +34,7 @@ builder.Services.AddSingleton<FileUrlSigner>();
 builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<TrackingService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<JobProgressService>();
 builder.Services.AddHostedService<LocationCleanupService>();
 builder.Services.AddHostedService<OverdueMonitorService>();
 
@@ -113,6 +114,7 @@ app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapUserEndpoints();
 app.MapTaskEndpoints();
+app.MapJobEndpoints();
 app.MapFieldEndpoints();
 app.MapReportEndpoints();
 app.MapPublicEndpoints();

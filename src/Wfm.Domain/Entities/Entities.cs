@@ -139,6 +139,8 @@ public static class NotificationKinds
     public const string Comment = "comment";
     public const string StageChanged = "stage";
     public const string PasswordReset = "password_reset";
+    public const string JobOnHold = "job_on_hold";
+    public const string JobCompleted = "job_completed";
 }
 
 /// <summary>Görev listesi için kayıtlı filtre. Paylaşılanları şirketteki tüm yönetim kullanıcıları görür.</summary>

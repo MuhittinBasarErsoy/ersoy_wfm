@@ -1,0 +1,25 @@
+@* Akışın tek satırlık özeti: "1 Fotokopi (Selin) → 2 Postane (Burak) ‖ Kargo (Ali) → 3 Mail (Selin)" *@
+<div class="d-flex flex-wrap align-center gap-1">
+    @foreach (var group in Steps.GroupBy(s => s.Order).OrderBy(g => g.Key))
+    {
+        if (group.Key != Steps.Min(s => s.Order))
+        {
+            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Secondary" aria-label="sonra" />
+        }
+        <span class="d-inline-flex align-center gap-1 flex-wrap">
+            <span class="wfm-flow-num">@group.Key</span>
+            @foreach (var s in group)
+            {
+                var name = s.AssigneeId is { } a ? Workers.FirstOrDefault(w => w.Id == a)?.FullName : null;
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                    @s.Title@(name is null ? "" : $" · {name.Split(' ')[0]}")
+                </MudChip>
+            }
+        </span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<JobStepInput> Steps { get; set; } = [];
+    [Parameter] public List<UserDto> Workers { get; set; } = [];
+}

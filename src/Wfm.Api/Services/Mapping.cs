@@ -1,5 +1,6 @@
 using Wfm.Application.Contracts;
 using Wfm.Domain.Entities;
+using Wfm.Domain.Enums;
 using Wfm.Infrastructure.Identity;
 
 namespace Wfm.Api.Services;
@@ -52,7 +53,11 @@ public static class Mapping
         CreatedAt = t.CreatedAt,
         UpdatedAt = t.UpdatedAt,
         RowVersion = Convert.ToBase64String(t.RowVersion),
-        TrackingToken = t.TrackingToken
+        TrackingToken = t.TrackingToken,
+        JobId = t.JobId,
+        StepOrder = t.StepOrder,
+        PlannedAssigneeId = t.PlannedAssigneeId,
+        PlannedAssigneeName = t.PlannedAssigneeId is { } p && userNames.TryGetValue(p, out var pn) ? pn : null
     };
 
     public static WorkTaskDetailDto ToDetailDto(this WorkTask t, IReadOnlyDictionary<Guid, string> userNames, FileUrlSigner signer)
@@ -68,12 +73,47 @@ public static class Mapping
             StartedAt = dto.StartedAt, CompletedAt = dto.CompletedAt, CompletionNote = dto.CompletionNote,
             CustomFieldValues = dto.CustomFieldValues, CreatedAt = dto.CreatedAt, UpdatedAt = dto.UpdatedAt,
             RowVersion = dto.RowVersion, TrackingToken = dto.TrackingToken,
+            JobId = dto.JobId, StepOrder = dto.StepOrder, PlannedAssigneeId = dto.PlannedAssigneeId,
+            PlannedAssigneeName = dto.PlannedAssigneeName,
             TaskType = t.TaskType?.ToDto(),
             Events = t.Events.OrderBy(e => e.CreatedAt).Select(e => new TaskEventDto(e.Id, e.UserId,
                 userNames.TryGetValue(e.UserId, out var un) ? un : null, e.FromStatus, e.ToStatus, e.Note,
                 e.Latitude, e.Longitude, e.CreatedAt, e.Stage)).ToList(),
             Attachments = t.Attachments.OrderBy(a => a.CapturedAt).Select(a => new AttachmentDto(a.Id, a.Kind, a.FileName,
                 a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById)).ToList()
+        };
+    }
+
+    public static JobTemplateDto ToDto(this JobTemplate t) =>
+        new(t.Id, t.Name, t.Description, t.Steps.OrderBy(s => s.Order).Select(s => new JobStepInput
+        {
+            Order = s.Order, TaskTypeId = s.TaskTypeId, Title = s.Title, Description = s.Description, AssigneeId = s.DefaultAssigneeId
+        }).ToList());
+
+    /// <summary>İş özeti; <paramref name="j"/>.Tasks yüklenmiş olmalı.</summary>
+    public static JobDto ToDto(this Job j, IReadOnlyDictionary<Guid, string> userNames) => new()
+    {
+        Id = j.Id, Title = j.Title, Description = j.Description, Status = j.Status, CurrentOrder = j.CurrentOrder,
+        OrderCount = j.OrderCount,
+        StepCount = j.Tasks.Count(t => t.StepOrder != null),
+        DoneSteps = j.Tasks.Count(t => t.StepOrder != null && t.Status is WorkTaskStatus.Completed or WorkTaskStatus.Cancelled),
+        CustomerName = j.CustomerName, CustomerPhone = j.CustomerPhone, Address = j.Address,
+        Latitude = j.Latitude, Longitude = j.Longitude, CreatedAt = j.CreatedAt, UpdatedAt = j.UpdatedAt, CompletedAt = j.CompletedAt,
+        ActiveAssignees = j.Status is JobStatus.Completed or JobStatus.Cancelled ? [] :
+            j.Tasks.Where(t => t.StepOrder == j.CurrentOrder && t.IsOpen && t.AssigneeId is { } a && userNames.ContainsKey(a))
+                .Select(t => userNames[t.AssigneeId!.Value]).Distinct().ToList()
+    };
+
+    public static JobDetailDto ToDetailDto(this Job j, IReadOnlyDictionary<Guid, string> userNames)
+    {
+        var dto = j.ToDto(userNames);
+        return new JobDetailDto
+        {
+            Id = dto.Id, Title = dto.Title, Description = dto.Description, Status = dto.Status, CurrentOrder = dto.CurrentOrder,
+            OrderCount = dto.OrderCount, StepCount = dto.StepCount, DoneSteps = dto.DoneSteps, CustomerName = dto.CustomerName,
+            CustomerPhone = dto.CustomerPhone, Address = dto.Address, Latitude = dto.Latitude, Longitude = dto.Longitude,
+            CreatedAt = dto.CreatedAt, UpdatedAt = dto.UpdatedAt, CompletedAt = dto.CompletedAt, ActiveAssignees = dto.ActiveAssignees,
+            Steps = j.Tasks.OrderBy(t => t.StepOrder ?? int.MaxValue).ThenBy(t => t.CreatedAt).Select(t => t.ToDto(userNames)).ToList()
         };
     }
 }

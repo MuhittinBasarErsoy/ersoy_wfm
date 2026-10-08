@@ -19,6 +19,13 @@ public class WorkTask : TenantEntity
     public Guid? TeamId { get; set; }
     public Guid CreatedById { get; set; }
 
+    /// <summary>Görev bir işin adımıysa o iş; null = bağımsız görev.</summary>
+    public Guid? JobId { get; set; }
+    /// <summary>İş içindeki sıra numarası (aynı sıradakiler paralel). Yerine yenisi açılan eski denemede null.</summary>
+    public int? StepOrder { get; set; }
+    /// <summary>Sırası gelince göreve atanacak çalışan (adım henüz başlamadıysa).</summary>
+    public Guid? PlannedAssigneeId { get; set; }
+
     public string Address { get; set; } = "";
     public double Latitude { get; set; }
     public double Longitude { get; set; }

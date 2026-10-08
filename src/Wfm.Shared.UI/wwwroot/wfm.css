@@ -211,3 +211,28 @@
 .wfm-step.current .wfm-step-num { background: var(--mud-palette-primary); color: var(--mud-palette-primary-text); border-color: var(--mud-palette-primary); }
 .wfm-step.done { color: var(--mud-palette-success); }
 @media (max-width: 600px) { .wfm-step:not(.current) .wfm-step-label { display: none; } }
+
+/* ---------- İş akışı düzenleyici ---------- */
+.wfm-flow { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; align-items: stretch; }
+.wfm-flow-palette { flex: 0 0 170px; padding: 8px; border-right: 1px dashed var(--mud-palette-lines-default); }
+.wfm-flow-palette-zone { display: flex; flex-direction: column; gap: 4px; }
+.wfm-flow-type { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: grab; font-size: 13px;
+    background: var(--mud-palette-surface); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.wfm-flow-type:hover { background: var(--mud-palette-action-default-hover); }
+.wfm-flow-col { flex: 0 0 250px; background: var(--mud-palette-action-default-hover); border-radius: 10px; padding: 8px;
+    display: flex; flex-direction: column; border: 2px solid transparent; }
+.wfm-flow-col.current { border-color: var(--mud-palette-primary); }
+.wfm-flow-col.locked { opacity: .85; }
+.wfm-flow-new { background: transparent; border: 2px dashed var(--mud-palette-lines-default); }
+.wfm-flow-zone { min-height: 110px; flex: 1; display: flex; flex-direction: column; gap: 6px; border-radius: 8px; }
+.wfm-flow-can-drop { outline: 2px dashed var(--mud-palette-primary); outline-offset: 2px; }
+.wfm-flow-no-drop { opacity: .5; }
+.wfm-flow-arrow { align-self: center; flex: 0 0 auto; }
+.wfm-flow-num { width: 22px; height: 22px; border-radius: 50%; background: var(--mud-palette-primary); color: var(--mud-palette-primary-text);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.wfm-flow-card { padding: 6px 8px; cursor: grab; }
+.wfm-flow-card.locked { cursor: default; }
+.wfm-flow-card .mud-input-control { margin-top: 2px; }
+.wfm-flow-hint { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 16px 8px;
+    color: var(--mud-palette-text-secondary); font-size: 12px; }
+.wfm-flow-handle { cursor: grab; }

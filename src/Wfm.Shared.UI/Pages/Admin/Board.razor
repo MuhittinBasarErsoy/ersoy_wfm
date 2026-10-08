@@ -146,7 +146,8 @@
 
     private bool CanManage => Me.Can(Policies.ManageTasks);
 
-    private List<WorkTaskDto> Visible => _tasks.Where(InRange).Where(t => ZoneOf(t) == Unassigned || Columns.Any(c => c.Id == t.AssigneeId))
+    // Sırası gelmemiş iş adımları kendiliğinden atanacağı için panoda gösterilmez.
+    private List<WorkTaskDto> Visible => _tasks.Where(InRange).Where(t => !(t.JobId is not null && t.Status == WorkTaskStatus.Draft && t.PlannedAssigneeId is not null)).Where(t => ZoneOf(t) == Unassigned || Columns.Any(c => c.Id == t.AssigneeId))
         .OrderByDescending(t => t.IsOverdue).ThenByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt).ToList();
 
     private List<UserDto> Columns => _workers.Where(w => w.IsActive)
