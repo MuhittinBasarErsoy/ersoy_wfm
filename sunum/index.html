@@ -99,7 +99,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
         <div><b>Web</b>Yönetim paneli</div>
         <div><b>iOS + Android</b>Saha uygulaması</div>
         <div><b>Çok şirketli</b>Her sektöre uyarlanır</div>
-        <div><b>05.10.2026</b>Sürüm 1.0</div>
+        <div><b>08.10.2026</b>Sürüm 1.0</div>
       </div>
     </div>
     <div class="hero">
@@ -126,6 +126,9 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
     <div class="card"><div class="ic">🔗</div><h4>Müşteri takip linki</h4><p>Son müşteri, giriş yapmadan siparişinin yolda olduğunu ve tahmini varışı canlı izler.</p></div>
     <div class="card"><div class="ic">💬</div><h4>Görev içi mesajlaşma</h4><p>Dispeçer ve saha çalışanı görev üzerinden anlık yazışır.</p></div>
     <div class="card"><div class="ic">🎨</div><h4>Şirket markası ve koyu tema</h4><p>Her şirketin logosu ve rengi; kullanıcıya özel açık/koyu tema ve yüksek kontrast.</p></div>
+    <div class="card"><div class="ic">🔀</div><h4>Çok adımlı işler</h4><p>Bir işin adımları farklı çalışanlara sırayla veya aynı anda dağıtılır; sırası gelen adım otomatik atanır.</p></div>
+    <div class="card"><div class="ic">🚩</div><h4>Aşamalar</h4><p>Görev tipine özel ara aşamalar (ör. Okunda, İmzaya çıktı); dispeçer işin nerede olduğunu anında görür.</p></div>
+    <div class="card"><div class="ic">🗄️</div><h4>Masa başı işler</h4><p>Saha ziyareti gerektirmeyen ofis işleri de aynı sistemde; adres ve yol adımları atlanır.</p></div>
   </div>
 </section><section>
   <div class="chapter-head"><span class="chapter-num">2</span><div><h2>Sistem nasıl çalışır?</h2>
@@ -262,116 +265,164 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
   <ol class="points cols"><li><span class="badge">1</span><span>&#199;alışan listesi: mesai durumu, son konum zamanı, pil ve aktif g&#246;rev; arama ve &#39;yalnız mesaidekiler&#39; filtresi.</span></li><li><span class="badge">2</span><span>A&#231;ık g&#246;revleri haritada g&#246;ster/gizle.</span></li><li><span class="badge">3</span><span>Rota ge&#231;mişi: se&#231;ilen &#231;alışanın se&#231;ilen g&#252;ndeki konum noktaları; ge&#231;miş g&#252;nler de se&#231;ilebilir.</span></li><li><span class="badge">4</span><span>&#199;alışanın g&#252;n i&#231;indeki rotası (&#231;izgi).</span></li><li><span class="badge">5</span><span>İşarete tıklayınca &#246;zet a&#231;ılır: g&#246;rev, durum, adres, atanan kişi ve detay bağlantısı (&#231;alışan işaretinde mesai, pil ve aktif g&#246;rev).</span></li><li><span class="badge">6</span><span>Renk a&#231;ıklaması: yeşil = mesaide ve konumu g&#252;ncel, turuncu = konum 30 dk+ eski, gri = mesai dışı.</span></li></ol>
 </article><article class="shot web">
   <div class="shot-no">Ekran 4.7</div>
-  <h3>G&#246;rev listesi ve toplu işlemler</h3>
-  <p class="intro">Şirketin t&#252;m g&#246;revleri tek listede. Filtreler adres &#231;ubuğunda tutulduğu i&#231;in filtreli liste bir linkle paylaşılabilir. Birden fazla g&#246;rev se&#231;ilerek tek seferde atanabilir veya iptal edilebilir.</p>
-  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w06-gorevler.jpg" alt="G&#246;rev listesi ve toplu işlemler"></figure>
-  <ol class="points cols"><li><span class="badge">1</span><span>Filtreler: arama, &#231;oklu durum, g&#246;rev tipi, &#231;alışan, &#39;yalnız a&#231;ık&#39; ve &#39;yalnız geciken&#39;.</span></li><li><span class="badge">2</span><span>Toplu işlem &#231;ubuğu: se&#231;ili g&#246;revleri bir &#231;alışana ata veya iptal et.</span></li><li><span class="badge">3</span><span>Kayıtlı filtreler: sık kullanılan filtreyi kaydet, istersen ekiple paylaş.</span></li><li><span class="badge">4</span><span>Excel (.xlsx) veya CSV olarak dışa aktarma.</span></li><li><span class="badge">5</span><span>S&#252;tun başlığına tıklayarak sıralama.</span></li><li><span class="badge">6</span><span>Sayfalama ve sayfa başına kayıt.</span></li></ol>
-</article><article class="shot web">
-  <div class="shot-no">Ekran 4.8</div>
   <h3>Ekiple paylaşılan kayıtlı filtreler</h3>
   <p class="intro">Dispe&#231;erin her g&#252;n baktığı listeler tek tıkla a&#231;ılır. Paylaşılan filtreler ekipteki herkesin men&#252;s&#252;nde g&#246;r&#252;n&#252;r.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w06b-kayitli-filtreler.jpg" alt="Ekiple paylaşılan kayıtlı filtreler"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Kaydet, uygula ve y&#246;net. Ekip simgeli olanlar (&#39;Geciken işler&#39;, &#39;Sorunlu g&#246;revler&#39;) ekiple paylaşılmıştır.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.9</div>
+  <div class="shot-no">Ekran 4.8</div>
   <h3>Yeni g&#246;rev &#183; Adım 1: G&#246;rev</h3>
   <p class="intro">G&#246;rev formu d&#246;rt adımda ilerler; her adım kendi alanlarını doğrular, b&#246;ylece eksik bilgiyle g&#246;rev oluşturulamaz. İlk adımda g&#246;rev tipi se&#231;ilir ve o tipe &#246;zel alanlar forma kendiliğinden eklenir.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w07-yeni-gorev-1.jpg" alt="Yeni g&#246;rev &#183; Adım 1: G&#246;rev"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Adımlar: G&#246;rev → Konum ve m&#252;şteri → Zaman ve atama → &#214;zet. Tamamlanan adımlar ✓ ile işaretlenir.</span></li><li><span class="badge">2</span><span>G&#246;rev tipi: se&#231;ilen tipe g&#246;re formdaki &#246;zel alanlar değişir.</span></li><li><span class="badge">3</span><span>Bu tipe &#246;zel alanlar (şirketin kendisi tanımlar); zorunlu olanlar * ile işaretli.</span></li><li><span class="badge">4</span><span>İleri: bu adımın alanları ge&#231;erliyse sonraki adıma ge&#231;er.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.10</div>
+  <div class="shot-no">Ekran 4.9</div>
   <h3>Yeni g&#246;rev &#183; Adım 2: Konum ve m&#252;şteri</h3>
   <p class="intro">Adres yazılarak aranır (OpenStreetMap); se&#231;ilen adresin konumu haritaya işlenir. Haritaya tıklanarak da konum se&#231;ilebilir; tıklanan noktanın adresi kendiliğinden yazılır.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w08-yeni-gorev-2-adres.jpg" alt="Yeni g&#246;rev &#183; Adım 2: Konum ve m&#252;şteri"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Adres arama.</span></li><li><span class="badge">2</span><span>&#214;nerilen adresler.</span></li><li><span class="badge">3</span><span>Konum haritası: kurye &#39;Yol tarifi&#39; ile doğrudan buraya y&#246;nlendirilir.</span></li><li><span class="badge">4</span><span>M&#252;şteri adı ve telefonu: saha &#231;alışanı tek dokunuşla arayabilir.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.11</div>
+  <div class="shot-no">Ekran 4.10</div>
   <h3>Yeni g&#246;rev &#183; Adım 3: Zaman ve akıllı atama &#246;nerisi</h3>
   <p class="intro">Planlanan zaman aralığı girilir; bitiş saati ge&#231;erse g&#246;rev &#39;gecikti&#39; sayılır. Sistem, şu an mesaide olan &#231;alışanları g&#246;rev konumuna uzaklıklarına ve &#252;zerlerindeki a&#231;ık iş sayısına g&#246;re &#246;nerir.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w09-yeni-gorev-3-atama.jpg" alt="Yeni g&#246;rev &#183; Adım 3: Zaman ve akıllı atama &#246;nerisi"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Planlanan tarih, başlangı&#231; ve bitiş saati.</span></li><li><span class="badge">2</span><span>Atanan &#231;alışan (boş bırakılırsa taslak kalır, sonra panodan atanabilir).</span></li><li><span class="badge">3</span><span>&#214;neri: mesaideki &#231;alışanlar, g&#246;rev konumuna uzaklık ve a&#231;ık iş y&#252;k&#252;yle; tek tıkla se&#231;ilir.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.12</div>
+  <div class="shot-no">Ekran 4.11</div>
   <h3>Yeni g&#246;rev &#183; Adım 4: &#214;zet</h3>
   <p class="intro">Kaydetmeden &#246;nce t&#252;m bilgiler tek tabloda kontrol edilir. Kaydedilince g&#246;rev atanan &#231;alışanın telefonuna anında d&#252;şer.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w10-yeni-gorev-4-ozet.jpg" alt="Yeni g&#246;rev &#183; Adım 4: &#214;zet"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>&#214;zet: g&#246;rev, adres, m&#252;şteri, zaman, atanan kişi ve &#246;zel alanlar.</span></li><li><span class="badge">2</span><span>Kaydedince ne olacağı a&#231;ık&#231;a yazılır (bildirim gidecek / taslak kalacak).</span></li><li><span class="badge">3</span><span>G&#246;revi oluştur.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.13</div>
+  <div class="shot-no">Ekran 4.12</div>
   <h3>Global arama (Ctrl+K)</h3>
   <p class="intro">Hangi sayfada olursa olsun Ctrl+K ile arama a&#231;ılır: g&#246;revler, adresler, m&#252;şteriler, kişiler ve sayfalar tek kutuda aranır; klavyeyle se&#231;ilip a&#231;ılır.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w11-global-arama.jpg" alt="Global arama (Ctrl+K)"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Arama kutusu.</span></li><li><span class="badge">2</span><span>Sonu&#231;lar t&#252;rlerine g&#246;re gruplanır; Enter ile a&#231;ılır.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.14</div>
+  <div class="shot-no">Ekran 4.13</div>
   <h3>G&#246;rev detayı: teslim kanıtı</h3>
   <p class="intro">Tamamlanan g&#246;revin t&#252;m kanıtı tek sayfada: teslim alan kişi, fotoğraf, m&#252;şteri imzası ve adım adım zaman &#231;izelgesi. Her adımın yapıldığı konum da kaydedilir. Sayfa yazdırılabilir veya PDF olarak kaydedilebilir; m&#252;şteri itirazlarında referans olur.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w12-gorev-detay-tamamlandi.jpg" alt="G&#246;rev detayı: teslim kanıtı"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>G&#246;rev başlığı, tipi, durumu ve &#246;nceliği.</span></li><li><span class="badge">2</span><span>Atanan kurye, planlanan zaman, m&#252;şteri, ger&#231;ekleşen yola &#231;ıkış / tamamlanma saatleri ve s&#252;re.</span></li><li><span class="badge">3</span><span>G&#246;rev oluşturulurken girilen bilgiler (solda) ve kuryenin teslimde doldurduğu bilgiler (sağda).</span></li><li><span class="badge">4</span><span>Teslim fotoğrafı (&#231;ekim saatiyle) ve m&#252;şteri imzası; tıklanınca b&#252;y&#252;k g&#246;r&#252;nt&#252;lenir.</span></li><li><span class="badge">5</span><span>G&#246;rev konumu ve her durum değişikliğinin yapıldığı nokta.</span></li><li><span class="badge">6</span><span>Zaman &#231;izelgesi: atandı → kabul edildi → yolda → yerinde → tamamlandı; kim, ne zaman, nerede.</span></li><li><span class="badge">7</span><span>Diğer işlemler: yazdır / PDF, iptal, silme.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.15</div>
+  <div class="shot-no">Ekran 4.14</div>
   <h3>G&#246;rev detayı: devam eden iş ve mesajlaşma</h3>
   <p class="intro">Devam eden g&#246;revde dispe&#231;er kuryenin canlı konumunu hedef adresle birlikte izler, g&#246;revle ilgili kuryeyle yazışır ve m&#252;şteriye canlı takip linki g&#246;nderebilir.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w13-gorev-detay-yolda.jpg" alt="G&#246;rev detayı: devam eden iş ve mesajlaşma"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>M&#252;şteri takip linki: oturum gerektirmeyen bir sayfa linki oluşturur; m&#252;şteri ekibin yaklaştığını canlı izler (B&#246;l&#252;m 6).</span></li><li><span class="badge">2</span><span>Yeniden atama: başka bir kurye se&#231;mek yeterli; eski ve yeni kurye bilgilendirilir.</span></li><li><span class="badge">3</span><span>Hedef adres ve kuryenin canlı konumu aynı haritada.</span></li><li><span class="badge">4</span><span>G&#246;rev i&#231;i mesajlaşma: dispe&#231;er ve kurye g&#246;rev &#252;zerinden anlık yazışır; yeni mesaj bildirim olarak d&#252;şer.</span></li><li><span class="badge">5</span><span>G&#246;revin şu ana kadarki adımları.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.16</div>
+  <div class="shot-no">Ekran 4.15</div>
   <h3>Raporlar</h3>
   <p class="intro">Ekip performansı ve iş hacmi. Hazır d&#246;nemler veya serbest tarih aralığı se&#231;ilebilir; rapor Excel/CSV olarak dışa aktarılabilir.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w14-raporlar.jpg" alt="Raporlar"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>D&#246;nem: bug&#252;n, son 7/30/90 g&#252;n, son 1 yıl veya &#246;zel aralık.</span></li><li><span class="badge">2</span><span>Excel / CSV dışa aktarma.</span></li><li><span class="badge">3</span><span>D&#246;nem &#246;zeti: oluşturulan, tamamlanan, başarısız ve ortalama tamamlama s&#252;resi.</span></li><li><span class="badge">4</span><span>G&#252;nl&#252;k oluşturulan ve tamamlanan g&#246;revler.</span></li><li><span class="badge">5</span><span>G&#246;rev tipine g&#246;re tamamlama oranı ve ortalama s&#252;re.</span></li><li><span class="badge">6</span><span>&#199;alışan bazında tamamlanan, başarısız, a&#231;ık iş, ortalama s&#252;re ve başarı oranı.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.17</div>
+  <div class="shot-no">Ekran 4.16</div>
   <h3>Dispe&#231;er bildirimleri</h3>
   <p class="intro">Sahadan gelen &#246;nemli olaylar dispe&#231;ere anında bildirim olarak d&#252;şer; ayrıca ekranın altında kısa bir uyarı g&#246;r&#252;n&#252;r. Bildirime tıklamak ilgili g&#246;revi a&#231;ar.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w15-bildirimler.jpg" alt="Dispe&#231;er bildirimleri"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>T&#252;m&#252; / okunmamış filtresi.</span></li><li><span class="badge">2</span><span>Gecikme: planlanan bitişi ge&#231;en g&#246;rev i&#231;in otomatik bildirim.</span></li><li><span class="badge">3</span><span>Ret: kurye g&#246;revi gerek&#231;esiyle reddetti; g&#246;rev başka kuryeye aktarılabilir.</span></li><li><span class="badge">4</span><span>Yapılamadı: kurye g&#246;revi tamamlayamadı (&#246;r. alıcı adreste yok).</span></li><li><span class="badge">5</span><span>G&#246;rev i&#231;i yeni mesaj.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.18</div>
+  <div class="shot-no">Ekran 4.17</div>
   <h3>Profil, parola ve g&#246;r&#252;n&#252;m</h3>
   <p class="intro">Her kullanıcı kendi bilgilerini ve parolasını değiştirir; a&#231;ık/koyu tema ve y&#252;ksek kontrast tercihini belirler.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w16-profil.jpg" alt="Profil, parola ve g&#246;r&#252;n&#252;m"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Ad ve telefon (e-postayı yalnızca şirket y&#246;neticisi değiştirir).</span></li><li><span class="badge">2</span><span>Tema: cihaz ayarı, a&#231;ık veya koyu; y&#252;ksek kontrast.</span></li><li><span class="badge">3</span><span>Parola değiştirme: kurallar yazarken canlı kontrol edilir.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.19</div>
+  <div class="shot-no">Ekran 4.18</div>
   <h3>G&#246;rev tipleri</h3>
   <p class="intro">Sistemin esnekliği buradan gelir: her şirket kendi iş t&#252;rlerini tanımlar. &#199;i&#231;ek&#231;i &#39;&#199;i&#231;ek Teslimatı&#39;, tamirci &#39;Arıza Onarımı&#39;, temizlik firması &#39;Ev Temizliği&#39; tanımlayabilir. Yazılım değişikliği gerekmez.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w17-gorev-tipleri.jpg" alt="G&#246;rev tipleri"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Y&#246;netim men&#252;s&#252; yalnızca şirket y&#246;neticisinde g&#246;r&#252;n&#252;r.</span></li><li><span class="badge">2</span><span>G&#246;rev tipi kartı: ad, simge, renk, alan sayıları.</span></li><li><span class="badge">3</span><span>Tamamlama kuralları: bu tipte g&#246;rev kapatılırken imza ve en az 1 fotoğraf zorunlu.</span></li><li><span class="badge">4</span><span>Yeni g&#246;rev tipi.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.20</div>
+  <div class="shot-no">Ekran 4.19</div>
   <h3>G&#246;rev tipi d&#252;zenleyici</h3>
   <p class="intro">Şirket y&#246;neticisi g&#246;rev tipine &#246;zel form alanlarını ve tamamlama kurallarını kendisi tasarlar. &#214;nizleme, formun dispe&#231;ere ve sahadaki &#231;alışana nasıl g&#246;r&#252;neceğini g&#246;sterir.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w18-gorev-tipi-editor.jpg" alt="G&#246;rev tipi d&#252;zenleyici"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Ad, a&#231;ıklama, simge ve renk.</span></li><li><span class="badge">2</span><span>Tamamlama kuralları: m&#252;şteri imzası, fotoğraf sayısı, not zorunluluğu, g&#246;rev adresine en fazla uzaklık (kurye adrese gitmeden &#39;tamamlandı&#39; diyemez).</span></li><li><span class="badge">3</span><span>&#214;zel alan: etiket, anahtar ve t&#252;r (metin, sayı, se&#231;im listesi, tarih, onay kutusu, uzun metin, telefon); sıralama ve silme.</span></li><li><span class="badge">4</span><span>Alanı kim doldurur? İşaretliyse teslim anında saha &#231;alışanından istenir; değilse dispe&#231;er g&#246;rev oluştururken doldurur.</span></li><li><span class="badge">5</span><span>Yeni alan ekle.</span></li><li><span class="badge">6</span><span>Canlı &#246;nizleme: dispe&#231;er formu ve saha tamamlama formu.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.21</div>
+  <div class="shot-no">Ekran 4.20</div>
   <h3>Kullanıcılar ve ekipler</h3>
   <p class="intro">Şirket y&#246;neticisi &#231;alışanları ekler, rollerini belirler ve ekiplere ayırır. Pasif yapılan kullanıcının oturumu hemen sonlandırılır.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w19-kullanicilar.jpg" alt="Kullanıcılar ve ekipler"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Rol: Şirket Y&#246;neticisi, Dispe&#231;er, Saha &#199;alışanı veya İzleyici.</span></li><li><span class="badge">2</span><span>Ekip ataması.</span></li><li><span class="badge">3</span><span>Ekipler (&#246;r. Kadık&#246;y Kuryeleri, Ataşehir Kuryeleri).</span></li><li><span class="badge">4</span><span>Yeni kullanıcı.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.22</div>
+  <div class="shot-no">Ekran 4.21</div>
   <h3>Kullanıcı ekleme ve rol se&#231;imi</h3>
   <p class="intro">Rol se&#231;ildiğinde o rol&#252;n neler yapabileceği a&#231;ıklanır. Saha &#231;alışanı rol&#252; verilen kişi mobil uygulamaya bu e-posta ve parolayla girer.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w20-kullanici-ekle.jpg" alt="Kullanıcı ekleme ve rol se&#231;imi"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Rol se&#231;imi.</span></li><li><span class="badge">2</span><span>Se&#231;ilen rol&#252;n yetki a&#231;ıklaması.</span></li><li><span class="badge">3</span><span>Ekip.</span></li><li><span class="badge">4</span><span>İlk parola.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.23</div>
+  <div class="shot-no">Ekran 4.22</div>
   <h3>Şirket ayarları: marka ve harita</h3>
   <p class="intro">Her şirket uygulamayı kendi markasıyla kullanır: ana renk ve logo t&#252;m kullanıcılar i&#231;in &#252;st barda, giriş ekranında ve m&#252;şteri takip sayfasında g&#246;r&#252;n&#252;r.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w21-sirket-ayarlari.jpg" alt="Şirket ayarları: marka ve harita"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Şirket adı ve kısa ad (giriş linkinde kullanılır).</span></li><li><span class="badge">2</span><span>Ana renk: hazır renkler veya &#246;zel renk kodu.</span></li><li><span class="badge">3</span><span>Logo: dosya y&#252;kleme veya https adresi.</span></li><li><span class="badge">4</span><span>&#220;st bar &#246;nizlemesi.</span></li><li><span class="badge">5</span><span>Varsayılan harita merkezi: haritalar ve yeni g&#246;rev formu bu noktadan a&#231;ılır.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 4.24</div>
+  <div class="shot-no">Ekran 4.23</div>
   <h3>Koyu tema</h3>
   <p class="intro">Gece vardiyasında veya karanlık ortamda g&#246;z yormayan koyu tema. Her kullanıcı kendi tercihini profilinden se&#231;er; &#39;cihaz ayarını kullan&#39; se&#231;iliyse işletim sisteminin temasına uyar.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w22-koyu-tema.jpg" alt="Koyu tema"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>T&#252;m ekranlar koyu temada da aynı d&#252;zen ve renk anlamlarıyla &#231;alışır.</span></li></ol>
-</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">5</span><div><h2>Mobil Uygulama (Saha &#199;alışanı)</h2><p>Kurye, teknisyen gibi saha &#231;alışanlarının iOS ve Android telefonlarda kullandığı uygulama. Sade, b&#252;y&#252;k butonlu ve internet olmadan da &#231;alışır.</p></div></div><article class="shot mobile">
+</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">5</span><div><h2>İş Akışları ve Aşamalar</h2><p>Tek kişinin tek ziyaretiyle bitmeyen işler: farklı &#231;alışanların sırayla veya aynı anda yaptığı adımlar, g&#246;rev tipine &#246;zel aşamalar ve saha ziyareti gerektirmeyen masa başı işler.</p></div></div><article class="shot web">
+  <div class="shot-no">Ekran 5.1</div>
+  <h3>İşler: birden &#231;ok adımdan oluşan &#231;alışmalar</h3>
+  <p class="intro">Bazı işler tek bir kişinin tek ziyaretiyle bitmez: evrak &#246;nce fotokopilenir, sonra postaneye g&#246;t&#252;r&#252;l&#252;r, en son m&#252;şteriye mail atılır. &#39;İş&#39; bu adımları farklı &#231;alışanlara sırayla (veya aynı anda) dağıtır; bir sıra bitince sonraki adım planlanan kişiye otomatik atanır ve bildirim gider.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j01-isler.jpg" alt="İşler: birden &#231;ok adımdan oluşan &#231;alışmalar"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Durum: y&#252;r&#252;yor, beklemede (bir adım reddedildi veya yapılamadı), tamamlandı, iptal.</span></li><li><span class="badge">2</span><span>İlerleme: biten adım sayısı ve şu an ka&#231;ıncı sırada olunduğu.</span></li><li><span class="badge">3</span><span>Şu an kimde: o anda adımı y&#252;r&#252;ten &#231;alışanlar.</span></li><li><span class="badge">4</span><span>Sık tekrarlanan işler i&#231;in şablonlar.</span></li><li><span class="badge">5</span><span>Yeni iş başlat.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.2</div>
+  <h3>İş detayı: adım adım akış</h3>
+  <p class="intro">İşin akışı sıra s&#252;tunları halinde g&#246;r&#252;n&#252;r. Biten adımlar yeşil, y&#252;r&#252;yen sıra vurgulu, sırası gelmeyen adımlar beklemede. Başlamamış adımlar s&#252;r&#252;kle-bırak ile yeniden sıralanabilir, yeni adım eklenebilir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j02-is-akisi.jpg" alt="İş detayı: adım adım akış"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>1. sıra: fotokopi adımı tamamlandı (kim yaptı, sonucu).</span></li><li><span class="badge">2</span><span>Şu an y&#252;r&#252;yen sıra: 2. adım otomatik olarak Burak&#39;a atandı ve kabul edildi.</span></li><li><span class="badge">3</span><span>Sırası gelmeyen adım: &#246;nceki sıra bitince planlanan kişiye kendiliğinden atanır.</span></li><li><span class="badge">4</span><span>G&#246;rev tipleri: yeni adım eklemek i&#231;in bir sıraya s&#252;r&#252;klenir.</span></li><li><span class="badge">5</span><span>Adım notları: &#246;nceki adımlarda bırakılan notlar sonraki &#231;alışana da g&#246;r&#252;n&#252;r.</span></li><li><span class="badge">6</span><span>İşi iptal et.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.3</div>
+  <h3>Aynı anda y&#252;r&#252;yen adımlar</h3>
+  <p class="intro">Aynı sıradaki adımlar paralel y&#252;r&#252;r: burada keşif notları ve fiyat listesi iki farklı &#231;alışan tarafından aynı anda hazırlanıyor. İkisi de bitince &#39;teklifi g&#246;nder&#39; adımı başlar.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j03-paralel-adimlar.jpg" alt="Aynı anda y&#252;r&#252;yen adımlar"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>1. sıra: iki adım, iki farklı &#231;alışan, aynı anda.</span></li><li><span class="badge">2</span><span>2. sıra: ikisi de bitince başlar; tip ve kişi hen&#252;z değiştirilebilir.</span></li><li><span class="badge">3</span><span>Paralel adım ekle: aynı sıraya bir adım daha.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.4</div>
+  <h3>Beklemedeki iş: y&#246;netici kararı</h3>
+  <p class="intro">Bir adım reddedilir ya da yapılamazsa iş otomatik olarak beklemeye alınır ve y&#246;netici bilgilendirilir. Y&#246;netici adımı başka birine verebilir, yeniden deneyebilir, adımı atlayıp devam edebilir veya işi iptal edebilir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j04-beklemedeki-is.jpg" alt="Beklemedeki iş: y&#246;netici kararı"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Ne oldu: hangi adım, kim, hangi gerek&#231;eyle (&#246;r. &#39;Noter bug&#252;n kapalı&#39;).</span></li><li><span class="badge">2</span><span>Kime verilsin: adımı yeniden atamak i&#231;in &#231;alışan se&#231;imi.</span></li><li><span class="badge">3</span><span>Yeniden ata / adımı atla ve devam et.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.5</div>
+  <h3>Yeni iş: şablondan veya sıfırdan</h3>
+  <p class="intro">Şablon se&#231;ilince adımlar ve kişileri kendiliğinden gelir; y&#246;netici yalnızca iş bilgilerini girer. Akış istenirse s&#252;r&#252;kle-bırak ile değiştirilir. &#39;İşi başlat&#39; ile ilk sıradaki adımlar &#231;alışanlara anında atanır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j05-yeni-is.jpg" alt="Yeni iş: şablondan veya sıfırdan"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Şablon se&#231;imi (veya boş akış).</span></li><li><span class="badge">2</span><span>İş bilgileri: başlık, &#246;ncelik, son tarih, m&#252;şteri ve adres (t&#252;m adımlar masa başıysa adres isteğe bağlı).</span></li><li><span class="badge">3</span><span>Akış d&#252;zenleyici: kartlar s&#252;tunlar arasında s&#252;r&#252;klenir; aynı s&#252;tundakiler aynı anda y&#252;r&#252;r, sağdaki s&#252;tun soldakiler bitince başlar.</span></li><li><span class="badge">4</span><span>İşi başlat.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.6</div>
+  <h3>İş şablonları</h3>
+  <p class="intro">Sık tekrarlanan &#231;ok adımlı işler bir kez tanımlanır, her seferinde tek tıkla başlatılır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j06-is-sablonlari.jpg" alt="İş şablonları"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Şablon: adımlar, sırası ve varsayılan kişileri.</span></li><li><span class="badge">2</span><span>Bu şablonla hemen yeni iş başlat.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.7</div>
+  <h3>G&#246;rev tipine &#246;zel aşamalar ve masa başı işler</h3>
+  <p class="intro">Her g&#246;rev tipi kendi ara aşamalarını tanımlayabilir (&#246;r. Hazırlanıyor → Okunda → İmzaya &#231;ıktı → Teslim edildi). &#199;alışan g&#246;revi kabul ettikten sonra işin hangi aşamada olduğunu se&#231;er; dispe&#231;er bunu listede, panoda ve detayda anında g&#246;r&#252;r. &#39;Saha ziyareti gerektirir&#39; kapatılan tiplerde adres zorunlu değildir ve Yolda/Yerinde adımları atlanır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j07-asamalar-masa-basi.jpg" alt="G&#246;rev tipine &#246;zel aşamalar ve masa başı işler"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Saha ziyareti: kapalıysa masa başı iş; konum istenmez, kabulden sonra doğrudan tamamlanır.</span></li><li><span class="badge">2</span><span>Aşamalar: sıralı liste; yeni aşama eklenir, silinir.</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.8</div>
+  <h3>Aşamalı g&#246;rev: dispe&#231;er g&#246;r&#252;n&#252;m&#252;</h3>
+  <p class="intro">G&#246;revin hangi aşamada olduğu başlıkta etiket olarak g&#246;r&#252;n&#252;r ve gerekirse dispe&#231;er tarafından da değiştirilebilir. Her aşama değişikliği, kim yaptıysa notuyla birlikte g&#246;rev ge&#231;mişine yazılır.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j08-asamali-gorev.jpg" alt="Aşamalı g&#246;rev: dispe&#231;er g&#246;r&#252;n&#252;m&#252;"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Durum (Kabul edildi) ve aşama (İmzaya &#231;ıktı) etiketleri.</span></li><li><span class="badge">2</span><span>Aşama se&#231;imi: dispe&#231;er de aşamayı buradan değiştirebilir.</span></li><li><span class="badge">3</span><span>Aşama ge&#231;mişi: Okunda → İmzaya &#231;ıktı (&#39;M&#252;d&#252;r onayına sunuldu&#39;).</span></li></ol>
+</article><article class="shot web">
+  <div class="shot-no">Ekran 5.9</div>
+  <h3>G&#246;rev listesinde aşamalar ve iş adımları</h3>
+  <p class="intro">Aşamalı g&#246;revlerin aşaması listede g&#246;r&#252;n&#252;r ve aşamaya g&#246;re filtrelenebilir; bir işin adımı olan g&#246;revler de diğer g&#246;revlerle aynı listede izlenir.</p>
+  <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/j09-gorevler-asama.jpg" alt="G&#246;rev listesinde aşamalar ve iş adımları"></figure>
+  <ol class="points cols"><li><span class="badge">1</span><span>Filtreler (aşama filtresi dahil).</span></li><li><span class="badge">2</span><span>Aşama etiketiyle g&#246;rev satırı.</span></li></ol>
+</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">6</span><div><h2>Mobil Uygulama (Saha &#199;alışanı)</h2><p>Kurye, teknisyen gibi saha &#231;alışanlarının iOS ve Android telefonlarda kullandığı uygulama. Sade, b&#252;y&#252;k butonlu ve internet olmadan da &#231;alışır.</p></div></div><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m01-giris.jpg" alt="Mobil giriş"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.1</div>
+    <div class="shot-no">Ekran 6.1</div>
     <h3>Mobil giriş</h3>
     <p class="intro">Saha &#231;alışanı, y&#246;neticisinin verdiği e-posta ve parolayla giriş yapar. Oturum telefonun g&#252;venli deposunda (iOS Keychain / Android Keystore) saklanır; her a&#231;ılışta yeniden giriş gerekmez.</p>
     <ol class="points"><li><span class="badge">1</span><span>Şirket markalı giriş formu.</span></li></ol>
@@ -379,7 +430,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m02-gorevlerim.jpg" alt="G&#246;revlerim"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.2</div>
+    <div class="shot-no">Ekran 6.2</div>
     <h3>G&#246;revlerim</h3>
     <p class="intro">Kuryenin ana ekranı: sıradaki g&#246;rev en &#252;stte, diğerleri &#246;ncelik ve saat sırasıyla. Aşağı &#231;ekerek yenilenir.</p>
     <ol class="points"><li><span class="badge">1</span><span>Mesai: a&#231;ıkken konum arka planda y&#246;neticiyle paylaşılır (Android&#39;de kalıcı bildirimle), &#39;Mesaiyi bitir&#39; ile durur. Mesai dışında konum izlenmez.</span></li><li><span class="badge">2</span><span>Liste / harita g&#246;r&#252;n&#252;m&#252;.</span></li><li><span class="badge">3</span><span>Aktif, biten ve reddettiğim g&#246;revler.</span></li><li><span class="badge">4</span><span>Sıradaki g&#246;rev: tip, adres, saat aralığı ve durum.</span></li><li><span class="badge">5</span><span>Bildirimler.</span></li></ol>
@@ -387,7 +438,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m03-harita-gorunumu.jpg" alt="G&#246;revler haritada"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.3</div>
+    <div class="shot-no">Ekran 6.3</div>
     <h3>G&#246;revler haritada</h3>
     <p class="intro">Kurye g&#252;n&#252;n g&#246;revlerini haritada g&#246;r&#252;r ve rotasını kendisi planlayabilir.</p>
     <ol class="points"><li><span class="badge">1</span><span>G&#246;revler (durum rengine g&#246;re) ve kuryenin kendi konumu.</span></li></ol>
@@ -395,7 +446,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m04-gorev-detay.jpg" alt="Yeni atanan g&#246;rev"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.4</div>
+    <div class="shot-no">Ekran 6.4</div>
     <h3>Yeni atanan g&#246;rev</h3>
     <p class="intro">Kurye g&#246;revin t&#252;m bilgilerini g&#246;r&#252;r, kabul eder veya gerek&#231;esiyle reddeder.</p>
     <ol class="points"><li><span class="badge">1</span><span>Harita: g&#246;rev noktası ve kuryenin konumu; altta g&#246;rev konumuna uzaklık.</span></li><li><span class="badge">2</span><span>Yol tarifi: telefonun harita uygulamasını (Google Maps / Apple Haritalar) hedef adresle a&#231;ar.</span></li><li><span class="badge">3</span><span>M&#252;şteriyi tek dokunuşla arama.</span></li><li><span class="badge">4</span><span>Dispe&#231;erin girdiği sipariş bilgileri.</span></li><li><span class="badge">5</span><span>Kabul et / Reddet (ekranın altında sabit, tek elle kullanılır).</span></li><li><span class="badge">6</span><span>Dispe&#231;erle mesajlaşma.</span></li></ol>
@@ -403,7 +454,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m05-reddet.jpg" alt="G&#246;revi reddetme"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.5</div>
+    <div class="shot-no">Ekran 6.5</div>
     <h3>G&#246;revi reddetme</h3>
     <p class="intro">Kurye g&#246;revi yapamayacaksa hızlı se&#231;imlerden birine dokunarak veya kendisi yazarak gerek&#231;e verir. Dispe&#231;ere anında bildirim d&#252;şer.</p>
     <ol class="points"><li><span class="badge">1</span><span>Hızlı gerek&#231;eler: m&#252;şteri adreste yok, adres bulunamadı, ulaşım sorunu…</span></li><li><span class="badge">2</span><span>Gerek&#231;e metni (d&#252;zenlenebilir).</span></li><li><span class="badge">3</span><span>G&#246;nder: g&#246;rev &#39;Reddedildi&#39; olur.</span></li></ol>
@@ -411,7 +462,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m06-kontrol-listesi.jpg" alt="Tamamlama kontrol listesi"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.6</div>
+    <div class="shot-no">Ekran 6.6</div>
     <h3>Tamamlama kontrol listesi</h3>
     <p class="intro">Kurye &#39;Vardım&#39; dediğinde tamamlama formu a&#231;ılır. G&#246;rev tipinin kuralları canlı bir kontrol listesi olarak g&#246;sterilir; hepsi karşılanmadan &#39;Tamamla&#39; d&#252;ğmesi etkinleşmez. Kurallar internet olmasa da telefonda uygulanır.</p>
     <ol class="points"><li><span class="badge">1</span><span>Gerekenler: teslim alan kişi, en az 1 fotoğraf, m&#252;şteri imzası.</span></li><li><span class="badge">2</span><span>&#39;Tamamla&#39; eksikler bitene kadar pasif; &#39;Yapılamadı&#39; her zaman kullanılabilir.</span></li></ol>
@@ -419,7 +470,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m07-tamamlama.jpg" alt="Teslim ve tamamlama"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.7</div>
+    <div class="shot-no">Ekran 6.7</div>
     <h3>Teslim ve tamamlama</h3>
     <p class="intro">Kurye teslim alan kişiyi yazar, fotoğraf &#231;eker ve m&#252;şteriye ekranda imza attırır; kontrol listesi yeşile d&#246;ner ve &#39;Tamamla&#39; etkinleşir. Fotoğraflar telefonda k&#252;&#231;&#252;lt&#252;lerek y&#252;klenir; internet yoksa telefonda bekletilip bağlantı gelince g&#246;nderilir.</p>
     <ol class="points"><li><span class="badge">1</span><span>T&#252;m gereksinimler karşılandı (yeşil).</span></li><li><span class="badge">2</span><span>Sahada doldurulan alan.</span></li><li><span class="badge">3</span><span>Fotoğraflar (&#231;ekim saatiyle); mobil uygulamada &#39;Fotoğraf &#231;ek&#39; kamerayı a&#231;ar.</span></li><li><span class="badge">4</span><span>M&#252;şteri imzası: parmakla ekrana.</span></li><li><span class="badge">5</span><span>Tamamla: dispe&#231;erin ekranı anında g&#252;ncellenir.</span></li></ol>
@@ -427,7 +478,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m08-teslim-kaniti.jpg" alt="Tamamlanan g&#246;rev"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.8</div>
+    <div class="shot-no">Ekran 6.8</div>
     <h3>Tamamlanan g&#246;rev</h3>
     <p class="intro">Kurye tamamladığı g&#246;revin kanıtını ve ge&#231;mişini g&#246;rebilir.</p>
     <ol class="points"><li><span class="badge">1</span><span>Teslim kanıtı: teslim alan kişi, fotoğraf ve imza.</span></li></ol>
@@ -435,7 +486,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m09-yeni-gorev-bildirimi.jpg" alt="Anlık g&#246;rev bildirimi"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.9</div>
+    <div class="shot-no">Ekran 6.9</div>
     <h3>Anlık g&#246;rev bildirimi</h3>
     <p class="intro">Dispe&#231;er g&#246;rev atadığı anda kuryeye bildirim gelir ve liste kendiliğinden g&#252;ncellenir. Uygulama arka plandaysa telefonun bildirim alanında g&#246;r&#252;n&#252;r.</p>
     <ol class="points"><li><span class="badge">1</span><span>Yeni g&#246;rev bildirimi; &#39;A&#231;&#39; ile doğrudan g&#246;reve gidilir.</span></li><li><span class="badge">2</span><span>Okunmamış bildirim sayısı.</span></li></ol>
@@ -443,7 +494,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m10-bildirimler.jpg" alt="Bildirim ge&#231;mişi"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.10</div>
+    <div class="shot-no">Ekran 6.10</div>
     <h3>Bildirim ge&#231;mişi</h3>
     <p class="intro">Kuryeye gelen t&#252;m bildirimler, g&#252;ne g&#246;re gruplanmış. Uygulama kapalıyken ka&#231;ırılanlar a&#231;ılışta buraya gelir.</p>
     <ol class="points"><li><span class="badge">1</span><span>Bildirim; dokununca ilgili g&#246;rev a&#231;ılır.</span></li></ol>
@@ -451,39 +502,63 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
 </article><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/m11-varis-algilama.jpg" alt="Varış algılama"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 5.11</div>
+    <div class="shot-no">Ekran 6.11</div>
     <h3>Varış algılama</h3>
     <p class="intro">Kurye g&#246;rev adresine yaklaşınca (~150 m) uygulama bunu fark eder ve &#39;Vardım&#39; &#246;nerir. Uygulama arka plandaysa &#246;neri telefon bildirimi olarak gelir; kurye ekrana bakmadan durumu g&#252;ncelleyebilir.</p>
     <ol class="points"><li><span class="badge">1</span><span>G&#246;rev konumuna ulaştınız: tek dokunuşla &#39;Vardım&#39;.</span></li><li><span class="badge">2</span><span>Hedef ve kuryenin konumu; altta kalan mesafe.</span></li></ol>
   </div>
-</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">6</span><div><h2>M&#252;şteri Takip Sayfası</h2><p>Siparişi bekleyen son m&#252;şteriye, uygulama indirmeden ve giriş yapmadan a&#231;ılan canlı takip linki.</p></div></div><article class="shot mobile">
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m12-asamali-gorevler.jpg" alt="Aşamalı ve masa başı g&#246;revler"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 6.12</div>
+    <h3>Aşamalı ve masa başı g&#246;revler</h3>
+    <p class="intro">Ofiste &#231;alışan personel de aynı uygulamayı kullanır. Masa başı g&#246;revlerde adres ve yol tarifi yoktur; kartlarda g&#246;revin aşaması da g&#246;r&#252;n&#252;r.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Masa başı g&#246;rev: adres yok, aşama etiketi &#39;İmzaya &#231;ıktı&#39;.</span></li><li><span class="badge">2</span><span>Bir işin adımı: &#39;Fiyat listesini hazırla&#39; (aşama: Hazırlanıyor).</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m13-asama-secimi.jpg" alt="Aşama se&#231;imi"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 6.13</div>
+    <h3>Aşama se&#231;imi</h3>
+    <p class="intro">&#199;alışan işin hangi aşamada olduğunu tek dokunuşla se&#231;er; dispe&#231;erin ekranı anında g&#252;ncellenir. İnternet yoksa se&#231;im telefonda bekletilip sonra g&#246;nderilir.</p>
+    <ol class="points"><li><span class="badge">1</span><span>Aşama d&#252;ğmeleri: Hazırlanıyor, Okunda, İmzaya &#231;ıktı, Teslim edildi.</span></li><li><span class="badge">2</span><span>Masa başı iş: Yolda/Yerinde adımları yok, doğrudan &#39;Tamamla&#39;.</span></li></ol>
+  </div>
+</article><article class="shot mobile">
+  <div class="phone"><div class="phone-notch"></div><img src="img/m14-is-adimi.jpg" alt="Bir işin adımı"></div>
+  <div class="shot-text">
+    <div class="shot-no">Ekran 6.14</div>
+    <h3>Bir işin adımı</h3>
+    <p class="intro">G&#246;rev bir işin par&#231;asıysa &#231;alışan bunu g&#246;r&#252;r: işin adı, ka&#231;ıncı adım olduğu ve &#246;nceki adımlarda yapılanlar (not ve kim yaptı). B&#246;ylece işi devralan kişi bağlamı kaybetmez.</p>
+    <ol class="points"><li><span class="badge">1</span><span>İş bağlamı: &#39;Garanti evrakı g&#246;nderimi &#183; Adım 2/3&#39; ve &#246;nceki adımın notu (&#39;3 n&#252;sha fotokopi hazır&#39;).</span></li></ol>
+  </div>
+</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">7</span><div><h2>M&#252;şteri Takip Sayfası</h2><p>Siparişi bekleyen son m&#252;şteriye, uygulama indirmeden ve giriş yapmadan a&#231;ılan canlı takip linki.</p></div></div><article class="shot mobile">
   <div class="phone"><div class="phone-notch"></div><img src="img/c01-musteri-takip.jpg" alt="M&#252;şterinin g&#246;rd&#252;ğ&#252; canlı takip sayfası"></div>
   <div class="shot-text">
-    <div class="shot-no">Ekran 6.1</div>
+    <div class="shot-no">Ekran 7.1</div>
     <h3>M&#252;şterinin g&#246;rd&#252;ğ&#252; canlı takip sayfası</h3>
     <p class="intro">Dispe&#231;erin paylaştığı linki a&#231;an m&#252;şteri, uygulama indirmeden ve giriş yapmadan siparişinin durumunu izler. Kuryenin konumu yalnızca g&#246;rev &#39;Yolda&#39; iken g&#246;sterilir; link g&#246;rev kapandıktan bir g&#252;n sonra ge&#231;ersiz olur.</p>
     <ol class="points"><li><span class="badge">1</span><span>Şirketin logosu, adı ve rengi.</span></li><li><span class="badge">2</span><span>Durum ve tahmini varış: kuryenin uzaklığı ve yaklaşık s&#252;re.</span></li><li><span class="badge">3</span><span>Adım g&#246;stergesi: planlandı → yolda → adreste → tamamlandı (saatleriyle).</span></li><li><span class="badge">4</span><span>Canlı harita: kurye ve teslimat adresi; sayfa kendiliğinden yenilenir.</span></li></ol>
   </div>
-</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">7</span><div><h2>Aynı Sistem, Farklı Sekt&#246;r</h2><p>Sistem tek bir sekt&#246;re bağlı değildir. Aynı platformda &#231;i&#231;ek&#231;i, tamirci, temizlik veya kargo firması kendi iş t&#252;rleri, logosu ve rengiyle &#231;alışabilir.</p></div></div><article class="shot web">
-  <div class="shot-no">Ekran 7.1</div>
+</article></section><section class="chapter"><div class="chapter-head"><span class="chapter-num">8</span><div><h2>Aynı Sistem, Farklı Sekt&#246;r</h2><p>Sistem tek bir sekt&#246;re bağlı değildir. Aynı platformda &#231;i&#231;ek&#231;i, tamirci, temizlik veya kargo firması kendi iş t&#252;rleri, logosu ve rengiyle &#231;alışabilir.</p></div></div><article class="shot web">
+  <div class="shot-no">Ekran 8.1</div>
   <h3>Tamirci firması: arıza onarımı</h3>
   <p class="intro">Aynı yazılım, farklı bir şirket ve iş t&#252;r&#252;. &#39;Hızlı Tamir&#39; firmasının teknisyeni kombi arızasına g&#246;nderildi. Ekran bu firmanın turuncu marka rengi ve logosuyla a&#231;ılır; formdaki alanlar ve kanıtlar firmanın tanımladığı &#39;Arıza Onarımı&#39; tipine g&#246;re oluşur. Şirketlerin verileri birbirinden tamamen ayrıdır.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w23-tamir-gorev.jpg" alt="Tamirci firması: arıza onarımı"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Şirketin kendi logosu, adı ve rengi. &#199;i&#231;ek&#231;i tamircinin g&#246;revlerini, &#231;alışanlarını veya konumlarını g&#246;remez.</span></li><li><span class="badge">2</span><span>Bu tipe &#246;zel alanlar: cihaz, arıza kodu, arıza a&#231;ıklaması; teknisyenin doldurduğu kullanılan par&#231;alar, iş&#231;ilik s&#252;resi ve garanti.</span></li><li><span class="badge">3</span><span>Bu tipte en az 2 fotoğraf zorunlu: onarım &#246;ncesi ve sonrası; ayrıca m&#252;şteri imzası.</span></li><li><span class="badge">4</span><span>Tamamlama notu zorunlu: teknisyenin yaptığı işin a&#231;ıklaması.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 7.2</div>
+  <div class="shot-no">Ekran 8.2</div>
   <h3>Tamirci firmasının g&#246;rev tipleri</h3>
-  <p class="intro">Tamirci kendi iş t&#252;rlerini tanımladı: &#39;Arıza Onarımı&#39; (2 fotoğraf, imza ve not zorunlu) ve &#39;Montaj&#39; (yalnızca imza).</p>
+  <p class="intro">Tamirci kendi iş t&#252;rlerini tanımladı: sahada yapılan &#39;Arıza Onarımı&#39; ve &#39;Montaj&#39;, ofiste y&#252;r&#252;t&#252;len &#39;Evrak İşleri&#39;.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w24-tamir-tipleri.jpg" alt="Tamirci firmasının g&#246;rev tipleri"></figure>
-  <ol class="points cols"><li><span class="badge">1</span><span>Arıza Onarımı: 6 &#246;zel alan; imza, en az 2 fotoğraf ve not zorunlu.</span></li><li><span class="badge">2</span><span>Montaj: daha basit bir iş t&#252;r&#252;, yalnızca imza zorunlu.</span></li></ol>
+  <ol class="points cols"><li><span class="badge">1</span><span>Arıza Onarımı: 6 &#246;zel alan; imza, en az 2 fotoğraf ve not zorunlu.</span></li><li><span class="badge">2</span><span>Evrak İşleri: masa başı (saha ziyareti yok), 4 aşamalı.</span></li><li><span class="badge">3</span><span>Montaj: daha basit bir iş t&#252;r&#252;, yalnızca imza zorunlu.</span></li></ol>
 </article><article class="shot web">
-  <div class="shot-no">Ekran 7.3</div>
+  <div class="shot-no">Ekran 8.3</div>
   <h3>Sistem y&#246;neticisi: şirketler</h3>
   <p class="intro">Platformu işleten taraf yeni m&#252;şteri şirketleri buradan ekler. Her şirket kendi y&#246;neticisiyle başlar; o y&#246;netici &#231;alışanlarını, iş t&#252;rlerini ve g&#246;revlerini kendisi y&#246;netir.</p>
   <figure class="browser"><div class="browser-bar"><i></i><i></i><i></i><span>wfm.sirketiniz.com</span></div><img src="img/w25-sirketler.jpg" alt="Sistem y&#246;neticisi: şirketler"></figure>
   <ol class="points cols"><li><span class="badge">1</span><span>Platformdaki şirketler. Pasif yapılan şirketin kullanıcıları giriş yapamaz.</span></li><li><span class="badge">2</span><span>Yeni şirket ve ilk y&#246;neticisinin oluşturulması.</span></li></ol>
 </article></section><section>
-  <div class="chapter-head"><span class="chapter-num">8</span><div><h2>Konum takibi, bildirimler ve internetsiz çalışma</h2>
+  <div class="chapter-head"><span class="chapter-num">9</span><div><h2>Konum takibi, bildirimler ve internetsiz çalışma</h2>
   <p>Ekranlarda görünmeyen ama sahada işin sorunsuz yürümesini sağlayan altyapı.</p></div></div>
   <div class="cards" style="grid-template-columns:1fr 1fr">
     <div class="card"><div class="ic">📍</div><h4>Konum takibi yalnızca mesaide</h4>
@@ -515,7 +590,7 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
   </div>
   <div class="callout">İnternet yokken de görev tipinin kuralları telefonda kontrol edilir: imza veya fotoğraf eksikse görev kapatılamaz.</div>
 </section><section>
-  <div class="chapter-head"><span class="chapter-num">9</span><div><h2>Kapsam, sınırlar ve onay</h2>
+  <div class="chapter-head"><span class="chapter-num">10</span><div><h2>Kapsam, sınırlar ve onay</h2>
   <p>Bu sürümde teslim edilenler ve dikkat edilmesi gereken noktalar.</p></div></div>
   <table class="tbl">
     <tr><th>Konu</th><th>Bu sürümde</th></tr>
@@ -534,12 +609,13 @@ footer.note { margin-top:40px; font-size:13px; color:var(--muted); }
   <h3 style="margin-top:28px">Onay listesi</h3>
   <ul class="checklist">
     <li><span class="box"></span><span>Web paneli ekranları ve menü yapısı (Bölüm 4)</span></li>
-    <li><span class="box"></span><span>Mobil uygulama akışı: kabul → yola çıktım → vardım → kontrol listesi ve kanıt → tamamla (Bölüm 5)</span></li>
+    <li><span class="box"></span><span>Mobil uygulama akışı: kabul → yola çıktım → vardım → kontrol listesi ve kanıt → tamamla (Bölüm 6)</span></li>
     <li><span class="box"></span><span>Roller ve yetkiler tablosu (Bölüm 3)</span></li>
-    <li><span class="box"></span><span>Görev tiplerinin şirket tarafından tanımlanması ve tamamlama kuralları (Bölüm 3, 4 ve 7)</span></li>
-    <li><span class="box"></span><span>Müşteri takip linki ve gösterilen bilgiler (Bölüm 6)</span></li>
-    <li><span class="box"></span><span>Konum takibinin yalnızca mesai süresince yapılması (Bölüm 8)</span></li>
-    <li><span class="box"></span><span>İnternetsiz çalışma davranışı (Bölüm 8)</span></li>
+    <li><span class="box"></span><span>Çok adımlı işler, iş şablonları, aşamalar ve masa başı görevler (Bölüm 5)</span></li>
+    <li><span class="box"></span><span>Görev tiplerinin şirket tarafından tanımlanması ve tamamlama kuralları (Bölüm 3, 4 ve 8)</span></li>
+    <li><span class="box"></span><span>Müşteri takip linki ve gösterilen bilgiler (Bölüm 7)</span></li>
+    <li><span class="box"></span><span>Konum takibinin yalnızca mesai süresince yapılması (Bölüm 9)</span></li>
+    <li><span class="box"></span><span>İnternetsiz çalışma davranışı (Bölüm 9)</span></li>
     <li><span class="box"></span><span>Bilinen sınırlar (yukarıda)</span></li>
   </ul>
   <div class="sign"><div>Ad Soyad</div><div>Tarih</div><div>İmza</div></div>
