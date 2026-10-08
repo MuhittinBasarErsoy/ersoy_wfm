@@ -27,7 +27,7 @@
                     <MudText Typo="Typo.subtitle2" Style="flex:1"><b>@(order). sıra</b></MudText>
                     @if (order == CurrentOrder)
                     {
-                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">Yürüyor</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="@(Paused ? Color.Warning : Color.Primary)" Variant="Variant.Text">@(Paused ? "Beklemede" : "Yürüyor")</MudChip>
                     }
                     else if (count > 1)
                     {
@@ -159,6 +159,8 @@
     [Parameter] public int MinOrder { get; set; } = 1;
     /// <summary>Yürüyen sıra (vurgulanır); 0 = yok.</summary>
     [Parameter] public int CurrentOrder { get; set; }
+    /// <summary>İş beklemedeyse (bir adım reddedildi/başarısız) yürüyen sıra "Beklemede" olarak gösterilir.</summary>
+    [Parameter] public bool Paused { get; set; }
     /// <summary>Mevcut işte adımın durumu (rozet olarak gösterilir).</summary>
     [Parameter] public Func<JobStepInput, WorkTaskStatus?>? StatusOf { get; set; }
 

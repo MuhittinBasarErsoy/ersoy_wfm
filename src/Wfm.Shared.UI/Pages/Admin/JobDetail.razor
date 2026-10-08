@@ -67,7 +67,7 @@
                         }
                     </div>
                     <FlowBuilder Steps="_steps" Types="_types" Workers="_workers" StepsChanged="StateHasChanged" ReadOnly="@(!CanManage || !IsOpen)"
-                                 IsLocked="IsLocked" MinOrder="@Math.Max(1, _job.CurrentOrder)" CurrentOrder="@(IsOpen ? _job.CurrentOrder : 0)" StatusOf="StatusOf" />
+                                 IsLocked="IsLocked" MinOrder="@Math.Max(1, _job.CurrentOrder)" CurrentOrder="@(IsOpen ? _job.CurrentOrder : 0)" Paused="@(_job.Status == JobStatus.OnHold)" StatusOf="StatusOf" />
                 </MudPaper>
             </MudItem>
             <MudItem xs="12" lg="3">

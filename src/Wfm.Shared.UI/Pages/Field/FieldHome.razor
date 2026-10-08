@@ -185,7 +185,7 @@
         .OrderByDescending(t => t.UpdatedAt);
 
     private double? DistanceTo(WorkTaskDto t) =>
-        _me is null ? null : Wfm.Domain.Entities.Geo.DistanceMeters(_me.Latitude, _me.Longitude, t.Latitude, t.Longitude);
+        _me is null || !t.HasLocation ? null : Wfm.Domain.Entities.Geo.DistanceMeters(_me.Latitude, _me.Longitude, t.Latitude, t.Longitude);
 
     protected override async Task OnInitializedAsync()
     {
