@@ -3,7 +3,8 @@
 Şirketlerin saha çalışanlarına **generic görevler** (çiçek teslimatı, arıza onarımı, montaj…) atayıp harita üzerinden
 takip ettiği, çok kiracılı (multi-tenant) bir iş gücü yönetimi sistemi.
 
-- **Web dashboard** (yönetici / dispeçer): canlı harita, görev yönetimi, görev tipleri, kullanıcılar, raporlar
+- **Web dashboard** (yönetici / dispeçer): canlı harita, görev yönetimi, dispeç panosu, çok adımlı iş akışları,
+  görev tipleri, kullanıcılar, raporlar
 - **Mobil uygulama** (iOS + Android, .NET MAUI Blazor Hybrid): saha çalışanının görevleri, durum akışı,
   fotoğraf + imza ile teslim kanıtı, offline çalışma, mesai süresince arka planda konum paylaşımı
 
@@ -22,7 +23,9 @@ arayüzlerle soyutlanmıştır.
 | `src/Wfm.Shared.UI` | Ortak Blazor arayüzü (MudBlazor + Leaflet/OpenStreetMap) |
 | `src/Wfm.Web` | Blazor Server host (dashboard) |
 | `src/Wfm.Mobile` | .NET MAUI Blazor Hybrid (Android, iOS; geliştirme için Windows) |
-| `tests/Wfm.Api.Tests` | Entegrasyon testleri (kiracı izolasyonu, roller, durum akışı, kanıt, konum) |
+| `tests/Wfm.Api.Tests` | Entegrasyon testleri (kiracı izolasyonu, roller, durum akışı, aşamalar, iş akışları, kanıt, konum) |
+| `deploy/` | Docker + Tailscale Funnel ile canlıya alma |
+| `sunum/` | Müşteri sunumu (`index.html`, `WFM-Sunum.pdf`) |
 
 ## Çalıştırma
 
@@ -44,8 +47,9 @@ Mobil (Android emülatörü API'ye `10.0.2.2:5211` üzerinden erişir):
 dotnet build src/Wfm.Mobile -t:Run -f net10.0-android
 ```
 
-iOS derlemesi için Visual Studio'dan bir Mac build host'a bağlanmak gerekir. Gerçek cihazda API adresi
-`Preferences["api_base_url"]` ile ya da `MauiProgram.ApiBaseUrl()` içinden değiştirilir.
+iOS derlemesi için Visual Studio'dan bir Mac build host'a bağlanmak gerekir. **Release** derlemeleri canlı API'ye
+(`MauiProgram.ProductionApiUrl`), **Debug** derlemeleri yerel API'ye bağlanır. `Preferences["api_base_url"]`
+ayarlanmışsa her zaman o kullanılır.
 
 Testler:
 
@@ -87,9 +91,28 @@ Her şirket kendi **görev tiplerini** tanımlar (`Görev tipleri` sayfası):
   oluşturulurken (dispeçer) ya da tamamlanırken (saha çalışanı) doldurulur.
 - **Tamamlama kuralları**: müşteri imzası, en az N fotoğraf, not zorunluluğu, görev konumuna maksimum mesafe.
 
+- **Aşamalar**: tipe özel ara aşamalar (ör. "Okunda", "İmzaya çıktı"). Çalışan görevi kabul ettikten sonra işin
+  hangi aşamada olduğunu seçer; dispeçer liste, pano ve detayda anında görür, listede aşamaya göre filtreler.
+  Aşamalar sabit durum akışının yerini almaz, üstüne ek bir katmandır (`POST /api/tasks/{id}/stage`, offline destekli).
+- **Masa başı görevler**: "Saha ziyareti gerektirir" kapalı tiplerde konum zorunlu değildir; Yolda/Yerinde adımları
+  atlanır, görev kabulden sonra doğrudan tamamlanır.
+
 Kurallar `TaskRules` ile hem sunucuda hem cihazda (offline'da da) doğrulanır.
 
 Durum akışı: `Taslak → Atandı → Kabul edildi → Yolda → Yerinde → Tamamlandı` (+ Reddedildi / Yapılamadı / İptal).
+
+## Çok adımlı işler (iş akışları)
+
+Bir **iş**, farklı çalışanların sırayla ya da aynı anda yaptığı adımlardan oluşabilir (ör. fotokopi → postane → mail).
+
+- Her adım normal bir görevdir. Sırası gelmeyen adımlar taslakta bekler (`Beklemede`); önceki sıradaki tüm adımlar
+  bitince planlanan kişiye otomatik atanır ve çalışana bildirim gider (`JobProgressService`).
+- Aynı sıradaki adımlar paralel yürür; eşzamanlı bitişlerde çakışma yeniden denenir.
+- Başarısız/reddedilen bir adım işi **beklemeye** alır; yönetici adımı yeniden atar, yeniden dener, atlar ya da işi iptal eder.
+- Akış, sıra sütunlarına sürükle-bırak ile kurulur (`FlowBuilder`). Sık kullanılan akışlar **iş şablonu** olarak saklanır.
+- Sayfalar: `/jobs` (işler), `/jobs/new` (yeni iş), `/jobs/{id}` (iş detayı), `/job-templates` (şablonlar).
+  API: `/api/jobs`, `/api/job-templates`. Demo veride "Evrak gönderimi" şablonu bulunur.
+- İş durumları: Aktif, Beklemede, Tamamlandı, İptal.
 
 ## Konum takibi ve bildirimler
 
