@@ -41,6 +41,10 @@ public class TaskType : TenantEntity
     public bool IsActive { get; set; } = true;
     public List<FieldDefinition> Fields { get; set; } = [];
     public CompletionRequirements Completion { get; set; } = new();
+    /// <summary>Görev açıkken çalışanın seçebileceği ara aşamalar (ör. "Okunda", "İmzaya çıktı"), sıralı.</summary>
+    public List<string> Stages { get; set; } = [];
+    /// <summary>false = masa başı iş: yol/varış adımları ve konum zorunluluğu yok.</summary>
+    public bool RequiresVisit { get; set; } = true;
 }
 
 public class FieldDefinition
@@ -73,6 +77,8 @@ public class TaskEvent : TenantEntity
     public Guid UserId { get; set; }
     public WorkTaskStatus FromStatus { get; set; }
     public WorkTaskStatus ToStatus { get; set; }
+    /// <summary>Doluysa bu olay bir aşama değişikliğidir (durum değişmez).</summary>
+    public string? Stage { get; set; }
     public string? Note { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
@@ -131,6 +137,7 @@ public static class NotificationKinds
     public const string Failed = "failed";
     public const string Overdue = "overdue";
     public const string Comment = "comment";
+    public const string StageChanged = "stage";
     public const string PasswordReset = "password_reset";
 }
 

@@ -91,6 +91,7 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
         if (q.Statuses is { Count: > 0 }) qs.AddRange(q.Statuses.Select(s => $"statuses={s}"));
         if (q.AssigneeId is { } a) qs.Add($"assigneeId={a}");
         if (q.TaskTypeId is { } t) qs.Add($"taskTypeId={t}");
+        if (!string.IsNullOrWhiteSpace(q.Stage)) qs.Add($"stage={Uri.EscapeDataString(q.Stage)}");
         if (q.From is { } f) qs.Add($"from={Uri.EscapeDataString(f.ToUniversalTime().ToString("O"))}");
         if (q.To is { } to) qs.Add($"to={Uri.EscapeDataString(to.ToUniversalTime().ToString("O"))}");
         if (!string.IsNullOrWhiteSpace(q.Search)) qs.Add($"search={Uri.EscapeDataString(q.Search)}");
@@ -101,6 +102,7 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<WorkTaskDto> UpdateTaskAsync(Guid id, SaveWorkTaskRequest req) => Put<WorkTaskDto>($"/api/tasks/{id}", req);
     public Task<WorkTaskDto> AssignTaskAsync(Guid id, Guid? assigneeId) => Post<WorkTaskDto>($"/api/tasks/{id}/assign", new AssignRequest(assigneeId));
     public Task<WorkTaskDto> ChangeStatusAsync(Guid id, ChangeStatusRequest req) => Post<WorkTaskDto>($"/api/tasks/{id}/status", req);
+    public Task<WorkTaskDto> ChangeStageAsync(Guid id, ChangeStageRequest req) => Post<WorkTaskDto>($"/api/tasks/{id}/stage", req);
     public Task DeleteTaskAsync(Guid id) => Send(HttpMethod.Delete, $"/api/tasks/{id}", null);
     public Task<TrackingLinkDto> CreateTrackingLinkAsync(Guid id) => Post<TrackingLinkDto>($"/api/tasks/{id}/tracking-link", null);
     public Task<List<TaskCommentDto>> GetCommentsAsync(Guid taskId) => Get<List<TaskCommentDto>>($"/api/tasks/{taskId}/comments");

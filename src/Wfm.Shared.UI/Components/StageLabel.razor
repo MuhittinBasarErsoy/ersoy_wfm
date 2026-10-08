@@ -1,0 +1,11 @@
+@if (!string.IsNullOrEmpty(Stage))
+{
+    <span class="wfm-stage @Class" title="Aşama">
+        <span class="material-icons" aria-hidden="true">flag</span><span class="sr-only">Aşama: </span>@Stage
+    </span>
+}
+
+@code {
+    [Parameter] public string? Stage { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

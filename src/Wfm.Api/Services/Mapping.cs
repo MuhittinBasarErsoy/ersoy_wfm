@@ -10,7 +10,8 @@ public static class Mapping
         new(u.Id, u.Email!, u.FullName, u.PhoneNumber, u.TenantId, tenantName, roles.ToList(), u.IsActive, u.TeamId);
 
     public static TaskTypeDto ToDto(this TaskType t) =>
-        new(t.Id, t.Name, t.Description, t.Icon, t.Color, t.IsActive, t.Fields.OrderBy(f => f.Order).ToList(), t.Completion);
+        new(t.Id, t.Name, t.Description, t.Icon, t.Color, t.IsActive, t.Fields.OrderBy(f => f.Order).ToList(), t.Completion,
+            t.Stages.ToList(), t.RequiresVisit);
 
     public static TeamDto ToDto(this Team t) => new(t.Id, t.Name, t.Description);
 
@@ -33,6 +34,7 @@ public static class Mapping
         Description = t.Description,
         Priority = t.Priority,
         Status = t.Status,
+        Stage = t.Stage,
         AssigneeId = t.AssigneeId,
         AssigneeName = t.AssigneeId is { } a && userNames.TryGetValue(a, out var n) ? n : null,
         TeamId = t.TeamId,
@@ -60,7 +62,7 @@ public static class Mapping
         {
             Id = dto.Id, TaskTypeId = dto.TaskTypeId, TaskTypeName = dto.TaskTypeName, TaskTypeColor = dto.TaskTypeColor,
             TaskTypeIcon = dto.TaskTypeIcon, Title = dto.Title, Description = dto.Description, Priority = dto.Priority,
-            Status = dto.Status, AssigneeId = dto.AssigneeId, AssigneeName = dto.AssigneeName, TeamId = dto.TeamId,
+            Status = dto.Status, Stage = dto.Stage, AssigneeId = dto.AssigneeId, AssigneeName = dto.AssigneeName, TeamId = dto.TeamId,
             Address = dto.Address, Latitude = dto.Latitude, Longitude = dto.Longitude, CustomerName = dto.CustomerName,
             CustomerPhone = dto.CustomerPhone, ScheduledStart = dto.ScheduledStart, ScheduledEnd = dto.ScheduledEnd,
             StartedAt = dto.StartedAt, CompletedAt = dto.CompletedAt, CompletionNote = dto.CompletionNote,
@@ -69,7 +71,7 @@ public static class Mapping
             TaskType = t.TaskType?.ToDto(),
             Events = t.Events.OrderBy(e => e.CreatedAt).Select(e => new TaskEventDto(e.Id, e.UserId,
                 userNames.TryGetValue(e.UserId, out var un) ? un : null, e.FromStatus, e.ToStatus, e.Note,
-                e.Latitude, e.Longitude, e.CreatedAt)).ToList(),
+                e.Latitude, e.Longitude, e.CreatedAt, e.Stage)).ToList(),
             Attachments = t.Attachments.OrderBy(a => a.CapturedAt).Select(a => new AttachmentDto(a.Id, a.Kind, a.FileName,
                 a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById)).ToList()
         };

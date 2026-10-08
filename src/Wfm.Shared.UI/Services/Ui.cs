@@ -77,6 +77,7 @@ public static class Ui
         NotificationKinds.Failed => Icons.Material.Filled.ErrorOutline,
         NotificationKinds.Overdue => Icons.Material.Filled.AlarmOn,
         NotificationKinds.Comment => Icons.Material.Filled.ChatBubbleOutline,
+        NotificationKinds.StageChanged => Icons.Material.Filled.Flag,
         NotificationKinds.PasswordReset => Icons.Material.Filled.LockReset,
         _ => Icons.Material.Filled.Notifications
     };
@@ -150,7 +151,7 @@ public static class Ui
     [
         "assignment", "local_florist", "local_shipping", "build", "handyman", "plumbing", "electrical_services",
         "cleaning_services", "inventory_2", "restaurant", "medical_services", "home_repair_service", "construction",
-        "pest_control", "local_laundry_service", "ac_unit", "router", "security", "pets", "storefront"
+        "pest_control", "local_laundry_service", "ac_unit", "router", "security", "pets", "storefront", "description"
     ];
 
     public static readonly string[] ColorChoices =

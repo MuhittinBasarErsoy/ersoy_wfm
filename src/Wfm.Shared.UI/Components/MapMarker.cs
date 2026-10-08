@@ -24,6 +24,7 @@ public record MapMarker(string Id, double Lat, double Lng, string Color, string?
         Label: t.Priority >= Domain.Enums.TaskPriority.High ? "!" : null,
         Title: t.Title,
         Popup: $"<b>{E(t.Title)}</b><br/>{E(t.TaskTypeName)} · {E(Ui.Status(t.Status))}" +
+               (t.Stage is null ? "" : $" · {E(t.Stage)}") +
                (t.IsOverdue ? " · <b style=\"color:#c62828\">Gecikti</b>" : "") +
                $"<br/>{E(t.Address)}" +
                (t.AssigneeName is null ? "<br/><i>Atanmadı</i>" : $"<br/>Atanan: {E(t.AssigneeName)}") +

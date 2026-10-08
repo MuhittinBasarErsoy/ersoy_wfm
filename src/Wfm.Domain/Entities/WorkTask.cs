@@ -12,6 +12,8 @@ public class WorkTask : TenantEntity
     public string? Description { get; set; }
     public TaskPriority Priority { get; set; } = TaskPriority.Normal;
     public WorkTaskStatus Status { get; set; } = WorkTaskStatus.Draft;
+    /// <summary>Görev tipinde tanımlı ara aşamalardan seçilen (ör. "Okunda"); null = seçilmedi.</summary>
+    public string? Stage { get; set; }
 
     public Guid? AssigneeId { get; set; }
     public Guid? TeamId { get; set; }
@@ -50,7 +52,8 @@ public class WorkTask : TenantEntity
     /// <summary>Durum geçişini doğrular ve uygular. Geçersiz geçişte DomainException fırlatır.</summary>
     public TaskEvent ChangeStatus(WorkTaskStatus next, Guid userId, string? note = null, double? lat = null, double? lng = null)
     {
-        if (!TaskStatusFlow.CanTransition(Status, next))
+        var requiresVisit = TaskType?.RequiresVisit ?? true;
+        if (!TaskStatusFlow.CanTransition(Status, next, requiresVisit))
             throw new DomainException($"'{Status}' durumundan '{next}' durumuna geçilemez.");
 
         if (next == WorkTaskStatus.Assigned && AssigneeId is null)
@@ -60,6 +63,7 @@ public class WorkTask : TenantEntity
         Status = next;
         UpdatedAt = DateTime.UtcNow;
         if (next == WorkTaskStatus.EnRoute && StartedAt is null) StartedAt = UpdatedAt;
+        if (next == WorkTaskStatus.Accepted && !requiresVisit && StartedAt is null) StartedAt = UpdatedAt; // masa başında iş kabulle başlar
         if (next is WorkTaskStatus.Completed or WorkTaskStatus.Failed) CompletedAt = UpdatedAt;
 
         return AddEvent(previous, next, userId, note, lat, lng);
@@ -73,9 +77,26 @@ public class WorkTask : TenantEntity
 
         var previous = Status;
         AssigneeId = assigneeId;
+        Stage = null;
         Status = assigneeId is null ? WorkTaskStatus.Draft : WorkTaskStatus.Assigned;
         UpdatedAt = DateTime.UtcNow;
         return AddEvent(previous, Status, userId, assigneeId is null ? "Atama kaldırıldı" : "Görev atandı", null, null);
+    }
+
+    /// <summary>Görevin ara aşamasını değiştirir (durum aynı kalır). null aşamayı temizler.</summary>
+    public TaskEvent SetStage(string? stage, Guid userId, string? note = null)
+    {
+        if (!TaskStatusFlow.AllowsStage(Status))
+            throw new DomainException("Aşama yalnızca kabul edilmiş ve açık görevlerde seçilebilir.");
+        stage = string.IsNullOrWhiteSpace(stage) ? null : stage.Trim();
+        if (stage is not null && TaskType is { } type && !type.Stages.Contains(stage))
+            throw new DomainException($"'{stage}' bu görev tipinin aşamalarından biri değil.");
+
+        Stage = stage;
+        UpdatedAt = DateTime.UtcNow;
+        var ev = AddEvent(Status, Status, userId, note, null, null);
+        ev.Stage = stage ?? "";
+        return ev;
     }
 
     private TaskEvent AddEvent(WorkTaskStatus from, WorkTaskStatus to, Guid userId, string? note, double? lat, double? lng)
@@ -111,11 +132,21 @@ public static class TaskStatusFlow
         [WorkTaskStatus.Failed] = [],
     };
 
-    public static bool CanTransition(WorkTaskStatus from, WorkTaskStatus to) =>
-        Allowed.TryGetValue(from, out var next) && next.Contains(to);
+    /// <summary>Saha ziyareti gerektirmeyen (masa başı) görevlerde kabulden sonra doğrudan sonuca gidilir.</summary>
+    private static readonly WorkTaskStatus[] DeskAccepted = [WorkTaskStatus.Completed, WorkTaskStatus.Failed, WorkTaskStatus.Cancelled];
 
-    public static IReadOnlyList<WorkTaskStatus> NextStatuses(WorkTaskStatus from) =>
-        Allowed.TryGetValue(from, out var next) ? next : [];
+    public static bool CanTransition(WorkTaskStatus from, WorkTaskStatus to, bool requiresVisit = true) =>
+        NextStatuses(from, requiresVisit).Contains(to);
+
+    public static IReadOnlyList<WorkTaskStatus> NextStatuses(WorkTaskStatus from, bool requiresVisit = true)
+    {
+        if (!requiresVisit && from == WorkTaskStatus.Accepted) return DeskAccepted;
+        return Allowed.TryGetValue(from, out var next) ? next : [];
+    }
+
+    /// <summary>Ara aşama seçilebilen durumlar: çalışan işi üstlenmiş ve görev açık.</summary>
+    public static bool AllowsStage(WorkTaskStatus s) =>
+        s is WorkTaskStatus.Accepted or WorkTaskStatus.EnRoute or WorkTaskStatus.OnSite;
 
     /// <summary>Saha çalışanının kendi görevinde yapabileceği geçişler.</summary>
     public static bool IsFieldWorkerTransition(WorkTaskStatus to) =>

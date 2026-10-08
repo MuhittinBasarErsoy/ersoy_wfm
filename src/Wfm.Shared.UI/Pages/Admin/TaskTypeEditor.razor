@@ -49,6 +49,11 @@
                         }
                     </div>
                     <MudSwitch T="bool" @bind-Value="_active" Color="Color.Primary" Label="Aktif (yeni görevlerde seçilebilir)" />
+                    <MudSwitch T="bool" @bind-Value="_requiresVisit" Color="Color.Primary" Label="Saha ziyareti gerektirir" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
+                        @(_requiresVisit ? "Çalışan Yola çıktım → Vardım adımlarıyla ilerler; görevde konum zorunlu."
+                                         : "Masa başı iş: kabulden sonra doğrudan tamamlanır, konum ve mesafe kuralı yok.")
+                    </MudText>
                 </MudPaper>
 
                 <MudPaper Elevation="1" Class="pa-4">
@@ -59,11 +64,44 @@
                     <MudNumericField T="int" @bind-Value="_completion.MinPhotoCount" Label="En az fotoğraf sayısı" Min="0" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
                     <MudCheckBox T="bool" @bind-Value="_completion.RequireNote" Label="Tamamlama notu" Color="Color.Primary" />
                     <MudNumericField T="int" @bind-Value="_completion.MaxDistanceMeters" Label="Görev konumuna en fazla uzaklık (m, 0 = kontrol yok)" Min="0" Max="100000"
-                                     Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="!_requiresVisit" />
                 </MudPaper>
             </MudItem>
 
             <MudItem xs="12" md="8">
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1"><b>Aşamalar</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                        Çalışan görevi kabul ettikten sonra işin hangi aşamada olduğunu bunlardan seçer (ör. "Hazırlanıyor", "Okunda", "İmzaya çıktı").
+                    </MudText>
+                    <div class="d-flex gap-2 align-start mb-2">
+                        <MudTextField T="string" @ref="_stageField" @bind-Value="_newStage" Label="Yeni aşama" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate
+                                      MaxLength="@TaskRules.MaxStageLength" OnKeyDown="StageKeyDown" Style="flex:1" />
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Class="mt-1" OnClick="AddStage"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newStage) || _stages.Count >= TaskRules.MaxStages)">Ekle</MudButton>
+                    </div>
+                    @if (_stages.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Aşama yok; görev yalnızca temel durumlarla (Kabul, Tamamlandı…) takip edilir.</MudText>
+                    }
+                    else
+                    {
+                        <ol class="wfm-stage-list" aria-label="Aşamalar">
+                            @for (var i = 0; i < _stages.Count; i++)
+                            {
+                                var index = i;
+                                var st = _stages[i];
+                                <li class="d-flex align-center gap-1">
+                                    <MudText Typo="Typo.body2" Style="flex:1;min-width:0" Class="wfm-ellipsis">@(index + 1). @st</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="index == 0" OnClick="@(() => MoveStage(index, -1))" aria-label="@($"{st} yukarı taşı")" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="index == _stages.Count - 1" OnClick="@(() => MoveStage(index, 1))" aria-label="@($"{st} aşağı taşı")" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => _stages.RemoveAt(index))" aria-label="@($"{st} aşamasını sil")" />
+                                </li>
+                            }
+                        </ol>
+                    }
+                </MudPaper>
+
                 <MudPaper Elevation="1" Class="pa-4">
                     <div class="d-flex align-center mb-2">
                         <MudText Typo="Typo.subtitle1"><b>Özel alanlar</b></MudText>
@@ -148,6 +186,10 @@
     private string _icon = "assignment";
     private string _color = "#1976d2";
     private bool _active = true;
+    private bool _requiresVisit = true;
+    private List<string> _stages = [];
+    private string? _newStage;
+    private MudTextField<string>? _stageField;
     private CompletionRequirements _completion = new();
     private List<FieldDefinition> _fields = [];
     private readonly Dictionary<string, string?> _preview = [];
@@ -155,7 +197,7 @@
     private bool _loaded, _busy, _saved;
     private string _snapshot = "";
 
-    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(new { _name, _description, _icon, _color, _active, _completion, _fields });
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(new { _name, _description, _icon, _color, _active, _requiresVisit, _stages, _completion, _fields });
     private bool Dirty => _loaded && !_saved && Snapshot() != _snapshot;
 
     private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
@@ -181,10 +223,39 @@
             if (t is null) { Nav.NavigateTo("/task-types"); return; }
             (_name, _description, _icon, _color, _active) = (t.Name, t.Description, t.Icon, t.Color, t.IsActive);
             _completion = t.Completion;
+            _requiresVisit = t.RequiresVisit;
+            _stages = t.Stages.ToList();
             _fields = t.Fields.OrderBy(f => f.Order).ToList();
         }
         _snapshot = Snapshot();
         _loaded = true;
+    }
+
+    private async Task AddStage()
+    {
+        var name = _newStage?.Trim();
+        if (string.IsNullOrEmpty(name) || _stages.Count >= TaskRules.MaxStages) return;
+        if (_stages.Contains(name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            Snackbar.Add($"'{name}' aşaması zaten var.", Severity.Warning);
+            return;
+        }
+        _stages.Add(name);
+        _newStage = null;
+        // Odaktaki alan kendi metnini tuttuğu için bağlı değeri sıfırlamak yetmez; kutuyu açıkça temizle.
+        if (_stageField is not null) await _stageField.ClearAsync();
+    }
+
+    private async Task StageKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddStage();
+    }
+
+    private void MoveStage(int index, int delta)
+    {
+        var st = _stages[index];
+        _stages.RemoveAt(index);
+        _stages.Insert(index + delta, st);
     }
 
     private void AddField() => _fields.Add(new FieldDefinition { Key = $"field_{_fields.Count + 1}", Label = "Yeni alan", Order = _fields.Count });
@@ -213,12 +284,12 @@
 
     private async Task SaveAsync()
     {
-        _errors = TaskRules.ValidateTaskType(_name, _fields);
+        _errors = TaskRules.ValidateTaskType(_name, _fields, _stages);
         if (_errors.Count > 0) return;
         _busy = true;
         try
         {
-            var req = new SaveTaskTypeRequest(_name, _description, _icon, _color, _active, _fields, _completion);
+            var req = new SaveTaskTypeRequest(_name, _description, _icon, _color, _active, _fields, _completion, _stages, _requiresVisit);
             if (Id is { } id) await Api.UpdateTaskTypeAsync(id, req);
             else await Api.CreateTaskTypeAsync(req);
             Snackbar.Add("Görev tipi kaydedildi.", Severity.Success);

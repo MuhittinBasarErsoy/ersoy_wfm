@@ -116,7 +116,7 @@ public static class DbSeeder
         await CreateUser(users, t.Id, "yonetici@tamir.local", "Hakan Arslan", Roles.TenantAdmin);
         var dispatcher = await CreateUser(users, t.Id, "dispecer@tamir.local", "Elif Şahin", Roles.Dispatcher);
         var tech = await CreateUser(users, t.Id, "teknisyen1@tamir.local", "Burak Yıldız", Roles.FieldWorker, "+905557778899");
-        await CreateUser(users, t.Id, "teknisyen2@tamir.local", "Selin Aydın", Roles.FieldWorker);
+        var office = await CreateUser(users, t.Id, "teknisyen2@tamir.local", "Selin Aydın", Roles.FieldWorker);
 
         var repair = new TaskType
         {
@@ -140,7 +140,15 @@ public static class DbSeeder
             Fields = [new() { Key = "product", Label = "Ürün", Type = FieldType.Text, Required = true, Order = 1 }],
             Completion = new() { RequireSignature = true }
         };
-        db.TaskTypes.AddRange(repair, install);
+        var paperwork = new TaskType
+        {
+            TenantId = t.Id, Name = "Evrak İşleri", Icon = "description", Color = "#5e35b1",
+            Description = "Masa başında yürütülen evrak ve onay süreçleri.",
+            RequiresVisit = false,
+            Stages = ["Hazırlanıyor", "Okunda", "İmzaya çıktı", "Teslim edildi"],
+            Fields = [new() { Key = "document_no", Label = "Evrak no", Type = FieldType.Text, Order = 1 }]
+        };
+        db.TaskTypes.AddRange(repair, install, paperwork);
 
         var task = new WorkTask
         {
@@ -159,6 +167,14 @@ public static class DbSeeder
             Latitude = 41.0510, Longitude = 28.9940, CustomerName = "Murat Er",
             CustomFieldValues = new() { ["product"] = "12000 BTU Split Klima" }
         });
+        var docs = new WorkTask
+        {
+            TenantId = t.Id, TaskTypeId = paperwork.Id, CreatedById = dispatcher.Id,
+            Title = "Garanti başvuru dosyası", Description = "Müşterinin garanti başvurusunu hazırlayıp üreticiye gönder.",
+            CustomFieldValues = new() { ["document_no"] = "GRN-2026-014" }
+        };
+        docs.Assign(office.Id, dispatcher.Id);
+        db.Tasks.Add(docs);
         await db.SaveChangesAsync();
     }
 

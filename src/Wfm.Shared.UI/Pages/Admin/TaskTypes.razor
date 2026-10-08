@@ -47,6 +47,8 @@
                                     @t.Fields.Count(f => !f.FilledOnCompletion) oluşturma alanı · @t.Fields.Count(f => f.FilledOnCompletion) saha alanı
                                 </MudText>
                                 <div class="d-flex flex-wrap gap-1 mt-2">
+                                    @if (!t.RequiresVisit) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Desk">Masa başı</MudChip> }
+                                    @if (t.Stages.Count > 0) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Flag" title="@string.Join(" → ", t.Stages)">@t.Stages.Count aşama</MudChip> }
                                     @if (t.Completion.RequireSignature) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Draw">İmza</MudChip> }
                                     @if (t.Completion.RequirePhoto || t.Completion.MinPhotoCount > 0) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.PhotoCamera">En az @Math.Max(1, t.Completion.MinPhotoCount) foto</MudChip> }
                                     @if (t.Completion.RequireNote) { <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Notes">Not</MudChip> }

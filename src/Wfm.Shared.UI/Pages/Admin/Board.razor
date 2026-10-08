@@ -109,6 +109,7 @@
                     </div>
                     <div class="d-flex flex-wrap align-center gap-2 mt-1">
                         <StatusChip Status="context.Status" />
+                        <StageLabel Stage="@context.Stage" />
                         @if (context.ScheduledStart is not null)
                         {
                             <MudText Typo="Typo.caption">@Ui.Local(context.ScheduledStart, _range == "all" ? "dd.MM HH:mm" : "HH:mm")</MudText>

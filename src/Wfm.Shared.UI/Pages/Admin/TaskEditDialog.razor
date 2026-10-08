@@ -49,10 +49,14 @@
                     break;
 
                 case 1:
-                    <MudAutocomplete T="string" Label="Adres *" Variant="Variant.Outlined" SearchFunc="SearchAsync" DebounceInterval="500"
+                    @if (!NeedsLocation)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense Class="mb-2">Bu görev tipi saha ziyareti gerektirmiyor; adres ve konum isteğe bağlı.</MudAlert>
+                    }
+                    <MudAutocomplete T="string" Label="@(NeedsLocation ? "Adres *" : "Adres")" Variant="Variant.Outlined" SearchFunc="SearchAsync" DebounceInterval="500"
                                      Value="_model.Address" ValueChanged="AddressChanged" MinCharacters="3" ShowProgressIndicator CoerceText="false" CoerceValue
                                      AdornmentIcon="@Icons.Material.Filled.Search" HelperText="Yazıp listeden seçin ya da haritaya tıklayın"
-                                     Error="@(_tried[1] && (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation))"
+                                     Error="@(_tried[1] && NeedsLocation && (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation))"
                                      ErrorText="@(string.IsNullOrWhiteSpace(_model.Address) ? "Adres zorunlu" : "Haritada konum seçin")" />
                     <div style="height:300px" class="mt-2">
                         <LeafletMap @ref="_map" Height="100%" Clickable OnMapClick="MapClicked" OnReady="MapReady"
@@ -183,7 +187,7 @@
                     errors.AddRange(TaskRules.ValidateCreationFields(new TaskType { Fields = type.Fields }, _model.CustomFieldValues));
                 break;
             case 1:
-                if (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation) errors.Add("Adres girin ve haritada konum seçin.");
+                if (NeedsLocation && (string.IsNullOrWhiteSpace(_model.Address) || !HasLocation)) errors.Add("Adres girin ve haritada konum seçin.");
                 break;
             case 2:
                 if (_start is not null && _end is not null && _end < _start) errors.Add("Bitiş saati başlangıçtan önce olamaz.");
@@ -244,6 +248,7 @@
 
     private TaskTypeDto? SelectedType => Types.FirstOrDefault(t => t.Id == _model.TaskTypeId);
     private bool HasLocation => _model.Latitude != 0 || _model.Longitude != 0;
+    private bool NeedsLocation => SelectedType?.RequiresVisit ?? true;
 
     private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(new { _model, _date, _start, _end });
     private bool Dirty => Snapshot() != _snapshot;

@@ -22,7 +22,7 @@ public static class TaskRules
         var minPhotos = Math.Max(c.RequirePhoto ? 1 : 0, c.MinPhotoCount);
         if (photoCount < minPhotos) errors.Add($"En az {minPhotos} fotoğraf gerekli (mevcut: {photoCount}).");
         if (c.RequireNote && string.IsNullOrWhiteSpace(note)) errors.Add("Tamamlama notu zorunlu.");
-        if (c.MaxDistanceMeters > 0)
+        if (c.MaxDistanceMeters > 0 && type.RequiresVisit)
         {
             if (distanceMeters is null)
                 errors.Add("Tamamlamak için konum bilgisi gerekli.");
@@ -64,7 +64,10 @@ public static class TaskRules
     }
 
     /// <summary>Alan tanımlarının kendisini doğrular (görev tipi editörü için).</summary>
-    public static List<string> ValidateTaskType(string name, List<FieldDefinition> fields)
+    public const int MaxStages = 20;
+    public const int MaxStageLength = 100;
+
+    public static List<string> ValidateTaskType(string name, List<FieldDefinition> fields, IReadOnlyList<string>? stages = null)
     {
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(name)) errors.Add("Görev tipi adı zorunlu.");
@@ -77,6 +80,15 @@ public static class TaskRules
         }
         foreach (var dup in fields.GroupBy(f => f.Key).Where(g => g.Count() > 1))
             errors.Add($"'{dup.Key}' anahtarı birden fazla alanda kullanılmış.");
+
+        stages ??= [];
+        if (stages.Count > MaxStages) errors.Add($"En fazla {MaxStages} aşama tanımlanabilir.");
+        if (stages.Any(string.IsNullOrWhiteSpace)) errors.Add("Aşama adı boş olamaz.");
+        foreach (var s in stages.Where(s => s?.Length > MaxStageLength))
+            errors.Add($"'{s[..20]}…' aşamasının adı en fazla {MaxStageLength} karakter olabilir.");
+        foreach (var dup in stages.Where(s => !string.IsNullOrWhiteSpace(s))
+                     .GroupBy(s => s.Trim(), StringComparer.CurrentCultureIgnoreCase).Where(g => g.Count() > 1))
+            errors.Add($"'{dup.Key}' aşaması birden fazla kez eklenmiş.");
         return errors;
     }
 }

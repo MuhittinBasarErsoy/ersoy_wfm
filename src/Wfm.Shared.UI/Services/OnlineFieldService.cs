@@ -56,6 +56,12 @@ public class OnlineFieldService(WfmApiClient api) : IFieldService
         await SyncAsync();
     }
 
+    public async Task ChangeStageAsync(Guid taskId, ChangeStageRequest request)
+    {
+        await api.ChangeStageAsync(taskId, request);
+        await SyncAsync();
+    }
+
     public async Task AddAttachmentAsync(Guid taskId, CapturedFile file, AttachmentKind kind, GeoPoint? location)
     {
         using var ms = new MemoryStream(file.Data);

@@ -124,7 +124,7 @@ public static class UserEndpoints
             await db.TaskTypes.FirstOrDefaultAsync(t => t.Id == id) is { } t ? Results.Ok(t.ToDto()) : Results.NotFound());
         types.MapPost("/", async (SaveTaskTypeRequest req, WfmDbContext db) =>
         {
-            var errors = TaskRules.ValidateTaskType(req.Name, req.Fields);
+            var errors = TaskRules.ValidateTaskType(req.Name, req.Fields, req.Stages);
             if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
             var t = new TaskType();
             Apply(t, req);
@@ -134,7 +134,7 @@ public static class UserEndpoints
         }).RequireAuthorization(Policies.ManageTaskTypes);
         types.MapPut("/{id:guid}", async (Guid id, SaveTaskTypeRequest req, WfmDbContext db) =>
         {
-            var errors = TaskRules.ValidateTaskType(req.Name, req.Fields);
+            var errors = TaskRules.ValidateTaskType(req.Name, req.Fields, req.Stages);
             if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
             var t = await db.TaskTypes.FirstOrDefaultAsync(x => x.Id == id);
             if (t is null) return Results.NotFound();
@@ -153,5 +153,7 @@ public static class UserEndpoints
         t.IsActive = req.IsActive;
         t.Fields = req.Fields.Select((f, i) => { f.Order = i; return f; }).ToList();
         t.Completion = req.Completion;
+        t.Stages = (req.Stages ?? []).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+        t.RequiresVisit = req.RequiresVisit;
     }
 }

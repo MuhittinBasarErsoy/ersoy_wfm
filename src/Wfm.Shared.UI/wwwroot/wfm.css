@@ -52,6 +52,14 @@
 .wfm-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-radius: 12px;
     font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; }
 .wfm-status .material-icons { font-size: 14px; }
+.wfm-stage { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px 1px 6px; border-radius: 12px;
+    font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+    border: 1px solid var(--mud-palette-primary); color: var(--mud-palette-primary); }
+.wfm-stage .material-icons { font-size: 14px; }
+.wfm-stage .sr-only, .wfm-stage-picker .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.wfm-stage-list { list-style: none; margin: 0; padding: 0; }
+.wfm-stage-list li { padding: 2px 0 2px 8px; border-bottom: 1px solid var(--wfm-divider); }
+.wfm-stage-list li:last-child { border-bottom: 0; }
 .wfm-priority { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .wfm-overdue { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; color: var(--mud-palette-error);
     white-space: nowrap; }

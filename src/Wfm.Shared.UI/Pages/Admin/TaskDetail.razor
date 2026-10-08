@@ -31,6 +31,7 @@ else
         <Badges>
             <div class="d-flex align-center gap-2 flex-wrap">
                 <StatusChip Status="t.Status" />
+                <StageLabel Stage="@t.Stage" />
                 <PriorityLabel Priority="t.Priority" />
                 <OverdueBadge Task="t" />
             </div>
@@ -86,6 +87,30 @@ else
                             <MudText>@(t.AssigneeName ?? "—")</MudText>
                         }
                     </MudItem>
+                    @if (Stages.Count > 0)
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Aşama</MudText>
+                            @if (Me.Can(Policies.ManageTasks) && TaskStatusFlow.AllowsStage(t.Status))
+                            {
+                                <MudSelect T="string" Value="t.Stage" ValueChanged="ChangeStageAsync" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable
+                                           Placeholder="Seçilmedi" aria-label="Aşama">
+                                    @foreach (var st in Stages)
+                                    {
+                                        <MudSelectItem T="string" Value="st">@st</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else
+                            {
+                                <MudText>@(t.Stage ?? "—")</MudText>
+                                @if (!Ui.IsClosed(t.Status) && !TaskStatusFlow.AllowsStage(t.Status))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Çalışan görevi kabul edince seçilebilir.</MudText>
+                                }
+                            }
+                        </MudItem>
+                    }
                     <MudItem xs="12" sm="6">
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Planlanan</MudText>
                         <MudText>@Ui.Local(t.ScheduledStart)@(t.ScheduledEnd is null ? "" : " – " + Ui.Local(t.ScheduledEnd, "HH:mm"))</MudText>
@@ -101,7 +126,7 @@ else
                         </MudText>
                     </MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Yola çıkış / tamamlanma</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@(t.TaskType is { RequiresVisit: false } ? "Başlangıç / tamamlanma" : "Yola çıkış / tamamlanma")</MudText>
                         <MudText>
                             @Ui.Local(t.StartedAt) / @Ui.Local(t.CompletedAt)
                             @if (t.StartedAt is { } st && t.CompletedAt is { } ct)
@@ -112,7 +137,7 @@ else
                     </MudItem>
                     <MudItem xs="12">
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Adres</MudText>
-                        <MudText>@t.Address</MudText>
+                        <MudText>@(string.IsNullOrWhiteSpace(t.Address) ? "—" : t.Address)</MudText>
                     </MudItem>
                     @if (!string.IsNullOrWhiteSpace(t.Description))
                     {
@@ -160,16 +185,19 @@ else
             </MudPaper>
         </MudItem>
         <MudItem xs="12" md="5">
-            <MudPaper Elevation="1" Class="pa-2 mb-3">
-                <div style="height:320px">
-                    <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
-                </div>
-                <div class="wfm-legend">
-                    <span><i style="background:@Ui.StatusHex(t.Status)"></i>Görev konumu</span>
-                    <span><i style="background:@MapMarker.WorkerOnShift"></i>Çalışanın son konumu</span>
-                    <span>• Durum değişikliğinin yapıldığı yer</span>
-                </div>
-            </MudPaper>
+            @if (t.HasLocation)
+            {
+                <MudPaper Elevation="1" Class="pa-2 mb-3">
+                    <div style="height:320px">
+                        <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+                    </div>
+                    <div class="wfm-legend">
+                        <span><i style="background:@Ui.StatusHex(t.Status)"></i>Görev konumu</span>
+                        <span><i style="background:@MapMarker.WorkerOnShift"></i>Çalışanın son konumu</span>
+                        <span>• Durum değişikliğinin yapıldığı yer</span>
+                    </div>
+                </MudPaper>
+            }
             <MudPaper Elevation="1" Class="pa-4">
                 <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Görev geçmişi</b></MudText>
                 <TaskTimeline Events="t.Events" />
@@ -188,6 +216,7 @@ else
     private bool _notFound;
 
     private bool IsOpen => _task is not null && !Ui.IsClosed(_task.Status);
+    private List<string> Stages => _task?.TaskType?.Stages ?? [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -254,6 +283,18 @@ else
         {
             await Api.AssignTaskAsync(Id, assignee);
             Snackbar.Add(assignee is null ? "Atama kaldırıldı." : "Görev atandı, çalışana bildirim gönderildi.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ChangeStageAsync(string? stage)
+    {
+        if (_task is null || stage == _task.Stage) return;
+        try
+        {
+            await Api.ChangeStageAsync(Id, new ChangeStageRequest(stage));
+            Snackbar.Add(stage is null ? "Aşama kaldırıldı." : $"Aşama: {stage}", Severity.Success);
             await LoadAsync();
         }
         catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
