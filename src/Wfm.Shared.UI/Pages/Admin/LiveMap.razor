@@ -123,7 +123,7 @@
     private async Task DrawTasksAsync()
     {
         if (_map is null) return;
-        await _map.SetMarkersAsync("tasks", _showTasks ? _tasks.Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")) : []);
+        await _map.SetMarkersAsync("tasks", _showTasks ? _tasks.Where(t => t.HasLocation).Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")) : []);
     }
 
     private async Task MarkerClicked(MarkerClick click)

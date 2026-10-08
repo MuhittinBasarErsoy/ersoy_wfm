@@ -85,6 +85,7 @@ public class UiServiceTests
         public Task<TaskTypeDto?> GetTaskTypeAsync(Guid id) => Task.FromResult<TaskTypeDto?>(null);
         public Task SyncAsync() => Task.CompletedTask;
         public Task ChangeStatusAsync(Guid taskId, ChangeStatusRequest request) => Task.CompletedTask;
+        public Task ChangeStageAsync(Guid taskId, ChangeStageRequest request) => Task.CompletedTask;
         public Task AddAttachmentAsync(Guid taskId, CapturedFile file, AttachmentKind kind, GeoPoint? location) => Task.CompletedTask;
         public Task RemoveAttachmentAsync(Guid taskId, Guid attachmentId) => Task.CompletedTask;
         public Task<ShiftDto?> GetShiftAsync() => Task.FromResult<ShiftDto?>(null);

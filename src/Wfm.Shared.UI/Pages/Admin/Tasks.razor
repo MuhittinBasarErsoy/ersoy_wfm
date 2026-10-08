@@ -55,13 +55,24 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="6" sm="4" md="2">
-                <MudSelect T="Guid?" Value="_query.TaskTypeId" ValueChanged="@(v => FilterChanged(() => _query.TaskTypeId = v))" Label="Tip" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
+                <MudSelect T="Guid?" Value="_query.TaskTypeId" ValueChanged="@(v => FilterChanged(() => { _query.TaskTypeId = v; _query.Stage = null; }))" Label="Tip" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
                     @foreach (var t in _types)
                     {
                         <MudSelectItem T="Guid?" Value="t.Id">@t.Name</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
+            @if (SelectedTypeStages.Count > 0)
+            {
+                <MudItem xs="6" sm="4" md="2">
+                    <MudSelect T="string" Value="_query.Stage" ValueChanged="@(v => FilterChanged(() => _query.Stage = v))" Label="Aşama" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
+                        @foreach (var st in SelectedTypeStages)
+                        {
+                            <MudSelectItem T="string" Value="st">@st</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
             <MudItem xs="6" sm="4" md="2">
                 <MudSelect T="Guid?" Value="_query.AssigneeId" ValueChanged="@(v => FilterChanged(() => _query.AssigneeId = v))" Label="Çalışan" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable>
                     @foreach (var w in _workers)
@@ -121,7 +132,12 @@
                     </div>
                 </div>
             </MudTd>
-            <MudTd DataLabel="Durum"><StatusChip Status="context.Status" /></MudTd>
+            <MudTd DataLabel="Durum">
+                <div class="d-flex flex-column align-start gap-1">
+                    <StatusChip Status="context.Status" />
+                    <StageLabel Stage="@context.Stage" />
+                </div>
+            </MudTd>
             <MudTd DataLabel="Öncelik"><PriorityLabel Priority="context.Priority" /></MudTd>
             <MudTd DataLabel="Atanan">
                 @if (context.AssigneeName is null)
@@ -187,6 +203,8 @@
         public int GetHashCode(WorkTaskDto obj) => obj.Id.GetHashCode();
     }
 
+    private List<string> SelectedTypeStages => _types.FirstOrDefault(t => t.Id == _query.TaskTypeId)?.Stages ?? [];
+
     private bool HasFilter => !string.IsNullOrWhiteSpace(_query.Search) || _statuses.Count > 0 || _query.TaskTypeId is not null ||
                               _query.AssigneeId is not null || _query.OnlyOpen || _query.Overdue;
 
@@ -244,6 +262,7 @@
             Page = int.TryParse(Get("page"), out var p) && p > 0 ? p : 1,
             Search = Get("q"),
             TaskTypeId = Guid.TryParse(Get("type"), out var t) ? t : null,
+            Stage = Get("stage"),
             AssigneeId = Guid.TryParse(Get("assignee"), out var a) ? a : null,
             OnlyOpen = Get("open") == "1",
             Overdue = Get("overdue") == "1",
@@ -261,6 +280,7 @@
         if (!string.IsNullOrWhiteSpace(_query.Search)) parts.Add("q=" + Uri.EscapeDataString(_query.Search));
         parts.AddRange(_statuses.Select(s => $"status={s}"));
         if (_query.TaskTypeId is { } t) parts.Add($"type={t}");
+        if (!string.IsNullOrWhiteSpace(_query.Stage)) parts.Add("stage=" + Uri.EscapeDataString(_query.Stage));
         if (_query.AssigneeId is { } a) parts.Add($"assignee={a}");
         if (_query.OnlyOpen) parts.Add("open=1");
         if (_query.Overdue) parts.Add("overdue=1");

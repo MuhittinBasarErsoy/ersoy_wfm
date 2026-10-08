@@ -112,6 +112,39 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         await EnqueueAsync(new OutboxItem { Kind = OutboxKind.Status, TaskId = taskId, Payload = JsonSerializer.Serialize(request, Json) });
     }
 
+    public async Task ChangeStageAsync(Guid taskId, ChangeStageRequest request)
+    {
+        await PushOutboxAsync();
+        if (PendingCount == 0)
+        {
+            try
+            {
+                await _api.ChangeStageAsync(taskId, request);
+                await PullAsync();
+                return;
+            }
+            catch (ApiException ex) when (ex.IsNetworkError)
+            {
+                SetOnline(false);
+            }
+        }
+
+        // Çevrimdışı: yerelde uygula ve kuyruğa al.
+        await UpdateCachedTaskAsync(taskId, t =>
+        {
+            var now = request.ClientTimestamp ?? DateTime.UtcNow;
+            var stage = string.IsNullOrWhiteSpace(request.Stage) ? null : request.Stage.Trim();
+            return t with
+            {
+                Stage = stage,
+                UpdatedAt = now,
+                Events = [.. t.Events, new TaskEventDto(Guid.NewGuid(), _session.Current?.User.Id ?? Guid.Empty,
+                    _session.Current?.User.FullName + " (gönderilmedi)", t.Status, t.Status, request.Note, null, null, now, stage ?? "")]
+            };
+        });
+        await EnqueueAsync(new OutboxItem { Kind = OutboxKind.Stage, TaskId = taskId, Payload = JsonSerializer.Serialize(request, Json) });
+    }
+
     public async Task AddAttachmentAsync(Guid taskId, CapturedFile file, AttachmentKind kind, GeoPoint? location)
     {
         var clientId = Guid.NewGuid();
@@ -239,6 +272,9 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         {
             case OutboxKind.Status:
                 await _api.ChangeStatusAsync(item.TaskId, JsonSerializer.Deserialize<ChangeStatusRequest>(item.Payload, Json)!);
+                break;
+            case OutboxKind.Stage:
+                await _api.ChangeStageAsync(item.TaskId, JsonSerializer.Deserialize<ChangeStageRequest>(item.Payload, Json)!);
                 break;
             case OutboxKind.Attachment:
                 var meta = JsonSerializer.Deserialize<AttachmentMeta>(item.Payload, Json)!;

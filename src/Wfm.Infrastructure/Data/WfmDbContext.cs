@@ -70,6 +70,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.Property(x => x.Color).HasMaxLength(20);
             e.Property(x => x.Fields).HasConversion(JsonConverter<List<FieldDefinition>>(), JsonComparer<List<FieldDefinition>>());
             e.Property(x => x.Completion).HasConversion(JsonConverter<CompletionRequirements>(), JsonComparer<CompletionRequirements>());
+            e.Property(x => x.Stages).HasConversion(JsonConverter<List<string>>(), JsonComparer<List<string>>());
         });
 
         b.Entity<WorkTask>(e =>
@@ -78,6 +79,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.Property(x => x.Address).HasMaxLength(500);
             e.Property(x => x.CustomerName).HasMaxLength(200);
             e.Property(x => x.CustomerPhone).HasMaxLength(50);
+            e.Property(x => x.Stage).HasMaxLength(100);
             e.Property(x => x.RowVersion).IsRowVersion();
             e.Property(x => x.CustomFieldValues)
                 .HasConversion(JsonConverter<Dictionary<string, string?>>(), JsonComparer<Dictionary<string, string?>>());
@@ -89,6 +91,8 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.Property(x => x.TrackingToken).HasMaxLength(64);
             e.HasIndex(x => x.TrackingToken).IsUnique().HasFilter("[TrackingToken] IS NOT NULL");
         });
+
+        b.Entity<TaskEvent>(e => e.Property(x => x.Stage).HasMaxLength(100));
 
         b.Entity<TaskComment>(e =>
         {

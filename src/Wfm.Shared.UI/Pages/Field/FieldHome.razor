@@ -101,7 +101,7 @@
         {
             var t = list[i];
             var next = _tab == 0 && i == 0;
-            <Tap Class="mb-2" OnClick="@(() => Nav.NavigateTo($"/field/tasks/{t.Id}"))" AriaLabel="@($"{t.Title}, {Ui.Status(t.Status)}, {t.Address}")">
+            <Tap Class="mb-2" OnClick="@(() => Nav.NavigateTo($"/field/tasks/{t.Id}"))" AriaLabel="@(string.Join(", ", new[] { t.Title, Ui.Status(t.Status), t.Stage, t.Address }.Where(x => !string.IsNullOrWhiteSpace(x))))">
                 <MudCard Elevation="@(next ? 3 : 1)" Class="wfm-field-card" Style="@($"--accent:{t.TaskTypeColor}")">
                     <MudCardContent Class="pa-3">
                         @if (next)
@@ -114,12 +114,18 @@
                                 <MudText Typo="Typo.subtitle1" Style="line-height:1.2"><b>@t.Title</b></MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">@t.TaskTypeName</MudText>
                             </div>
-                            <StatusChip Status="t.Status" />
+                            <div class="d-flex flex-column align-end gap-1">
+                                <StatusChip Status="t.Status" />
+                                <StageLabel Stage="@t.Stage" />
+                            </div>
                         </div>
-                        <div class="d-flex align-start gap-1 mt-1">
-                            <MudIcon Icon="@Icons.Material.Filled.Place" Size="Size.Small" Color="Color.Secondary" aria-hidden="true" />
-                            <MudText Typo="Typo.body2">@t.Address</MudText>
-                        </div>
+                        @if (!string.IsNullOrWhiteSpace(t.Address))
+                        {
+                            <div class="d-flex align-start gap-1 mt-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Place" Size="Size.Small" Color="Color.Secondary" aria-hidden="true" />
+                                <MudText Typo="Typo.body2">@t.Address</MudText>
+                            </div>
+                        }
                         <div class="d-flex flex-wrap align-center gap-3 mt-1">
                             @if (t.ScheduledStart is not null)
                             {
@@ -229,7 +235,7 @@
     private async Task DrawMapAsync()
     {
         if (_map is null) return;
-        await _map.SetMarkersAsync("tasks", Active.Select(t => MapMarker.ForTask(t, $"/field/tasks/{t.Id}")));
+        await _map.SetMarkersAsync("tasks", Active.Where(t => t.HasLocation).Select(t => MapMarker.ForTask(t, $"/field/tasks/{t.Id}")));
         if (_me is not null)
             await _map.SetMarkersAsync("me", [new MapMarker("me", _me.Latitude, _me.Longitude, MapMarker.WorkerOnShift, "Ben", Title: "Konumunuz", Pulse: true)]);
         await _map.FitAllAsync();

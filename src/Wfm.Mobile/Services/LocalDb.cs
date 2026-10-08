@@ -92,6 +92,7 @@ public class OutboxItem
 public static class OutboxKind
 {
     public const string Status = "status";
+    public const string Stage = "stage";
     public const string Attachment = "attachment";
     public const string DeleteAttachment = "delete-attachment";
     public const string Shift = "shift";

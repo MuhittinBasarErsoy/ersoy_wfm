@@ -35,12 +35,31 @@ else
         </div>
         <StatusChip Status="t.Status" />
     </div>
-    <div class="d-flex flex-wrap gap-3 mb-2">
+    <div class="d-flex flex-wrap align-center gap-3 mb-2">
+        <StageLabel Stage="@t.Stage" />
         <PriorityLabel Priority="t.Priority" HideNormal />
         <OverdueBadge Task="t" />
     </div>
 
-    @if (Arrived && t.Status == WorkTaskStatus.EnRoute)
+    @if (Type is { Stages.Count: > 0 } st && TaskStatusFlow.AllowsStage(t.Status))
+    {
+        <MudPaper Elevation="1" Class="pa-3 mb-3 wfm-stage-picker">
+            <MudText Typo="Typo.subtitle2" Class="mb-2" id="stage-label">İş hangi aşamada?</MudText>
+            <div class="d-flex flex-wrap gap-2" role="group" aria-labelledby="stage-label">
+                @foreach (var stage in st.Stages)
+                {
+                    var name = stage;
+                    var selected = t.Stage == name;
+                    <MudButton Variant="@(selected ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" Size="Size.Large"
+                               StartIcon="@(selected ? Icons.Material.Filled.Flag : null)" aria-pressed="@(selected ? "true" : "false")"
+                               Disabled="_busy" OnClick="@(() => ChangeStageAsync(selected ? null : name))">@name</MudButton>
+                }
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">Seçili aşamaya tekrar dokunmak seçimi kaldırır.</MudText>
+        </MudPaper>
+    }
+
+    @if (!IsDesk && Arrived && t.Status == WorkTaskStatus.EnRoute)
     {
         <MudAlert Severity="Severity.Success" Class="mb-3" Icon="@Icons.Material.Filled.WhereToVote">
             Görev konumuna ulaştınız (@Ui.Distance(_distance!.Value)).
@@ -48,21 +67,27 @@ else
         </MudAlert>
     }
 
-    <MudPaper Elevation="1" Class="pa-2 mb-3">
-        <div style="height:220px">
-            <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
-        </div>
-        @if (_distance is { } d)
-        {
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1">Görev konumuna uzaklığınız: <b>@Ui.Distance(d)</b></MudText>
-        }
-    </MudPaper>
+    @if (ShowMap)
+    {
+        <MudPaper Elevation="1" Class="pa-2 mb-3">
+            <div style="height:220px">
+                <LeafletMap @ref="_map" Height="100%" Latitude="t.Latitude" Longitude="t.Longitude" Zoom="15" OnReady="DrawMapAsync" />
+            </div>
+            @if (_distance is { } d)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1">Görev konumuna uzaklığınız: <b>@Ui.Distance(d)</b></MudText>
+            }
+        </MudPaper>
+    }
 
     <MudPaper Elevation="1" Class="pa-3 mb-3">
-        <div class="d-flex align-start gap-2">
-            <MudIcon Icon="@Icons.Material.Filled.Place" Color="Color.Secondary" aria-label="Adres" />
-            <MudText Typo="Typo.body1">@t.Address</MudText>
-        </div>
+        @if (!string.IsNullOrWhiteSpace(t.Address))
+        {
+            <div class="d-flex align-start gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Place" Color="Color.Secondary" aria-label="Adres" />
+                <MudText Typo="Typo.body1">@t.Address</MudText>
+            </div>
+        }
         @if (t.CustomerName is not null)
         {
             <div class="d-flex align-center gap-2 mt-1">
@@ -78,8 +103,11 @@ else
             </div>
         }
         <div class="d-flex gap-2 mt-3">
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Directions" FullWidth Size="Size.Large"
-                       OnClick="@(() => External.OpenDirectionsAsync(t.Latitude, t.Longitude, t.Title))">Yol tarifi</MudButton>
+            @if (ShowMap)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Directions" FullWidth Size="Size.Large"
+                           OnClick="@(() => External.OpenDirectionsAsync(t.Latitude, t.Longitude, t.Title))">Yol tarifi</MudButton>
+            }
             @if (!string.IsNullOrEmpty(t.CustomerPhone))
             {
                 <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Phone" FullWidth Size="Size.Large"
@@ -97,7 +125,7 @@ else
         }
     </MudPaper>
 
-    @if (t.Status == WorkTaskStatus.OnSite && Type is { } ct)
+    @if ((t.Status == WorkTaskStatus.OnSite || IsDesk && t.Status == WorkTaskStatus.Accepted) && Type is { } ct)
     {
         @* ---------- Tamamlama ---------- *@
         <MudPaper Elevation="1" Class="pa-3 mb-3">
@@ -236,6 +264,9 @@ else
     private int PhotoCount => _task?.Attachments.Count(a => a.Kind == AttachmentKind.Photo) ?? 0;
     private int MinPhotos => Type is null ? 0 : Math.Max(Type.Completion.RequirePhoto ? 1 : 0, Type.Completion.MinPhotoCount);
     private bool Arrived => _distance is { } d && d <= ArrivalMeters;
+    /// <summary>Saha ziyareti gerektirmeyen (masa başı) görev: harita, varış ve mesafe kuralı yok.</summary>
+    private bool IsDesk => Type is { RequiresVisit: false };
+    private bool ShowMap => !IsDesk && _task is { HasLocation: true };
 
     /// <summary>Görev tipinin tamamlama kurallarının canlı durumu (sunucu da aynı kuralları uygular).</summary>
     private List<CheckItem> Checklist
@@ -250,7 +281,7 @@ else
             if (MinPhotos > 0) list.Add(new($"Fotoğraf: {PhotoCount} / {MinPhotos}", PhotoCount >= MinPhotos));
             if (c.RequireSignature) list.Add(new("Müşteri imzası", HasSignature || _signed));
             if (c.RequireNote) list.Add(new("Tamamlama notu", !string.IsNullOrWhiteSpace(_note)));
-            if (c.MaxDistanceMeters > 0)
+            if (c.MaxDistanceMeters > 0 && !IsDesk)
                 list.Add(new(_distance is { } d ? $"Görev konumuna en fazla {c.MaxDistanceMeters} m (şu an {Ui.Distance(d)})" : $"Görev konumuna en fazla {c.MaxDistanceMeters} m (konum alınıyor…)",
                     _distance is { } dd && dd <= c.MaxDistanceMeters));
             if (list.Count == 0) list.Add(new("Ek gereksinim yok", true));
@@ -261,7 +292,7 @@ else
     private bool CanComplete => Checklist.All(i => i.Done);
 
     private IEnumerable<WorkTaskStatus> Actions => _task is null ? [] :
-        TaskStatusFlow.NextStatuses(_task.Status).Where(TaskStatusFlow.IsFieldWorkerTransition)
+        TaskStatusFlow.NextStatuses(_task.Status, !IsDesk).Where(TaskStatusFlow.IsFieldWorkerTransition)
             .OrderBy(s => s is WorkTaskStatus.Rejected or WorkTaskStatus.Failed ? 1 : 0);
 
     private static bool IsPrimary(WorkTaskStatus s) => s is not (WorkTaskStatus.Rejected or WorkTaskStatus.Failed);
@@ -295,7 +326,7 @@ else
 
     private async Task UpdateDistanceAsync()
     {
-        if (_task is null) return;
+        if (_task is null || !ShowMap) return;
         if (await Geo.GetCurrentAsync() is not { } me) return;
         var wasArrived = Arrived;
         _distance = Wfm.Domain.Entities.Geo.DistanceMeters(me.Latitude, me.Longitude, _task.Latitude, _task.Longitude);
@@ -382,6 +413,28 @@ else
         }
     }
 
+    private async Task ChangeStageAsync(string? stage)
+    {
+        if (_task is null) return;
+        _busy = true;
+        try
+        {
+            await Field.ChangeStageAsync(_task.Id, new ChangeStageRequest(stage, ClientTimestamp: DateTime.UtcNow));
+            Snackbar.Add(!Field.IsOnline ? "Kaydedildi; bağlantı gelince gönderilecek."
+                    : stage is null ? "Aşama kaldırıldı." : $"Aşama: {stage}",
+                Field.IsOnline ? Severity.Success : Severity.Info);
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     /// <summary>İmzayı yükler ve görev tipinin tamamlama kurallarını cihazda doğrular (offline'da da çalışsın diye).</summary>
     private async Task<bool> PrepareCompletionAsync(GeoPoint? location)
     {
@@ -394,7 +447,7 @@ else
         }
 
         double? distance = location is null ? null : Wfm.Domain.Entities.Geo.DistanceMeters(location.Latitude, location.Longitude, _task.Latitude, _task.Longitude);
-        _errors = TaskRules.ValidateCompletion(new TaskType { Fields = Type.Fields, Completion = Type.Completion }, _completionValues,
+        _errors = TaskRules.ValidateCompletion(new TaskType { Fields = Type.Fields, Completion = Type.Completion, RequiresVisit = Type.RequiresVisit }, _completionValues,
             PhotoCount, HasSignature, _note, distance);
         return _errors.Count == 0;
     }

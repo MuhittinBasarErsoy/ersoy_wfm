@@ -74,7 +74,10 @@ else
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">@(t.AssigneeName ?? "Atanmadı") · @Ui.Ago(t.UpdatedAt)</MudText>
                                 <OverdueBadge Task="t" Compact />
                             </div>
-                            <StatusChip Status="t.Status" />
+                            <div class="d-flex flex-column align-end gap-1">
+                                <StatusChip Status="t.Status" />
+                                <StageLabel Stage="@t.Stage" />
+                            </div>
                         </Tap>
                     }
                 </div>
@@ -156,7 +159,7 @@ else
     private async Task DrawMapAsync()
     {
         if (_map is null) return;
-        await _map.SetMarkersAsync("tasks", _tasks.Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")));
+        await _map.SetMarkersAsync("tasks", _tasks.Where(t => t.HasLocation).Select(t => MapMarker.ForTask(t, $"/tasks/{t.Id}")));
         await _map.SetMarkersAsync("workers", _workers.Select(MapMarker.ForWorker));
         await _map.FitAllAsync();
     }
@@ -166,7 +169,7 @@ else
         _tasks.RemoveAll(x => x.Id == t.Id);
         if (!Ui.IsClosed(t.Status)) _tasks.Add(t);
         _report = await Api.GetReportAsync();
-        if (_map is not null) await _map.SetMarkersAsync("tasks", _tasks.Select(x => MapMarker.ForTask(x, $"/tasks/{x.Id}")));
+        if (_map is not null) await _map.SetMarkersAsync("tasks", _tasks.Where(x => x.HasLocation).Select(x => MapMarker.ForTask(x, $"/tasks/{x.Id}")));
         StateHasChanged();
     });
 

@@ -7,8 +7,11 @@ else
     <ul class="wfm-timeline">
         @foreach (var e in Events.OrderByDescending(e => e.CreatedAt))
         {
-            <li style="--dot:@Ui.StatusHex(e.ToStatus)">
-                <MudText Typo="Typo.body2"><b>@Ui.Status(e.ToStatus)</b> · @(e.UserName ?? "Sistem")</MudText>
+            var isStage = e.Stage is not null;
+            <li style="@($"--dot:{(isStage ? "var(--mud-palette-primary)" : Ui.StatusHex(e.ToStatus))}")">
+                <MudText Typo="Typo.body2">
+                    <b>@(isStage ? (e.Stage == "" ? "Aşama temizlendi" : $"Aşama: {e.Stage}") : Ui.Status(e.ToStatus))</b> · @(e.UserName ?? "Sistem")
+                </MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                     @Ui.Local(e.CreatedAt)
                     @if (e.Latitude is not null)

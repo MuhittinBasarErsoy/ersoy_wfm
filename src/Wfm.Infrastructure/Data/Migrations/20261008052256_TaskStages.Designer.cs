@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Wfm.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Wfm.Infrastructure.Data;
 namespace Wfm.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(WfmDbContext))]
-    partial class WfmDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008052256_TaskStages")]
+    partial class TaskStages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

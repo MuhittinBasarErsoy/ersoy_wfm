@@ -29,6 +29,7 @@ public static class TaskEndpoints
             }
             if (q.AssigneeId is { } a) query = query.Where(t => t.AssigneeId == a);
             if (q.TaskTypeId is { } tt) query = query.Where(t => t.TaskTypeId == tt);
+            if (!string.IsNullOrWhiteSpace(q.Stage)) query = query.Where(t => t.Stage == q.Stage);
             if (q.From is { } from) query = query.Where(t => (t.ScheduledStart ?? t.CreatedAt) >= from);
             if (q.To is { } to) query = query.Where(t => (t.ScheduledStart ?? t.CreatedAt) < to);
             if (!string.IsNullOrWhiteSpace(q.Search))
@@ -89,6 +90,7 @@ public static class TaskEndpoints
                 db.Entry(task).Property(t => t.RowVersion).OriginalValue = Convert.FromBase64String(req.RowVersion);
 
             var previousAssignee = task.AssigneeId;
+            if (task.TaskTypeId != req.TaskTypeId) task.Stage = null; // eski tipin aşaması yeni tipte geçersiz
             Apply(task, req);
             task.TaskType = type;
             if (req.AssigneeId != previousAssignee) task.Assign(req.AssigneeId, ctx.User.UserId());
@@ -171,6 +173,39 @@ public static class TaskEndpoints
                     req.Status == WorkTaskStatus.Rejected ? "Görev reddedildi" : "Görev yapılamadı",
                     $"{names.GetValueOrDefault(user.UserId())}: {task.Title}{(string.IsNullOrEmpty(req.Note) ? "" : " – " + req.Note)}", task.Id,
                     req.Status == WorkTaskStatus.Rejected ? NotificationKinds.Rejected : NotificationKinds.Failed);
+            await notify.TaskChangedAsync(task.TenantId, dto);
+            return Results.Ok(dto);
+        });
+
+        g.MapPost("/{id:guid}/stage", async (Guid id, ChangeStageRequest req, HttpContext ctx, WfmDbContext db,
+            UserDirectory dir, NotificationService notify) =>
+        {
+            var user = ctx.User;
+            var task = await db.Tasks.Include(t => t.TaskType).FirstOrDefaultAsync(t => t.Id == id);
+            if (task is null) return Results.NotFound();
+
+            var isManager = user.HasPolicy(Policies.ManageTasks);
+            var isAssignee = task.AssigneeId == user.UserId();
+            if (!isManager && !isAssignee)
+                return Results.Json(new ApiError("Bu işlem için yetkiniz yok."), statusCode: 403);
+
+            var stage = string.IsNullOrWhiteSpace(req.Stage) ? null : req.Stage.Trim();
+            // Offline tekrar gönderimi: aşama zaten istenen değerdeyse başarı dön (idempotent).
+            if (task.Stage == stage)
+                return Results.Ok(task.ToDto(await dir.NamesAsync(task.TenantId)));
+
+            var ev = task.SetStage(stage, user.UserId(), req.Note);
+            if (req.ClientTimestamp is { } ts) ev.CreatedAt = ts.ToUniversalTime();
+            db.TaskEvents.Add(ev);
+            await db.SaveChangesAsync();
+
+            var names = await dir.NamesAsync(task.TenantId);
+            var dto = task.ToDto(names);
+            if (!isManager && stage is not null)
+                await notify.NotifyAsync(task.TenantId, task.CreatedById, $"Aşama: {stage}",
+                    $"{names.GetValueOrDefault(user.UserId())}: {task.Title}", task.Id, NotificationKinds.StageChanged);
+            else if (isManager && !isAssignee && task.AssigneeId is { } a && stage is not null)
+                await notify.NotifyAsync(task.TenantId, a, $"Aşama: {stage}", task.Title, task.Id, NotificationKinds.StageChanged);
             await notify.TaskChangedAsync(task.TenantId, dto);
             return Results.Ok(dto);
         });
@@ -317,7 +352,9 @@ public static class TaskEndpoints
     {
         var errors = TaskRules.ValidateCreationFields(type, req.CustomFieldValues);
         if (string.IsNullOrWhiteSpace(req.Title)) errors.Add("Başlık zorunlu.");
-        if (req.Latitude is < -90 or > 90 || req.Longitude is < -180 or > 180 || (req.Latitude == 0 && req.Longitude == 0))
+        if (req.Latitude is < -90 or > 90 || req.Longitude is < -180 or > 180)
+            errors.Add("Geçerli bir konum seçin.");
+        else if (type.RequiresVisit && req.Latitude == 0 && req.Longitude == 0)
             errors.Add("Geçerli bir konum seçin.");
         if (req.ScheduledStart > req.ScheduledEnd) errors.Add("Bitiş zamanı başlangıçtan önce olamaz.");
         return errors;
@@ -357,5 +394,5 @@ public static class TaskEndpoints
     }
 }
 
-public record TaskQueryParams(WorkTaskStatus[]? Statuses, Guid? AssigneeId, Guid? TaskTypeId, DateTime? From, DateTime? To,
+public record TaskQueryParams(WorkTaskStatus[]? Statuses, Guid? AssigneeId, Guid? TaskTypeId, string? Stage, DateTime? From, DateTime? To,
     string? Search, bool OnlyOpen = false, bool Overdue = false, string? Sort = null, bool? Desc = false, int? Page = 1, int? PageSize = 50);

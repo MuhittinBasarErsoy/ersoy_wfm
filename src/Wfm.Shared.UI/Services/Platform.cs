@@ -64,6 +64,7 @@ public interface IFieldService
     Task SyncAsync();
 
     Task ChangeStatusAsync(Guid taskId, ChangeStatusRequest request);
+    Task ChangeStageAsync(Guid taskId, ChangeStageRequest request);
     Task AddAttachmentAsync(Guid taskId, CapturedFile file, AttachmentKind kind, GeoPoint? location);
     Task RemoveAttachmentAsync(Guid taskId, Guid attachmentId);
 

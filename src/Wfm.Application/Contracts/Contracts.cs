@@ -36,10 +36,13 @@ public record SaveTeamRequest(string Name, string? Description);
 
 // ---------- Task types ----------
 public record TaskTypeDto(Guid Id, string Name, string? Description, string Icon, string Color, bool IsActive,
-    List<FieldDefinition> Fields, CompletionRequirements Completion);
+    List<FieldDefinition> Fields, CompletionRequirements Completion, List<string>? Stages = null, bool RequiresVisit = true)
+{
+    public List<string> Stages { get; init; } = Stages ?? [];
+}
 
 public record SaveTaskTypeRequest(string Name, string? Description, string Icon, string Color, bool IsActive,
-    List<FieldDefinition> Fields, CompletionRequirements Completion);
+    List<FieldDefinition> Fields, CompletionRequirements Completion, List<string>? Stages = null, bool RequiresVisit = true);
 
 // ---------- Tasks ----------
 public record WorkTaskDto
@@ -53,6 +56,8 @@ public record WorkTaskDto
     public string? Description { get; init; }
     public TaskPriority Priority { get; init; }
     public WorkTaskStatus Status { get; init; }
+    /// <summary>Görev tipinde tanımlı ara aşama (ör. "Okunda").</summary>
+    public string? Stage { get; init; }
     public Guid? AssigneeId { get; init; }
     public string? AssigneeName { get; init; }
     public Guid? TeamId { get; init; }
@@ -75,6 +80,9 @@ public record WorkTaskDto
     /// <summary>Planlanan bitiş zamanı geçtiği hâlde açık.</summary>
     public bool IsOverdue => Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)
                              && ScheduledEnd is { } end && end < DateTime.UtcNow;
+
+    /// <summary>Masa başı görevlerde konum seçilmemiş olabilir; haritada gösterilmez.</summary>
+    public bool HasLocation => Latitude != 0 || Longitude != 0;
 }
 
 public record WorkTaskDetailDto : WorkTaskDto
@@ -85,7 +93,7 @@ public record WorkTaskDetailDto : WorkTaskDto
 }
 
 public record TaskEventDto(Guid Id, Guid UserId, string? UserName, WorkTaskStatus FromStatus, WorkTaskStatus ToStatus,
-    string? Note, double? Latitude, double? Longitude, DateTime CreatedAt);
+    string? Note, double? Latitude, double? Longitude, DateTime CreatedAt, string? Stage = null);
 
 public record AttachmentDto(Guid Id, AttachmentKind Kind, string FileName, string ContentType, string Url,
     double? Latitude, double? Longitude, DateTime CapturedAt, Guid UploadedById);
@@ -112,6 +120,9 @@ public record SaveWorkTaskRequest
 
 public record AssignRequest(Guid? AssigneeId);
 
+/// <summary>Ara aşamayı değiştirir; Stage null/boş ise aşama temizlenir.</summary>
+public record ChangeStageRequest(string? Stage, string? Note = null, DateTime? ClientTimestamp = null);
+
 public record ChangeStatusRequest
 {
     public WorkTaskStatus Status { get; set; }
@@ -129,6 +140,7 @@ public record TaskQuery
     public List<WorkTaskStatus>? Statuses { get; set; }
     public Guid? AssigneeId { get; set; }
     public Guid? TaskTypeId { get; set; }
+    public string? Stage { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
     public string? Search { get; set; }
