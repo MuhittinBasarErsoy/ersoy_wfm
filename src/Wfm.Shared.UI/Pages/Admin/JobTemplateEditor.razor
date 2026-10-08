@@ -1,0 +1,126 @@
+@page "/job-templates/new"
+@page "/job-templates/{Id:guid}"
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
+
+<RequirePolicy Policy="@Policies.ManageTasks">
+    <PageHeader Title="@(Id is null ? "Yeni iş şablonu" : (string.IsNullOrWhiteSpace(_name) ? "İş şablonu" : _name))" BackHref="/job-templates"
+                BackLabel="Şablonlara dön" Subtitle="@(Dirty ? "Kaydedilmemiş değişiklikler var" : null)">
+        <Actions>
+            @if (Id is not null)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteAsync" Disabled="_busy">Sil</MudButton>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+        </Actions>
+    </PageHeader>
+
+    @if (!_loaded)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        <MudPaper Elevation="1" Class="pa-4 mb-3">
+            <div class="d-flex gap-3 flex-wrap">
+                <MudTextField T="string" @bind-Value="_name" Label="Şablon adı *" Variant="Variant.Outlined" Placeholder="ör. Evrak gönderimi"
+                              Style="flex:1;min-width:220px" />
+                <MudTextField T="string" @bind-Value="_description" Label="Açıklama" Variant="Variant.Outlined" Style="flex:2;min-width:260px" />
+            </div>
+        </MudPaper>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><b>Akış</b></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">
+                Adım kartlarını sütunlar arasında sürükleyin. Aynı sütundaki adımlar aynı anda yürür; sağdaki sütun, soldakinin tüm adımları bitince başlar.
+                "Kim yapacak?" varsayılandır, iş başlatırken değiştirilebilir.
+            </MudText>
+            <FlowBuilder Steps="_steps" Types="_types" Workers="_workers" StepsChanged="StateHasChanged" />
+        </MudPaper>
+        @if (_errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" Dense role="alert">
+                @foreach (var e in _errors) { <div>@e</div> }
+            </MudAlert>
+        }
+    }
+</RequirePolicy>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private string _name = "";
+    private string? _description;
+    private List<JobStepInput> _steps = [];
+    private List<TaskTypeDto> _types = [];
+    private List<UserDto> _workers = [];
+    private List<string> _errors = [];
+    private bool _loaded, _busy;
+    private string _snapshot = "";
+
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(new { _name, _description, _steps });
+    private bool Dirty => _loaded && Snapshot() != _snapshot;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var types = Api.GetTaskTypesAsync();
+        var workers = Api.GetUsersAsync(Roles.FieldWorker);
+        if (Id is { } id)
+        {
+            var t = await Api.GetJobTemplateAsync(id);
+            _name = t.Name;
+            _description = t.Description;
+            _steps = t.Steps;
+        }
+        _types = await types;
+        _workers = await workers;
+        _snapshot = Snapshot();
+        _loaded = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _errors.Clear();
+        if (string.IsNullOrWhiteSpace(_name)) _errors.Add("Şablon adı zorunlu.");
+        if (_steps.Count == 0) _errors.Add("En az bir adım ekleyin.");
+        if (_steps.Any(s => string.IsNullOrWhiteSpace(s.Title))) _errors.Add("Her adımın bir başlığı olmalı.");
+        if (_errors.Count > 0) return;
+
+        _busy = true;
+        try
+        {
+            var req = new SaveJobTemplateRequest(_name, _description, _steps);
+            var saved = Id is { } id ? await Api.UpdateJobTemplateAsync(id, req) : await Api.CreateJobTemplateAsync(req);
+            _steps = saved.Steps;
+            _snapshot = Snapshot();
+            Snackbar.Add("Şablon kaydedildi.", Severity.Success);
+            if (Id is null) Nav.NavigateTo("/job-templates");
+        }
+        catch (ApiException ex) { _errors.Add(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Şablon silinsin mi?", "Bu şablonla başlatılmış işler etkilenmez.", "Sil", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeleteJobTemplateAsync(Id!.Value);
+            _snapshot = Snapshot();
+            _loaded = false; // gezinti onayı sorulmasın
+            Nav.NavigateTo("/job-templates");
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (!Dirty) return;
+        if (await Dialogs.ShowMessageBoxAsync("Değişiklikler kaydedilmedi", "Sayfadan çıkarsanız değişiklikler kaybolacak.", "Çık",
+                cancelText: "Kalmaya devam et") != true)
+            ctx.PreventNavigation();
+    }
+}

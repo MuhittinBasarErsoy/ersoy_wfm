@@ -191,9 +191,11 @@ public static class FieldEndpoints
             var shift = await db.Shifts.Where(s => s.UserId == uid && s.EndedAt == null)
                 .Select(s => new ShiftDto(s.Id, s.StartedAt, s.EndedAt)).FirstOrDefaultAsync();
 
+            var jobs = await JobEndpoints.LoadContextsAsync(db, tasks, names);
+
             return new SyncResponse(DateTime.UtcNow,
                 tasks.OrderByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt)
-                    .Select(t => t.ToDetailDto(names, signer)).ToList(),
+                    .Select(t => t.ToDetailDto(names, signer) with { Job = jobs.GetValueOrDefault(t.Id) }).ToList(),
                 types.Select(t => t.ToDto()).ToList(), notifications, shift);
         }).RequireAuthorization();
     }

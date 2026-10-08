@@ -8,6 +8,27 @@ using FieldType = Wfm.Domain.Enums.FieldType;
 
 namespace Wfm.Shared.UI.Services;
 
+/// <summary>Çok adımlı işlerin görünümü.</summary>
+public static class JobUi
+{
+    public static string Status(JobStatus s) => s switch
+    {
+        JobStatus.Active => "Yürüyor",
+        JobStatus.OnHold => "Beklemede",
+        JobStatus.Completed => "Tamamlandı",
+        JobStatus.Cancelled => "İptal",
+        _ => s.ToString()
+    };
+
+    public static (string Color, string Icon) Look(JobStatus s) => s switch
+    {
+        JobStatus.Active => ("#0277bd", "play_circle"),
+        JobStatus.OnHold => ("#ef6c00", "pause_circle"),
+        JobStatus.Completed => ("#2e7d32", "check_circle"),
+        _ => ("#424242", "cancel")
+    };
+}
+
 public static class Ui
 {
     /// <summary>Ürün adı: giriş ekranı, sekme başlıkları ve mobil uygulama aynı adı kullanır.</summary>
@@ -79,13 +100,16 @@ public static class Ui
         NotificationKinds.Comment => Icons.Material.Filled.ChatBubbleOutline,
         NotificationKinds.StageChanged => Icons.Material.Filled.Flag,
         NotificationKinds.PasswordReset => Icons.Material.Filled.LockReset,
+        NotificationKinds.JobOnHold => Icons.Material.Filled.PauseCircle,
+        NotificationKinds.JobCompleted => Icons.Material.Filled.TaskAlt,
         _ => Icons.Material.Filled.Notifications
     };
 
     public static Color NotificationColor(string kind) => kind switch
     {
         NotificationKinds.Cancelled or NotificationKinds.Rejected or NotificationKinds.Failed => Color.Error,
-        NotificationKinds.Overdue or NotificationKinds.PasswordReset => Color.Warning,
+        NotificationKinds.Overdue or NotificationKinds.PasswordReset or NotificationKinds.JobOnHold => Color.Warning,
+        NotificationKinds.JobCompleted => Color.Success,
         NotificationKinds.Comment => Color.Secondary,
         _ => Color.Primary
     };

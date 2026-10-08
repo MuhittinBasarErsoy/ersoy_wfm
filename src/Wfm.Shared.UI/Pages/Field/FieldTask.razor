@@ -41,6 +41,8 @@ else
         <OverdueBadge Task="t" />
     </div>
 
+    <JobContextCard Task="t" />
+
     @if (Type is { Stages.Count: > 0 } st && TaskStatusFlow.AllowsStage(t.Status))
     {
         <MudPaper Elevation="1" Class="pa-3 mb-3 wfm-stage-picker">

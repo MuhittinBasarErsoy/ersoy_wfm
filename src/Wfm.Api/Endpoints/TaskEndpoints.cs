@@ -47,7 +47,9 @@ public static class TaskEndpoints
         {
             var task = await LoadDetail(Scope(db.Tasks, ctx.User), id);
             if (task is null) return Results.NotFound();
-            return Results.Ok(task.ToDetailDto(await dir.NamesAsync(ctx.User.TenantId()), signer));
+            var names = await dir.NamesAsync(ctx.User.TenantId());
+            var jobs = await JobEndpoints.LoadContextsAsync(db, [task], names);
+            return Results.Ok(task.ToDetailDto(names, signer) with { Job = jobs.GetValueOrDefault(task.Id) });
         });
 
         g.MapPost("/", async (SaveWorkTaskRequest req, HttpContext ctx, WfmDbContext db, UserDirectory dir,
@@ -75,7 +77,7 @@ public static class TaskEndpoints
         }).RequireAuthorization(Policies.ManageTasks);
 
         g.MapPut("/{id:guid}", async (Guid id, SaveWorkTaskRequest req, HttpContext ctx, WfmDbContext db, UserDirectory dir,
-            NotificationService notify) =>
+            NotificationService notify, JobProgressService jobs) =>
         {
             var task = await db.Tasks.Include(t => t.TaskType).FirstOrDefaultAsync(t => t.Id == id);
             if (task is null) return Results.NotFound();
@@ -93,7 +95,13 @@ public static class TaskEndpoints
             if (task.TaskTypeId != req.TaskTypeId) task.Stage = null; // eski tipin aşaması yeni tipte geçersiz
             Apply(task, req);
             task.TaskType = type;
-            if (req.AssigneeId != previousAssignee) task.Assign(req.AssigneeId, ctx.User.UserId());
+            if (await jobs.IsPendingStepAsync(task))
+            {
+                // Sırası gelmemiş iş adımı: seçilen kişi sırası gelince atanır.
+                if (req.AssigneeId is not null) task.PlannedAssigneeId = req.AssigneeId;
+                req.AssigneeId = previousAssignee;
+            }
+            else if (req.AssigneeId != previousAssignee) task.Assign(req.AssigneeId, ctx.User.UserId());
             await db.SaveChangesAsync();
 
             var dto = task.ToDto(await dir.NamesAsync(task.TenantId));
@@ -104,12 +112,22 @@ public static class TaskEndpoints
         }).RequireAuthorization(Policies.ManageTasks);
 
         g.MapPost("/{id:guid}/assign", async (Guid id, AssignRequest req, HttpContext ctx, WfmDbContext db, UserDirectory dir,
-            NotificationService notify) =>
+            NotificationService notify, JobProgressService jobs) =>
         {
             var task = await db.Tasks.Include(t => t.TaskType).FirstOrDefaultAsync(t => t.Id == id);
             if (task is null) return Results.NotFound();
             if (await InvalidAssignee(db, ctx.User, req.AssigneeId))
                 return Results.BadRequest(new ApiError("Atanan kullanıcı bu şirkette bir saha çalışanı değil."));
+
+            if (await jobs.IsPendingStepAsync(task))
+            {
+                // Sırası gelmemiş iş adımı: yalnızca planlanan kişi değişir, sırası gelince atanır.
+                task.PlannedAssigneeId = req.AssigneeId;
+                await db.SaveChangesAsync();
+                var pending = task.ToDto(await dir.NamesAsync(task.TenantId));
+                await notify.TaskChangedAsync(task.TenantId, pending);
+                return Results.Ok(pending);
+            }
 
             var previous = task.AssigneeId;
             var ev = task.Assign(req.AssigneeId, ctx.User.UserId());
@@ -122,11 +140,12 @@ public static class TaskEndpoints
             if (previous is { } p && p != req.AssigneeId)
                 await notify.NotifyAsync(task.TenantId, p, "Görev geri alındı", task.Title, task.Id, NotificationKinds.Unassigned);
             await notify.TaskChangedAsync(task.TenantId, dto, previous);
+            await jobs.AdvanceAsync(task.JobId, ctx.User.UserId()); // reddedilen adım yeniden atandıysa iş devam eder
             return Results.Ok(dto);
         }).RequireAuthorization(Policies.ManageTasks);
 
         g.MapPost("/{id:guid}/status", async (Guid id, ChangeStatusRequest req, HttpContext ctx, WfmDbContext db,
-            UserDirectory dir, NotificationService notify) =>
+            UserDirectory dir, NotificationService notify, JobProgressService jobs) =>
         {
             var user = ctx.User;
             var task = await db.Tasks.Include(t => t.TaskType).Include(t => t.Attachments).FirstOrDefaultAsync(t => t.Id == id);
@@ -174,6 +193,7 @@ public static class TaskEndpoints
                     $"{names.GetValueOrDefault(user.UserId())}: {task.Title}{(string.IsNullOrEmpty(req.Note) ? "" : " – " + req.Note)}", task.Id,
                     req.Status == WorkTaskStatus.Rejected ? NotificationKinds.Rejected : NotificationKinds.Failed);
             await notify.TaskChangedAsync(task.TenantId, dto);
+            await jobs.AdvanceAsync(task.JobId, user.UserId()); // iş adımıysa: sıra bittiyse sonraki adımlar başlar
             return Results.Ok(dto);
         });
 
@@ -293,7 +313,7 @@ public static class TaskEndpoints
             return Results.Ok(dto);
         });
 
-        g.MapDelete("/{id:guid}", async (Guid id, WfmDbContext db, IFileStorage files) =>
+        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, WfmDbContext db, IFileStorage files, JobProgressService jobs) =>
         {
             var task = await db.Tasks.Include(t => t.Attachments).FirstOrDefaultAsync(t => t.Id == id);
             if (task is null) return Results.NotFound();
@@ -302,6 +322,7 @@ public static class TaskEndpoints
             foreach (var a in task.Attachments) await files.DeleteAsync(a.StoragePath);
             db.Tasks.Remove(task);
             await db.SaveChangesAsync();
+            await jobs.AdvanceAsync(task.JobId, ctx.User.UserId());
             return Results.NoContent();
         }).RequireAuthorization(Policies.ManageTasks);
     }
@@ -360,7 +381,7 @@ public static class TaskEndpoints
         return errors;
     }
 
-    private static async Task<bool> InvalidAssignee(WfmDbContext db, ClaimsPrincipal user, Guid? assigneeId)
+    internal static async Task<bool> InvalidAssignee(WfmDbContext db, ClaimsPrincipal user, Guid? assigneeId)
     {
         if (assigneeId is null) return false;
         var tid = user.TenantId();

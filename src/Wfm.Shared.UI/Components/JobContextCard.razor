@@ -1,0 +1,46 @@
+@* Görev bir işin adımıysa: işin adı, kaçıncı adım olduğu ve önceki adımların sonucu/notu. *@
+@if (Task.Job is { } job)
+{
+    <MudPaper Elevation="1" Class="@($"pa-3 mb-3 {Class}")" Style="border-left:4px solid var(--mud-palette-primary)">
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Primary" Size="Size.Small" aria-hidden="true" />
+            <MudText Typo="Typo.body2" Style="flex:1">
+                @if (LinkToJob)
+                {
+                    <a href="/jobs/@job.JobId" style="color:inherit"><b>@job.Title</b></a>
+                }
+                else
+                {
+                    <b>@job.Title</b>
+                }
+                · @(job.StepOrder > 0 ? $"Adım {job.StepOrder}/{job.OrderCount}" : "eski deneme")
+            </MudText>
+        </div>
+        @if (Task.Status == WorkTaskStatus.Draft && Task.AssigneeId is null && job.StepOrder > 0)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">
+                Önceki adımlar bitince @(Task.PlannedAssigneeName is { } p ? $"{p} kişisine" : "seçilecek kişiye") otomatik atanacak.
+            </MudText>
+        }
+        @foreach (var s in job.PreviousSteps)
+        {
+            <div class="d-flex align-start gap-2 mt-2">
+                <span class="wfm-flow-num" style="flex:0 0 auto">@s.Order</span>
+                <div style="flex:1;min-width:0">
+                    <MudText Typo="Typo.body2">@s.Title @(s.AssigneeName is null ? "" : $"· {s.AssigneeName}")</MudText>
+                    @if (!string.IsNullOrWhiteSpace(s.Note))
+                    {
+                        <MudText Typo="Typo.caption" Style="display:block;font-style:italic">"@s.Note"</MudText>
+                    }
+                </div>
+                <StatusChip Status="s.Status" />
+            </div>
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter, EditorRequired] public WorkTaskDetailDto Task { get; set; } = default!;
+    [Parameter] public bool LinkToJob { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

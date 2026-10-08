@@ -32,10 +32,38 @@ public static class DbSeeder
                 password: adminPassword);
         }
 
-        if (!demoData || await db.Tenants.AnyAsync(t => t.Slug == "cicek-dunyasi")) return;
+        if (!demoData) return;
+        if (!await db.Tenants.AnyAsync(t => t.Slug == "cicek-dunyasi"))
+        {
+            await SeedFlorist(db, users);
+            await SeedRepair(db, users);
+        }
+        await SeedJobTemplate(db, users);
+    }
 
-        await SeedFlorist(db, users);
-        await SeedRepair(db, users);
+    /// <summary>Çok adımlı iş örneği: evrak önce fotokopilenir, sonra postaneye götürülür, en son mail atılır.
+    /// Önceden oluşturulmuş demo veritabanlarına da eklenir.</summary>
+    private static async Task SeedJobTemplate(WfmDbContext db, UserManager<AppUser> users)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == "hizli-tamir");
+        if (tenant is null || await db.JobTemplates.IgnoreQueryFilters().AnyAsync(j => j.TenantId == tenant.Id)) return;
+        var paperwork = await db.TaskTypes.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.TenantId == tenant.Id && t.Name == "Evrak İşleri");
+        var office = await users.FindByEmailAsync("teknisyen2@tamir.local");
+        var tech = await users.FindByEmailAsync("teknisyen1@tamir.local");
+        if (paperwork is null || office is null || tech is null) return;
+
+        db.JobTemplates.Add(new JobTemplate
+        {
+            TenantId = tenant.Id, Name = "Evrak gönderimi",
+            Description = "Evrak fotokopilenir, postaneden gönderilir, müşteriye bilgi maili atılır.",
+            Steps =
+            [
+                new() { Order = 1, TaskTypeId = paperwork.Id, Title = "Fotokopi çek", DefaultAssigneeId = office.Id },
+                new() { Order = 2, TaskTypeId = paperwork.Id, Title = "Postaneye götür", DefaultAssigneeId = tech.Id },
+                new() { Order = 3, TaskTypeId = paperwork.Id, Title = "Gönderi maili at", DefaultAssigneeId = office.Id },
+            ]
+        });
+        await db.SaveChangesAsync();
     }
 
     private static async Task SeedFlorist(WfmDbContext db, UserManager<AppUser> users)

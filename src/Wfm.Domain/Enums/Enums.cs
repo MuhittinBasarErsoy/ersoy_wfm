@@ -38,3 +38,12 @@ public enum FieldType
     TextArea = 5,
     Phone = 6
 }
+
+public enum JobStatus
+{
+    Active = 0,
+    /// <summary>Bir adım başarısız oldu veya reddedildi; yönetici karar verene kadar akış durur.</summary>
+    OnHold = 1,
+    Completed = 2,
+    Cancelled = 3
+}

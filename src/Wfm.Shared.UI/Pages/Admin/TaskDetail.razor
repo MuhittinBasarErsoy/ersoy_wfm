@@ -59,6 +59,8 @@ else
         </Actions>
     </PageHeader>
 
+    <JobContextCard Task="t" LinkToJob />
+
     @if (t.Status is WorkTaskStatus.Draft or WorkTaskStatus.Rejected && Me.Can(Policies.ManageTasks))
     {
         <MudAlert Severity="Severity.Warning" Class="mb-3" Dense>

@@ -1,0 +1,115 @@
+@page "/jobs"
+@implements IDisposable
+@inject WfmApiClient Api
+@inject WfmRealtime Realtime
+@inject UserContext Me
+@inject NavigationManager Nav
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    <PageHeader Title="İşler" Subtitle="Birden fazla adımdan oluşan işler: her adım sırası gelince ilgili çalışana otomatik atanır.">
+        <Actions>
+            <MudSelect T="JobStatus?" Value="_status" ValueChanged="StatusChanged" Label="Durum" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Clearable Style="min-width:150px">
+                @foreach (var s in Enum.GetValues<JobStatus>())
+                {
+                    <MudSelectItem T="JobStatus?" Value="s">@JobUi.Status(s)</MudSelectItem>
+                }
+            </MudSelect>
+            @if (Me.Can(Policies.ManageTasks))
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AccountTree" Href="/job-templates">Şablonlar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/jobs/new">Yeni iş</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    @if (_jobs is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else if (_jobs.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.AccountTree" Title="@(_status is null ? "Henüz iş yok" : "Bu durumda iş yok")"
+                    Text="Bir iş, farklı kişilerin sırayla yaptığı adımlardan oluşur (ör. fotokopi → postane → mail).">
+            @if (Me.Can(Policies.ManageTasks))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/jobs/new">Yeni iş başlat</MudButton>
+            }
+        </EmptyState>
+    }
+    else
+    {
+        <MudTable T="JobDto" Items="_jobs" Hover Dense Elevation="1" OnRowClick="@(e => Nav.NavigateTo($"/jobs/{e.Item!.Id}"))" RowStyle="cursor:pointer"
+                  Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>İş</MudTh>
+                <MudTh>Durum</MudTh>
+                <MudTh Style="min-width:180px">İlerleme</MudTh>
+                <MudTh>Şu an kimde</MudTh>
+                <MudTh>Güncellendi</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="İş">
+                    <a href="/jobs/@context.Id" style="color:inherit;text-decoration:none"><b>@context.Title</b></a>
+                    @if (!string.IsNullOrWhiteSpace(context.CustomerName))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">@context.CustomerName</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Durum"><JobStatusChip Status="context.Status" /></MudTd>
+                <MudTd DataLabel="İlerleme">
+                    <div class="d-flex align-center gap-2">
+                        <MudProgressLinear Value="@(context.StepCount == 0 ? 0 : 100.0 * context.DoneSteps / context.StepCount)" Rounded Size="Size.Medium"
+                                           Color="@(context.Status == JobStatus.OnHold ? Color.Warning : Color.Primary)" Style="flex:1" />
+                        <MudText Typo="Typo.caption" Style="white-space:nowrap">@context.DoneSteps/@context.StepCount adım</MudText>
+                    </div>
+                    @if (context.Status is JobStatus.Active or JobStatus.OnHold)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.CurrentOrder. sıra / @context.OrderCount</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Şu an kimde">@(context.ActiveAssignees.Count == 0 ? "—" : string.Join(", ", context.ActiveAssignees))</MudTd>
+                <MudTd DataLabel="Güncellendi">@Ui.Ago(context.UpdatedAt)</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</RequirePolicy>
+
+@code {
+    private List<JobDto>? _jobs;
+    private JobStatus? _status;
+    private CancellationTokenSource? _reload;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        Realtime.TaskChanged += OnTaskChanged;
+    }
+
+    private async Task StatusChanged(JobStatus? s)
+    {
+        _status = s;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _jobs = await Api.GetJobsAsync(new JobQuery(_status));
+
+    // Adımlar değiştikçe listeyi yenile (art arda gelen değişiklikler tek istekte toplanır).
+    private void OnTaskChanged(WorkTaskDto t)
+    {
+        if (t.JobId is null) return;
+        _reload?.Cancel();
+        var cts = _reload = new CancellationTokenSource();
+        _ = InvokeAsync(async () =>
+        {
+            try { await Task.Delay(500, cts.Token); } catch (TaskCanceledException) { return; }
+            try { await LoadAsync(); StateHasChanged(); } catch (ApiException) { }
+        });
+    }
+
+    public void Dispose()
+    {
+        Realtime.TaskChanged -= OnTaskChanged;
+        _reload?.Cancel();
+    }
+}
