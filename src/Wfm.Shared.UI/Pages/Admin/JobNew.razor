@@ -1,6 +1,7 @@
 @page "/jobs/new"
 @inject WfmApiClient Api
 @inject WfmJs Js
+@inject IGeolocationService Geo
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject IDialogService Dialogs
@@ -103,6 +104,7 @@
     private List<UserDto> _workers = [];
     private List<string> _errors = [];
     private GeoPoint _center = new(41.0082, 28.9784);
+    private GeoPoint? _userPosition;
     private LeafletMap? _map;
     private readonly Dictionary<string, AddressResult> _lastResults = [];
     private bool _loaded, _busy, _tried, _saved;
@@ -144,7 +146,11 @@
 
     private async Task MapReady()
     {
-        if (HasLocation && _map is not null) await _map.SetPickAsync(_model.Latitude, _model.Longitude);
+        if (_map is null) return;
+        if (HasLocation) { await _map.SetPickAsync(_model.Latitude, _model.Longitude); return; }
+        // Konum seçilmemişse harita kullanıcının bulunduğu yerden başlar; izin yoksa şirket merkezinde kalır.
+        _userPosition ??= await Geo.GetCurrentAsync();
+        if (_userPosition is { } p && !HasLocation) await _map.SetViewAsync(p.Latitude, p.Longitude, 14);
     }
 
     private async Task<IEnumerable<string>> SearchAsync(string text, CancellationToken ct)

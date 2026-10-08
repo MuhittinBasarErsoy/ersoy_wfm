@@ -113,7 +113,12 @@ export async function searchAddress(query) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=tr&q=${encodeURIComponent(query)}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return [];
-    return (await res.json()).map(r => ({ address: r.display_name, latitude: parseFloat(r.lat), longitude: parseFloat(r.lon) }));
+    // Aynı adlı kayıtlar (ör. bir sokağın iki parçası) tekilleştirilir: öneri listesi metne göre anahtarlanır,
+    // yinelenen metin Blazor'da "same key" hatasıyla devreyi çökertir.
+    const seen = new Set();
+    return (await res.json())
+        .filter(r => !seen.has(r.display_name) && seen.add(r.display_name))
+        .map(r => ({ address: r.display_name, latitude: parseFloat(r.lat), longitude: parseFloat(r.lon) }));
 }
 
 export async function reverseGeocode(lat, lng) {
