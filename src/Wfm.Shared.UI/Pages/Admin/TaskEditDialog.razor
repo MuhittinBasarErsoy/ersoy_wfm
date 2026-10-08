@@ -1,5 +1,6 @@
 @inject WfmApiClient Api
 @inject WfmJs Js
+@inject IGeolocationService Geo
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
 
@@ -25,7 +26,7 @@
             @switch (_step)
             {
                 case 0:
-                    <MudSelect T="Guid" Label="Görev tipi *" Variant="Variant.Outlined" Value="_model.TaskTypeId" ValueChanged="TypeChanged" AnchorOrigin="Origin.BottomCenter">
+                    <MudSelect T="Guid" Label="Görev tipi *" Variant="Variant.Outlined" Value="_model.TaskTypeId" ValueChanged="TypeChanged">
                         @foreach (var t in Types)
                         {
                             <MudSelectItem T="Guid" Value="t.Id">@t.Name</MudSelectItem>
@@ -238,6 +239,7 @@
     private DateTime? _date;
     private TimeSpan? _start, _end;
     private LeafletMap? _map;
+    private GeoPoint? _userPosition;
     private List<string> _errors = [];
     private bool _busy;
     private string _snapshot = "";
@@ -319,7 +321,11 @@
 
     private async Task MapReady()
     {
-        if (HasLocation && _map is not null) await _map.SetPickAsync(_model.Latitude, _model.Longitude);
+        if (_map is null) return;
+        if (HasLocation) { await _map.SetPickAsync(_model.Latitude, _model.Longitude); return; }
+        // Konum seçilmemişse harita kullanıcının bulunduğu yerden başlar; izin yoksa şirket merkezinde kalır.
+        _userPosition ??= await Geo.GetCurrentAsync();
+        if (_userPosition is { } p && !HasLocation) await _map.SetViewAsync(p.Latitude, p.Longitude, 14);
     }
 
     private async Task<IEnumerable<string>> SearchAsync(string text, CancellationToken ct)

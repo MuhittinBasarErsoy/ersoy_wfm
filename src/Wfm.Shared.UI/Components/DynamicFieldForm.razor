@@ -22,7 +22,7 @@
             break;
         case FieldType.Select:
             <MudSelect T="string" Label="@label" Variant="Variant.Outlined" Class="mb-3" Clearable="!f.Required" Error="missing" ErrorText="Zorunlu alan"
-                       Value="@Get(key)" ValueChanged="@(v => Set(key, v))" AnchorOrigin="Origin.BottomCenter">
+                       Value="@Get(key)" ValueChanged="@(v => Set(key, v))">
                 @foreach (var o in f.Options)
                 {
                     <MudSelectItem T="string" Value="@o">@o</MudSelectItem>
