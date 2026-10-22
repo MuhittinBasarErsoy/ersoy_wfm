@@ -1,44 +1,28 @@
-# Üretim: SQL Server + API + Web, Tailscale Funnel ile herkese açık HTTPS.
-# Sunucuda hiçbir port açılmaz; web ve API kendi Tailscale düğümleriyle yayınlanır:
-#   Web : https://${TS_WEB_HOSTNAME}.${TS_TAILNET}
-#   API : https://${TS_API_HOSTNAME}.${TS_TAILNET}   (mobil uygulama buraya bağlanır)
+# Üretim: SQL Server + API + Web, Caddy ile herkese açık HTTPS (Let's Encrypt, otomatik yenilenir).
+# Dışarıya yalnızca Caddy'nin 80/443 portları açılır; veritabanı, API ve web Docker ağı içinde kalır.
+#   Web : https://${WEB_HOST}
+#   API : https://${API_HOST}   (mobil uygulama buraya bağlanır)
 # Ayarlar deploy/.env dosyasından gelir (.env.example'a bakın).
 name: wfm
 
-x-ts: &ts
-  image: tailscale/tailscale:latest
-  restart: unless-stopped
-
 services:
-  ts-web:
-    <<: *ts
-    container_name: wfm-ts-web
-    depends_on: [web]
+  caddy:
+    image: caddy:2
+    container_name: wfm-caddy
+    restart: unless-stopped
+    depends_on: [web, api]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
     environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:?TS_AUTHKEY gerekli}
-      TS_HOSTNAME: ${TS_WEB_HOSTNAME:-wfm}
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SERVE_CONFIG: /config/serve.json
-      # Kullanıcı alanı ağı: /dev/net/tun ve NET_ADMIN gerektirmez.
-      TS_USERSPACE: "true"
+      WEB_HOST: ${WEB_HOST:?WEB_HOST gerekli}
+      API_HOST: ${API_HOST:?API_HOST gerekli}
     volumes:
-      # Düğüm kimliği; silinirse tailnet'e yeni cihaz olarak katılır.
-      - ts-web-state:/var/lib/tailscale
-      - ./tailscale/serve-web.json:/config/serve.json:ro
-
-  ts-api:
-    <<: *ts
-    container_name: wfm-ts-api
-    depends_on: [api]
-    environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:?TS_AUTHKEY gerekli}
-      TS_HOSTNAME: ${TS_API_HOSTNAME:-wfm-api}
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SERVE_CONFIG: /config/serve.json
-      TS_USERSPACE: "true"
-    volumes:
-      - ts-api-state:/var/lib/tailscale
-      - ./tailscale/serve-api.json:/config/serve.json:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Sertifikalar; silinirse yeniden alınır (Let's Encrypt sınırlarına dikkat).
+      - caddy-data:/data
+      - caddy-config:/config
 
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -48,6 +32,8 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Express
       MSSQL_SA_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD gerekli}
+      # 4 GB RAM'li sunucuda API, web ve derlemeye yer kalsın.
+      MSSQL_MEMORY_LIMIT_MB: ${DB_MEMORY_MB:-1536}
       TZ: Europe/Istanbul
     volumes:
       - db-data:/var/opt/mssql
@@ -71,7 +57,7 @@ services:
     environment:
       ConnectionStrings__Wfm: "Server=db;Database=Wfm;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true"
       Jwt__Key: ${JWT_KEY:?JWT_KEY gerekli}
-      Cors__Origins__0: https://${TS_WEB_HOSTNAME:-wfm}.${TS_TAILNET:?TS_TAILNET gerekli}
+      Cors__Origins__0: https://${WEB_HOST}
       Seed__DemoData: ${DEMO_DATA:-false}
       Seed__AdminPassword: ${ADMIN_PASSWORD:?ADMIN_PASSWORD gerekli}
       TZ: Europe/Istanbul
@@ -90,7 +76,7 @@ services:
     environment:
       # Sunucu tarafı çağrılar Docker ağı içinden; tarayıcıdaki dosya bağlantıları dış adresten.
       Api__BaseUrl: http://api:8080
-      Api__PublicUrl: https://${TS_API_HOSTNAME:-wfm-api}.${TS_TAILNET}
+      Api__PublicUrl: https://${API_HOST}
       DataProtection__KeysPath: /app/keys
       TZ: Europe/Istanbul
     volumes:
@@ -100,5 +86,5 @@ volumes:
   db-data:
   uploads:
   web-keys:
-  ts-web-state:
-  ts-api-state:
+  caddy-data:
+  caddy-config:

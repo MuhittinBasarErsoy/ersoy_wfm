@@ -24,7 +24,7 @@ arayüzlerle soyutlanmıştır.
 | `src/Wfm.Web` | Blazor Server host (dashboard) |
 | `src/Wfm.Mobile` | .NET MAUI Blazor Hybrid (Android, iOS; geliştirme için Windows) |
 | `tests/Wfm.Api.Tests` | Entegrasyon testleri (kiracı izolasyonu, roller, durum akışı, aşamalar, iş akışları, kanıt, konum) |
-| `deploy/` | Docker + Tailscale Funnel ile canlıya alma |
+| `deploy/` | Docker + Caddy (otomatik HTTPS) ile canlıya alma |
 | `sunum/` | Müşteri sunumu (`index.html`, `WFM-Sunum.pdf`) |
 
 ## Çalıştırma
@@ -57,7 +57,7 @@ Testler:
 dotnet test
 ```
 
-Canlıya alma (Ubuntu + Docker + Tailscale Funnel): [deploy/README.md](deploy/README.md)
+Canlıya alma (Ubuntu + Docker + Caddy): [deploy/README.md](deploy/README.md)
 
 ### Demo hesaplar (parola: `Demo123!`)
 

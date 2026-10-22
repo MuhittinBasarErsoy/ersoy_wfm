@@ -20,7 +20,7 @@ var keysPath = builder.Configuration["DataProtection:KeysPath"];
 if (!string.IsNullOrWhiteSpace(keysPath))
     builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keysPath)).SetApplicationName("Wfm.Web");
 
-// Ters vekil (tailscale serve/funnel) arkasında gerçek şema ve istemci IP'si.
+// Ters vekil (Caddy) arkasında gerçek şema ve istemci IP'si.
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;

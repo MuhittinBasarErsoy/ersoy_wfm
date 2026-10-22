@@ -1,0 +1,15 @@
+# Caddy, WEB_HOST ve API_HOST için Let's Encrypt sertifikasını kendisi alır ve yeniler.
+# Alan adlarının A kaydı sunucunun IP'sini göstermeli ve 80/443 portları açık olmalı.
+{$WEB_HOST} {
+	encode zstd gzip
+	reverse_proxy web:8080
+}
+
+{$API_HOST} {
+	encode zstd gzip
+	# Fotoğraf/imza yüklemeleri için gövde sınırı.
+	request_body {
+		max_size 50MB
+	}
+	reverse_proxy api:8080
+}
