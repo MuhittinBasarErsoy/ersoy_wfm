@@ -1,0 +1,259 @@
+@page "/patrol/routes/new"
+@page "/patrol/routes/{Id:guid}"
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
+
+<RequirePolicy Policy="@Policies.ManageTasks">
+    <PageHeader Title="@(Id is null ? "Yeni devriye rotası" : (string.IsNullOrWhiteSpace(_m.Name) ? "Devriye rotası" : _m.Name))" BackHref="/patrol"
+                BackLabel="Devriyeye dön" Subtitle="@(Dirty ? "Kaydedilmemiş değişiklikler var" : null)">
+        <Actions>
+            @if (Id is not null)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteAsync" Disabled="_busy">Sil</MudButton>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_busy">Kaydet</MudButton>
+        </Actions>
+    </PageHeader>
+
+    @if (!_loaded)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Rota</b></MudText>
+                    <MudTextField T="string" @bind-Value="_m.Name" Label="Rota adı *" Variant="Variant.Outlined" Placeholder="ör. Depo ve otopark turu" Class="mb-3" />
+                    <MudTextField T="string" @bind-Value="_m.Description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+                    <MudSelect T="Guid?" Value="@(_m.AssigneeId == Guid.Empty ? null : _m.AssigneeId)" ValueChanged="@(v => _m.AssigneeId = v ?? Guid.Empty)"
+                               ToStringFunc="@(id => _workers.FirstOrDefault(w => w.Id == id)?.FullName ?? "")"
+                               Label="Bekçi / çalışan *" Variant="Variant.Outlined" Class="mb-3">
+                        @foreach (var w in _workers)
+                        {
+                            <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSwitch T="bool" @bind-Value="_m.EnforceOrder" Color="Color.Primary"
+                               Label="@(_m.EnforceOrder ? "Sıra zorunlu (1 → 2 → 3 …)" : "Sıra serbest (her noktaya uğramak yeterli)")" />
+                    <MudSwitch T="bool" @bind-Value="_m.IsActive" Color="Color.Success" Label="@(_m.IsActive ? "Aktif" : "Pasif (tur oluşturulmaz)")" />
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1"><b>Zaman</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                        Her aralık için ayrı bir tur oluşur. Bitiş başlangıçtan küçükse (ör. 23:00–01:00) tur ertesi güne taşar.
+                    </MudText>
+                    <div class="d-flex flex-wrap gap-1 mb-3" role="group" aria-label="Günler">
+                        @foreach (var d in PatrolUi.Week)
+                        {
+                            var on = _m.Days.Count == 0 || _m.Days.Contains(d);
+                            <MudChip T="string" Color="@(on ? Color.Primary : Color.Default)" Variant="@(on ? Variant.Filled : Variant.Outlined)"
+                                     OnClick="@(() => ToggleDay(d))" aria-pressed="@on.ToString().ToLower()">@PatrolUi.DayShort(d)</MudChip>
+                        }
+                    </div>
+                    @for (var i = 0; i < _m.Windows.Count; i++)
+                    {
+                        var w = _m.Windows[i];
+                        <div class="d-flex gap-2 align-center mb-2">
+                            <MudTimePicker Label="Başlangıç" Time="w.Start.ToTimeSpan()" TimeChanged="@(t => w.Start = TimeOnly.FromTimeSpan(t ?? TimeSpan.Zero))"
+                                           Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" Editable Style="max-width:140px" />
+                            <MudTimePicker Label="Bitiş" Time="w.End.ToTimeSpan()" TimeChanged="@(t => w.End = TimeOnly.FromTimeSpan(t ?? TimeSpan.Zero))"
+                                           Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" Editable Style="max-width:140px" />
+                            @if (w.End <= w.Start)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">ertesi gün</MudText>
+                            }
+                            <MudSpacer />
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Aralığı sil" OnClick="@(() => _m.Windows.Remove(w))" />
+                        </div>
+                    }
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddWindow">Saat aralığı ekle</MudButton>
+                    <MudNumericField T="int" @bind-Value="_m.ReminderMinutesBeforeEnd" Label="Bitişten kaç dk önce hatırlat" Min="0" Max="240"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" HelperText="Eksik nokta varsa çalışana bildirim gider (0 = kapalı)" />
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="7">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1"><b>Kontrol noktaları</b></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                        Haritaya tıklayarak nokta ekleyin. Çalışan, noktanın yarıçapı içindeyken "Noktadayım" tuşuna basabilir.
+                    </MudText>
+                    <div style="height:360px" class="mb-3">
+                        <LeafletMap @ref="_map" Height="100%" Clickable OnMapClick="MapClicked" OnReady="DrawAsync"
+                                    Latitude="@MapCenter.Latitude" Longitude="@MapCenter.Longitude" Zoom="@(_m.Checkpoints.Count > 0 ? 17 : 13)" />
+                    </div>
+                    @if (_m.Checkpoints.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense>Henüz nokta yok. Haritada ilk noktanın yerine tıklayın.</MudAlert>
+                    }
+                    @for (var i = 0; i < _m.Checkpoints.Count; i++)
+                    {
+                        var idx = i;
+                        var c = _m.Checkpoints[i];
+                        <div class="d-flex gap-2 align-center mb-2">
+                            <MudAvatar Size="Size.Small" Color="Color.Primary">@(idx + 1)</MudAvatar>
+                            <MudTextField T="string" Value="c.Name" ValueChanged="@(v => { c.Name = v; _ = DrawAsync(); })" Label="Nokta adı" Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" Style="flex:1" />
+                            <MudNumericField T="int" Value="c.RadiusMeters" ValueChanged="@(v => { c.RadiusMeters = v; _ = DrawAsync(); })" Label="Yarıçap (m)"
+                                             Min="10" Max="1000" Step="10" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" aria-label="Yukarı taşı" Disabled="@(idx == 0)" OnClick="@(() => Move(idx, -1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" aria-label="Aşağı taşı"
+                                           Disabled="@(idx == _m.Checkpoints.Count - 1)" OnClick="@(() => Move(idx, 1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" aria-label="Noktayı sil" OnClick="@(() => Remove(c))" />
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+        @if (_errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" Dense role="alert">
+                @foreach (var e in _errors) { <div>@e</div> }
+            </MudAlert>
+        }
+    }
+</RequirePolicy>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private SavePatrolRouteRequest _m = new();
+    private List<UserDto> _workers = [];
+    private List<string> _errors = [];
+    private LeafletMap? _map;
+    private GeoPoint _tenantCenter = new(41.0082, 28.9784);
+    private bool _loaded, _busy;
+    private string _snapshot = "";
+
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(_m);
+    private bool Dirty => _loaded && Snapshot() != _snapshot;
+
+    private GeoPoint MapCenter => _m.Checkpoints.Count > 0
+        ? new(_m.Checkpoints.Average(c => c.Latitude), _m.Checkpoints.Average(c => c.Longitude))
+        : _tenantCenter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var workers = Api.GetUsersAsync(Roles.FieldWorker);
+        var tenant = Api.MyTenantAsync();
+        if (Id is { } id)
+        {
+            var r = await Api.GetPatrolRouteAsync(id);
+            _m = new SavePatrolRouteRequest
+            {
+                Name = r.Name, Description = r.Description, AssigneeId = r.AssigneeId, IsActive = r.IsActive, EnforceOrder = r.EnforceOrder,
+                Days = r.Days, Windows = r.Windows, ReminderMinutesBeforeEnd = r.ReminderMinutesBeforeEnd, Checkpoints = r.Checkpoints
+            };
+        }
+        else
+        {
+            _m.Windows = [new() { Start = new(9, 0), End = new(11, 0) }];
+        }
+        _workers = (await workers).Where(w => w.IsActive || w.Id == _m.AssigneeId).ToList();
+        try
+        {
+            var t = await tenant;
+            _tenantCenter = new(t.DefaultLatitude, t.DefaultLongitude);
+        }
+        catch (ApiException) { }
+        _snapshot = Snapshot();
+        _loaded = true;
+    }
+
+    private void ToggleDay(DayOfWeek d)
+    {
+        var days = _m.Days.Count == 0 ? PatrolUi.Week.ToList() : _m.Days.ToList();
+        if (!days.Remove(d)) days.Add(d);
+        _m.Days = days.Count == 7 ? [] : days;
+    }
+
+    private void AddWindow()
+    {
+        var last = _m.Windows.LastOrDefault();
+        var start = last is null ? new TimeOnly(9, 0) : last.End.AddHours(1);
+        _m.Windows.Add(new PatrolWindow { Start = start, End = start.AddHours(1) });
+    }
+
+    private async Task MapClicked(GeoPoint p)
+    {
+        _m.Checkpoints.Add(new PatrolCheckpoint
+        {
+            Id = Guid.Empty, Name = $"Nokta {_m.Checkpoints.Count + 1}", Latitude = p.Latitude, Longitude = p.Longitude, RadiusMeters = 50
+        });
+        await DrawAsync();
+    }
+
+    private async Task Move(int index, int delta)
+    {
+        var c = _m.Checkpoints[index];
+        _m.Checkpoints.RemoveAt(index);
+        _m.Checkpoints.Insert(index + delta, c);
+        await DrawAsync();
+    }
+
+    private async Task Remove(PatrolCheckpoint c)
+    {
+        _m.Checkpoints.Remove(c);
+        await DrawAsync();
+    }
+
+    private async Task DrawAsync()
+    {
+        if (_map is null) return;
+        await _map.SetMarkersAsync("checkpoints", _m.Checkpoints.Select((c, i) => new MapMarker(
+            $"cp{i}", c.Latitude, c.Longitude, "#1565c0", Label: (i + 1).ToString(), Title: c.Name,
+            Popup: $"<b>{i + 1}. {MapMarker.E(c.Name)}</b><br/>Yarıçap: {c.RadiusMeters} m")));
+        await _map.SetPolylineAsync("order", _m.Checkpoints.Select(c => new GeoPoint(c.Latitude, c.Longitude)));
+    }
+
+    private async Task SaveAsync()
+    {
+        _errors.Clear();
+        if (string.IsNullOrWhiteSpace(_m.Name)) _errors.Add("Rota adı zorunlu.");
+        if (_m.AssigneeId == Guid.Empty) _errors.Add("Bir çalışan seçin.");
+        if (_m.Windows.Count == 0) _errors.Add("En az bir saat aralığı ekleyin.");
+        if (_m.Checkpoints.Count == 0) _errors.Add("Haritadan en az bir kontrol noktası ekleyin.");
+        if (_m.Checkpoints.Any(c => string.IsNullOrWhiteSpace(c.Name))) _errors.Add("Her noktaya bir ad verin.");
+        if (_errors.Count > 0) return;
+
+        _busy = true;
+        try
+        {
+            var saved = Id is { } id ? await Api.UpdatePatrolRouteAsync(id, _m) : await Api.CreatePatrolRouteAsync(_m);
+            _m.Checkpoints = saved.Checkpoints;
+            _snapshot = Snapshot();
+            Snackbar.Add("Rota kaydedildi. Turlar en geç 1 dakika içinde oluşur.", Severity.Success);
+            if (Id is null) Nav.NavigateTo("/patrol");
+        }
+        catch (ApiException ex) { _errors.Add(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Rota silinsin mi?", "Henüz başlamamış turlar silinir; geçmiş turlar raporda kalır.", "Sil",
+                cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeletePatrolRouteAsync(Id!.Value);
+            _loaded = false; // gezinti onayı sorulmasın
+            Nav.NavigateTo("/patrol");
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (!Dirty) return;
+        if (await Dialogs.ShowMessageBoxAsync("Değişiklikler kaydedilmedi", "Sayfadan çıkarsanız değişiklikler kaybolacak.", "Çık",
+                cancelText: "Kalmaya devam et") != true)
+            ctx.PreventNavigation();
+    }
+}

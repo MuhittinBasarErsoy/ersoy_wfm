@@ -37,6 +37,7 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<JobProgressService>();
 builder.Services.AddHostedService<LocationCleanupService>();
 builder.Services.AddHostedService<OverdueMonitorService>();
+builder.Services.AddHostedService<PatrolSchedulerService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
@@ -115,6 +116,7 @@ app.MapTenantEndpoints();
 app.MapUserEndpoints();
 app.MapTaskEndpoints();
 app.MapJobEndpoints();
+app.MapPatrolEndpoints();
 app.MapFieldEndpoints();
 app.MapReportEndpoints();
 app.MapPublicEndpoints();

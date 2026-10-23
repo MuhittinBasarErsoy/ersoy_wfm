@@ -68,10 +68,34 @@ public interface IFieldService
     Task AddAttachmentAsync(Guid taskId, CapturedFile file, AttachmentKind kind, GeoPoint? location);
     Task RemoveAttachmentAsync(Guid taskId, Guid attachmentId);
 
+    /// <summary>Çalışanın açık ve yakın zamandaki devriye turları.</summary>
+    Task<IReadOnlyList<PatrolRoundDto>> GetPatrolRoundsAsync();
+    /// <summary>Kontrol noktasına basışı gönderir (mobilde çevrimdışıysa kuyruğa alır) ve turun güncel hâlini döner.</summary>
+    Task<PatrolRoundDto?> RecordPatrolVisitAsync(Guid roundId, PatrolVisitRequest request);
+
     Task<ShiftDto?> GetShiftAsync();
     Task<ShiftDto?> SetShiftAsync(bool onShift);
 
     /// <summary>SignalR'dan gelen görev değişikliğini yerel önbelleğe yansıtır.</summary>
     Task OnServerTaskChangedAsync(WorkTaskDto task);
     Task ClearAsync();
+}
+
+/// <summary>Devriye basışının cihazda ön kontrolü (sunucu aynı kuralları yeniden uygular).</summary>
+public static class PatrolRules
+{
+    public static double Distance(PatrolRoundCheckpointDto c, GeoPoint me) =>
+        Wfm.Domain.Entities.Geo.DistanceMeters(me.Latitude, me.Longitude, c.Latitude, c.Longitude);
+
+    /// <summary>Basılamıyorsa nedeni; basılabiliyorsa null.</summary>
+    public static string? Problem(PatrolRoundDto round, PatrolRoundCheckpointDto c, GeoPoint? me)
+    {
+        if (c.VisitedAt is not null) return "İşaretlendi";
+        if (DateTime.UtcNow < round.WindowStart) return $"Başlangıç {Ui.Local(round.WindowStart, "HH:mm")}";
+        if (DateTime.UtcNow >= round.WindowEnd) return "Süre doldu";
+        if (round.NextInOrder is { } next && next.Id != c.Id) return $"Önce '{next.Name}'";
+        if (me is null) return "Konum bekleniyor";
+        var d = Distance(c, me);
+        return d > c.RadiusMeters ? $"{Ui.Distance(d)} uzaktasınız" : null;
+    }
 }

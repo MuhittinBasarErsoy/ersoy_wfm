@@ -315,6 +315,181 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.PatrolRound", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssigneeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Checkpoints")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("EndReminderSent")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnforceOrder")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("RouteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RouteName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<bool>("StartReminderSent")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("WindowEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("WindowStart")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssigneeId", "WindowEnd");
+
+                    b.HasIndex("RouteId", "WindowStart")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "WindowEnd");
+
+                    b.HasIndex("TenantId", "WindowStart");
+
+                    b.ToTable("PatrolRounds");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.PatrolRoute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssigneeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Checkpoints")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Days")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("EnforceOrder")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ReminderMinutesBeforeEnd")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Windows")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PatrolRoutes");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.PatrolVisit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<double?>("Accuracy")
+                        .HasColumnType("float");
+
+                    b.Property<Guid>("CheckpointId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("DistanceMeters")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("float");
+
+                    b.Property<Guid>("RoundId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("VisitedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("RoundId", "CheckpointId")
+                        .IsUnique();
+
+                    b.ToTable("PatrolVisits");
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -975,6 +1150,15 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.PatrolVisit", b =>
+                {
+                    b.HasOne("Wfm.Domain.Entities.PatrolRound", null)
+                        .WithMany("Visits")
+                        .HasForeignKey("RoundId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.TaskAttachment", b =>
                 {
                     b.HasOne("Wfm.Domain.Entities.WorkTask", null)
@@ -1021,6 +1205,11 @@ namespace Wfm.Infrastructure.Data.Migrations
             modelBuilder.Entity("Wfm.Domain.Entities.Job", b =>
                 {
                     b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.PatrolRound", b =>
+                {
+                    b.Navigation("Visits");
                 });
 
             modelBuilder.Entity("Wfm.Domain.Entities.WorkTask", b =>

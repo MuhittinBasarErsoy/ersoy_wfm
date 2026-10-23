@@ -141,6 +141,9 @@ public static class NotificationKinds
     public const string PasswordReset = "password_reset";
     public const string JobOnHold = "job_on_hold";
     public const string JobCompleted = "job_completed";
+    public const string PatrolStarting = "patrol_start";
+    public const string PatrolEndingSoon = "patrol_ending";
+    public const string PatrolMissed = "patrol_missed";
 }
 
 /// <summary>Görev listesi için kayıtlı filtre. Paylaşılanları şirketteki tüm yönetim kullanıcıları görür.</summary>

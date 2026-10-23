@@ -114,6 +114,25 @@ Bir **iş**, farklı çalışanların sırayla ya da aynı anda yaptığı adım
   API: `/api/jobs`, `/api/job-templates`. Demo veride "Evrak gönderimi" şablonu bulunur.
 - İş durumları: Aktif, Beklemede, Tamamlandı, İptal.
 
+## Devriye (bekçi turları)
+
+Bir **devriye rotası**, bir çalışanın belirli günlerde, belirli saat aralıklarında (ör. 09:00–11:00 ve 22:00–23:00)
+dolaşması gereken kontrol noktalarıdır. Çalışan her noktaya varınca **"Noktadayım"** tuşuna basar.
+
+- `PatrolSchedulerService` dakikada bir çalışır: her aralık için bir **tur** üretir, aralık başlayınca çalışana,
+  bitişe N dakika kala (eksik nokta varsa) yeniden çalışana bildirim gönderir. Aralık bitince tamamlanmamış tur
+  **Eksik** (bazı noktalar yapıldı) veya **Yapılmadı** (hiç basılmadı) olarak kapanır ve şirket yöneticileri ile
+  dispeçerlere bildirilir.
+- Basış GPS ile doğrulanır: çalışan noktanın yarıçapı (varsayılan 50 m) dışındaysa kabul edilmez. Rota bazında
+  **sıra zorunlu** (1 → 2 → 3) ya da serbest seçilebilir. Aynı noktaya ikinci basış reddedilir.
+- Saat aralıkları şirketin yerel saatindedir (Europe/Istanbul); bitiş başlangıçtan küçükse (23:00–01:00) tur ertesi güne taşar.
+- Turlar üretim anındaki noktaları kopyalar; rota sonradan değişse de geçmiş raporlar bozulmaz. Rota kaydedilince
+  henüz başlamamış turlar yeni ayarlarla yeniden üretilir.
+- Mobilde çevrimdışı basış kuyruğa alınır ve cihazdaki basış anıyla gönderilir (`patrol-visit` outbox türü).
+- Sayfalar: `/patrol` (turlar raporu + rotalar, Excel), `/patrol/routes/{id}` (rota düzenleyici, haritadan nokta ekleme),
+  saha: `/field/patrol`. API: `/api/patrol-routes`, `/api/patrol/rounds`, `POST /api/patrol/rounds/{id}/visits`.
+  Demo veride Burak'a atanmış "Depo ve otopark turu" bulunur.
+
 ## Konum takibi ve bildirimler
 
 - Saha çalışanı **mesaiye başladığında** konum paylaşımı başlar, mesai bitince durur.

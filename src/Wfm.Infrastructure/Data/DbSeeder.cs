@@ -39,6 +39,32 @@ public static class DbSeeder
             await SeedRepair(db, users);
         }
         await SeedJobTemplate(db, users);
+        await SeedPatrolRoute(db, users);
+    }
+
+    /// <summary>Bekçi turu örneği: her gün 09–11 ve 22–23 arası 4 nokta. Önceden oluşturulmuş demo veritabanlarına da eklenir.</summary>
+    private static async Task SeedPatrolRoute(WfmDbContext db, UserManager<AppUser> users)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == "hizli-tamir");
+        if (tenant is null || await db.PatrolRoutes.IgnoreQueryFilters().AnyAsync(r => r.TenantId == tenant.Id)) return;
+        var guard = await users.FindByEmailAsync("teknisyen1@tamir.local");
+        var admin = await users.FindByEmailAsync("yonetici@tamir.local");
+        if (guard is null || admin is null) return;
+
+        db.PatrolRoutes.Add(new PatrolRoute
+        {
+            TenantId = tenant.Id, Name = "Depo ve otopark turu", AssigneeId = guard.Id, CreatedById = admin.Id,
+            Description = "Ana kapı, depo, otopark ve arka kapı kontrol edilir.",
+            Windows = [new() { Start = new(9, 0), End = new(11, 0) }, new() { Start = new(22, 0), End = new(23, 0) }],
+            Checkpoints =
+            [
+                new() { Order = 1, Name = "Ana kapı", Latitude = 41.0372, Longitude = 28.9846 },
+                new() { Order = 2, Name = "Depo", Latitude = 41.0378, Longitude = 28.9861 },
+                new() { Order = 3, Name = "Otopark", Latitude = 41.0366, Longitude = 28.9870 },
+                new() { Order = 4, Name = "Arka kapı", Latitude = 41.0361, Longitude = 28.9852 },
+            ]
+        });
+        await db.SaveChangesAsync();
     }
 
     /// <summary>Çok adımlı iş örneği: evrak önce fotokopilenir, sonra postaneye götürülür, en son mail atılır.

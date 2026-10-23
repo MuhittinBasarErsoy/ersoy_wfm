@@ -132,6 +132,27 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<JobDetailDto> SkipJobStepAsync(Guid id, Guid taskId) => Post<JobDetailDto>($"/api/jobs/{id}/steps/{taskId}/skip", null);
     public Task<JobDetailDto> CancelJobAsync(Guid id) => Post<JobDetailDto>($"/api/jobs/{id}/cancel", null);
 
+    // ---------- Devriye ----------
+    public Task<List<PatrolRouteDto>> GetPatrolRoutesAsync() => Get<List<PatrolRouteDto>>("/api/patrol-routes");
+    public Task<PatrolRouteDto> GetPatrolRouteAsync(Guid id) => Get<PatrolRouteDto>($"/api/patrol-routes/{id}");
+    public Task<PatrolRouteDto> CreatePatrolRouteAsync(SavePatrolRouteRequest req) => Post<PatrolRouteDto>("/api/patrol-routes", req);
+    public Task<PatrolRouteDto> UpdatePatrolRouteAsync(Guid id, SavePatrolRouteRequest req) => Put<PatrolRouteDto>($"/api/patrol-routes/{id}", req);
+    public Task DeletePatrolRouteAsync(Guid id) => Send(HttpMethod.Delete, $"/api/patrol-routes/{id}", null);
+
+    public Task<List<PatrolRoundDto>> GetPatrolRoundsAsync(PatrolRoundQuery q)
+    {
+        var qs = new List<string>();
+        if (q.From is { } f) qs.Add($"from={f:yyyy-MM-dd}");
+        if (q.To is { } t) qs.Add($"to={t:yyyy-MM-dd}");
+        if (q.AssigneeId is { } a) qs.Add($"assigneeId={a}");
+        if (q.RouteId is { } r) qs.Add($"routeId={r}");
+        if (q.Status is { } s) qs.Add($"status={s}");
+        return Get<List<PatrolRoundDto>>("/api/patrol/rounds" + (qs.Count > 0 ? "?" + string.Join('&', qs) : ""));
+    }
+    public Task<PatrolRoundDto> GetPatrolRoundAsync(Guid id) => Get<PatrolRoundDto>($"/api/patrol/rounds/{id}");
+    public Task<PatrolRoundDto> RecordPatrolVisitAsync(Guid roundId, PatrolVisitRequest req) =>
+        Post<PatrolRoundDto>($"/api/patrol/rounds/{roundId}/visits", req);
+
     /// <summary>Filtreye uyan tüm görevleri sayfa sayfa çeker (dışa aktarma için, en fazla <paramref name="max"/>).</summary>
     public async Task<List<WorkTaskDto>> GetAllTasksAsync(TaskQuery q, int max = 5000)
     {

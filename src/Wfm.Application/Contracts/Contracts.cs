@@ -230,6 +230,56 @@ public record JobDetailDto : JobDto
 
 public record JobQuery(JobStatus? Status = null, string? Search = null);
 
+// ---------- Devriye (bekçi turları) ----------
+public record PatrolRouteDto(Guid Id, string Name, string? Description, Guid AssigneeId, string? AssigneeName, bool IsActive,
+    bool EnforceOrder, List<DayOfWeek> Days, List<PatrolWindow> Windows, int ReminderMinutesBeforeEnd, List<PatrolCheckpoint> Checkpoints);
+
+public record SavePatrolRouteRequest
+{
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public Guid AssigneeId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool EnforceOrder { get; set; }
+    /// <summary>Boş = her gün.</summary>
+    public List<DayOfWeek> Days { get; set; } = [];
+    public List<PatrolWindow> Windows { get; set; } = [];
+    public int ReminderMinutesBeforeEnd { get; set; } = 15;
+    /// <summary>Sıra listedeki konuma göre verilir; Id boşsa yeni nokta.</summary>
+    public List<PatrolCheckpoint> Checkpoints { get; set; } = [];
+}
+
+public record PatrolRoundDto
+{
+    public Guid Id { get; init; }
+    public Guid RouteId { get; init; }
+    public string RouteName { get; init; } = "";
+    public Guid AssigneeId { get; init; }
+    public string? AssigneeName { get; init; }
+    public DateTime WindowStart { get; init; }
+    public DateTime WindowEnd { get; init; }
+    public bool EnforceOrder { get; init; }
+    public PatrolRoundStatus Status { get; init; }
+    public DateTime? CompletedAt { get; init; }
+    public List<PatrolRoundCheckpointDto> Checkpoints { get; init; } = [];
+
+    public int VisitedCount => Checkpoints.Count(c => c.VisitedAt is not null);
+    public bool IsClosed => Status is PatrolRoundStatus.Completed or PatrolRoundStatus.Incomplete or PatrolRoundStatus.Missed;
+    /// <summary>Pencere şu an açık ve tur bitmemiş: çalışan nokta işaretleyebilir.</summary>
+    public bool IsActiveNow => !IsClosed && WindowStart <= DateTime.UtcNow && DateTime.UtcNow < WindowEnd;
+    /// <summary>Sıra zorunluysa basılabilecek tek nokta; değilse null.</summary>
+    public PatrolRoundCheckpointDto? NextInOrder => EnforceOrder ? Checkpoints.OrderBy(c => c.Order).FirstOrDefault(c => c.VisitedAt is null) : null;
+}
+
+public record PatrolRoundCheckpointDto(Guid Id, int Order, string Name, double Latitude, double Longitude, int RadiusMeters,
+    DateTime? VisitedAt = null, double? DistanceMeters = null, bool Pending = false);
+
+public record PatrolVisitRequest(Guid CheckpointId, double Latitude, double Longitude, double? Accuracy,
+    DateTime? ClientTimestamp = null, Guid? ClientId = null);
+
+public record PatrolRoundQuery(DateOnly? From = null, DateOnly? To = null, Guid? AssigneeId = null, Guid? RouteId = null,
+    PatrolRoundStatus? Status = null);
+
 // ---------- Tracking ----------
 public record LocationPingDto(double Latitude, double Longitude, double? Accuracy, double? Speed, double? Heading,
     int? BatteryLevel, DateTime RecordedAt);
@@ -259,7 +309,11 @@ public record PublicTrackingDto(
 
 // ---------- Sync ----------
 public record SyncResponse(DateTime ServerTime, List<WorkTaskDetailDto> Tasks, List<TaskTypeDto> TaskTypes,
-    List<NotificationDto> Notifications, ShiftDto? ActiveShift);
+    List<NotificationDto> Notifications, ShiftDto? ActiveShift, List<PatrolRoundDto>? PatrolRounds = null)
+{
+    /// <summary>Çalışanın açık ve yakın zamandaki devriye turları.</summary>
+    public List<PatrolRoundDto> PatrolRounds { get; init; } = PatrolRounds ?? [];
+}
 
 // ---------- Reports ----------
 public record ReportSummaryDto(

@@ -73,6 +73,8 @@ else
     {
         await Center.MarkReadAsync(n.Id);
         if (n.WorkTaskId is { } id) Nav.NavigateTo(Me.IsFieldWorker ? $"/field/tasks/{id}" : $"/tasks/{id}");
+        else if (n.Kind is NotificationKinds.PatrolStarting or NotificationKinds.PatrolEndingSoon or NotificationKinds.PatrolMissed)
+            Nav.NavigateTo(Me.IsFieldWorker ? "/field/patrol" : "/patrol");
         else if (n.Kind == NotificationKinds.PasswordReset && Me.Can(Policies.ManageUsers))
         {
             // Gövde "Ad Soyad (e-posta) ..." biçiminde; kullanıcıyı listede bulup açmak için e-postayı al.
