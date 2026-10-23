@@ -4,6 +4,7 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject IDialogService Dialogs
+@inject IGeolocationService Geo
 
 <NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
 
@@ -86,12 +87,15 @@
 
             <MudItem xs="12" md="7">
                 <MudPaper Elevation="1" Class="pa-4">
-                    <MudText Typo="Typo.subtitle1"><b>Kontrol noktaları</b></MudText>
+                    <div class="d-flex align-center">
+                        <MudText Typo="Typo.subtitle1" Style="flex:1"><b>Kontrol noktaları</b></MudText>
+                        <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.MyLocation" OnClick="GoToMeAsync" Disabled="_locating">Konumuma git</MudButton>
+                    </div>
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
                         Haritaya tıklayarak nokta ekleyin. Çalışan, noktanın yarıçapı içindeyken "Noktadayım" tuşuna basabilir.
                     </MudText>
                     <div style="height:360px" class="mb-3">
-                        <LeafletMap @ref="_map" Height="100%" Clickable OnMapClick="MapClicked" OnReady="DrawAsync"
+                        <LeafletMap @ref="_map" Height="100%" Clickable OnMapClick="MapClicked" OnReady="MapReadyAsync"
                                     Latitude="@MapCenter.Latitude" Longitude="@MapCenter.Longitude" Zoom="@(_m.Checkpoints.Count > 0 ? 17 : 13)" />
                     </div>
                     @if (_m.Checkpoints.Count == 0)
@@ -134,7 +138,8 @@
     private List<string> _errors = [];
     private LeafletMap? _map;
     private GeoPoint _tenantCenter = new(41.0082, 28.9784);
-    private bool _loaded, _busy;
+    private bool _loaded, _busy, _locating;
+    private GeoPoint? _me;
     private string _snapshot = "";
 
     private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(_m);
@@ -207,6 +212,34 @@
     {
         _m.Checkpoints.Remove(c);
         await DrawAsync();
+    }
+
+    /// <summary>Yeni rotada harita kullanıcının bulunduğu yerden açılır; noktalar genelde oradadır.</summary>
+    private async Task MapReadyAsync()
+    {
+        await DrawAsync();
+        if (_m.Checkpoints.Count == 0) await GoToMeAsync();
+    }
+
+    private async Task GoToMeAsync()
+    {
+        _locating = true;
+        try
+        {
+            _me = await Geo.GetCurrentAsync();
+            if (_me is null)
+            {
+                Snackbar.Add("Konumunuz alınamadı. Tarayıcıda konum iznini açın.", Severity.Warning);
+                return;
+            }
+            if (_map is null) return;
+            await _map.SetMarkersAsync("me", [new MapMarker("me", _me.Latitude, _me.Longitude, MapMarker.WorkerOnShift, "Ben", Title: "Konumunuz", Pulse: true)]);
+            await _map.SetViewAsync(_me.Latitude, _me.Longitude, 17);
+        }
+        finally
+        {
+            _locating = false;
+        }
     }
 
     private async Task DrawAsync()
