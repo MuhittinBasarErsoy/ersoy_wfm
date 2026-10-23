@@ -1,0 +1,227 @@
+@page "/patrol"
+@inject WfmApiClient Api
+@inject WfmJs Js
+@inject ISnackbar Snackbar
+@inject UserContext Me
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    <PageHeader Title="Devriye" Subtitle="Bekçi turları: hangi nokta, kim tarafından, ne zaman kontrol edildi.">
+        <Actions>
+            @if (Me.Can(Policies.ManageTasks))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/patrol/routes/new">Yeni rota</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    <MudTabs Elevation="0" ApplyEffectsToContainer TabPanelsClass="pt-3" @bind-ActivePanelIndex="_tab">
+        <MudTabPanel Text="Turlar" Icon="@Icons.Material.Filled.FactCheck">
+            <MudPaper Elevation="1" Class="pa-3 mb-3 d-flex gap-3 flex-wrap align-center">
+                <MudDateRangePicker @bind-DateRange="_range" @bind-DateRange:after="LoadRoundsAsync" Label="Tarih aralığı" Variant="Variant.Outlined"
+                                    Margin="Margin.Dense" DateFormat="dd.MM.yyyy" Culture="Ui.Tr" Style="min-width:240px;max-width:280px" AutoClose />
+                <MudSelect T="Guid?" @bind-Value="_routeId" @bind-Value:after="LoadRoundsAsync" Label="Rota" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Clearable Style="min-width:200px;max-width:260px" ToStringFunc="@(id => _routes?.FirstOrDefault(r => r.Id == id)?.Name ?? "")">
+                    @foreach (var r in _routes ?? [])
+                    {
+                        <MudSelectItem T="Guid?" Value="r.Id">@r.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="PatrolRoundStatus?" @bind-Value="_status" @bind-Value:after="LoadRoundsAsync" Label="Durum" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Clearable Style="min-width:160px;max-width:200px">
+                    @foreach (var s in Enum.GetValues<PatrolRoundStatus>())
+                    {
+                        <MudSelectItem T="PatrolRoundStatus?" Value="s">@PatrolUi.Status(s)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSpacer />
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRoundsAsync">Yenile</MudButton>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.TableView" OnClick="ExportAsync" Disabled="@(_rounds is not { Count: > 0 })">Excel</MudButton>
+            </MudPaper>
+
+            @if (_rounds is null)
+            {
+                <MudProgressLinear Indeterminate />
+            }
+            else
+            {
+                <MudGrid Spacing="3" Class="mb-3">
+                    <MudItem xs="6" md="3"><KpiCard Label="Tamamlanan" Value="@Count(PatrolRoundStatus.Completed).ToString()" Icon="@Icons.Material.Filled.TaskAlt" Color="#2e7d32" /></MudItem>
+                    <MudItem xs="6" md="3"><KpiCard Label="Eksik" Value="@Count(PatrolRoundStatus.Incomplete).ToString()" Icon="@Icons.Material.Filled.Warning" Color="#ef6c00" /></MudItem>
+                    <MudItem xs="6" md="3"><KpiCard Label="Yapılmadı" Value="@Count(PatrolRoundStatus.Missed).ToString()" Icon="@Icons.Material.Filled.GppBad" Color="#c62828" /></MudItem>
+                    <MudItem xs="6" md="3"><KpiCard Label="Kontrol edilen nokta" Value="@PointsText" Hint="kapanan turlarda" Icon="@Icons.Material.Filled.PinDrop" /></MudItem>
+                </MudGrid>
+
+                @if (_rounds.Count == 0)
+                {
+                    <EmptyState Icon="@Icons.Material.Outlined.Shield" Title="Bu aralıkta tur yok"
+                                Text="Turlar rotadaki saat aralıklarına göre otomatik oluşur." />
+                }
+                else
+                {
+                    <MudTable Items="_rounds" Dense Hover Elevation="1" Breakpoint="Breakpoint.Sm" T="PatrolRoundDto"
+                              OnRowClick="@(e => Toggle(e.Item!.Id))" RowClassFunc="@((r, _) => "wfm-clickable" + (r.Status is PatrolRoundStatus.Incomplete or PatrolRoundStatus.Missed ? " wfm-row-overdue" : ""))">
+                        <HeaderContent>
+                            <MudTh>Tarih</MudTh>
+                            <MudTh>Saat</MudTh>
+                            <MudTh>Rota</MudTh>
+                            <MudTh>Çalışan</MudTh>
+                            <MudTh>Noktalar</MudTh>
+                            <MudTh>Durum</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Tarih">@Ui.Local(context.WindowStart, "dd.MM.yyyy ddd")</MudTd>
+                            <MudTd DataLabel="Saat">@Ui.Local(context.WindowStart, "HH:mm")–@Ui.Local(context.WindowEnd, "HH:mm")</MudTd>
+                            <MudTd DataLabel="Rota">@context.RouteName</MudTd>
+                            <MudTd DataLabel="Çalışan">@(context.AssigneeName ?? "-")</MudTd>
+                            <MudTd DataLabel="Noktalar">
+                                <div class="d-flex align-center gap-1">
+                                    @foreach (var c in context.Checkpoints)
+                                    {
+                                        <MudTooltip Text="@($"{c.Order}. {c.Name}: {(c.VisitedAt is { } v ? Ui.Local(v, "HH:mm") : "yapılmadı")}")">
+                                            <MudIcon Size="Size.Small" Icon="@(c.VisitedAt is null ? Icons.Material.Filled.RadioButtonUnchecked : Icons.Material.Filled.CheckCircle)"
+                                                     Color="@(c.VisitedAt is not null ? Color.Success : context.IsClosed ? Color.Error : Color.Default)" />
+                                        </MudTooltip>
+                                    }
+                                    <MudText Typo="Typo.caption" Class="ml-1">@context.VisitedCount/@context.Checkpoints.Count</MudText>
+                                </div>
+                            </MudTd>
+                            <MudTd DataLabel="Durum">
+                                <MudChip T="string" Size="Size.Small" Color="@PatrolUi.Color(context.Status)" Variant="Variant.Text">@PatrolUi.Status(context.Status)</MudChip>
+                            </MudTd>
+                        </RowTemplate>
+                        <ChildRowContent>
+                            @if (_open.Contains(context.Id))
+                            {
+                                <MudTr>
+                                    <td colspan="6" class="pa-3">
+                                        <MudSimpleTable Dense Elevation="0">
+                                            <thead><tr><th>#</th><th>Nokta</th><th>Basış saati</th><th>Mesafe</th></tr></thead>
+                                            <tbody>
+                                                @foreach (var c in context.Checkpoints)
+                                                {
+                                                    <tr>
+                                                        <td>@c.Order</td>
+                                                        <td>@c.Name</td>
+                                                        <td>@(c.VisitedAt is { } v ? Ui.Local(v, "HH:mm:ss") : "—")</td>
+                                                        <td>@(c.DistanceMeters is { } d ? Ui.Distance(d) : "—")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </MudSimpleTable>
+                                    </td>
+                                </MudTr>
+                            }
+                        </ChildRowContent>
+                    </MudTable>
+                }
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Rotalar" Icon="@Icons.Material.Filled.Route">
+            @if (_routes is null)
+            {
+                <MudProgressLinear Indeterminate />
+            }
+            else if (_routes.Count == 0)
+            {
+                <EmptyState Icon="@Icons.Material.Outlined.Shield" Title="Henüz rota yok"
+                            Text="Ör. 'Depo turu': her gün 09:00–11:00 ve 22:00–23:00 arası 4 nokta dolaşılır, her noktada tuşa basılır.">
+                    @if (Me.Can(Policies.ManageTasks))
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/patrol/routes/new">İlk rotayı oluştur</MudButton>
+                    }
+                </EmptyState>
+            }
+            else
+            {
+                <MudGrid Spacing="3">
+                    @foreach (var r in _routes)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudCard Elevation="1" Style="height:100%">
+                                <MudCardContent>
+                                    <div class="d-flex align-center gap-2 mb-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.Shield" Color="@(r.IsActive ? Color.Primary : Color.Default)" aria-hidden="true" />
+                                        <MudText Typo="Typo.h6" Style="flex:1">@r.Name</MudText>
+                                        @if (!r.IsActive)
+                                        {
+                                            <MudChip T="string" Size="Size.Small">Pasif</MudChip>
+                                        }
+                                        <MudChip T="string" Size="Size.Small">@r.Checkpoints.Count nokta</MudChip>
+                                    </div>
+                                    <MudText Typo="Typo.body2"><b>@(r.AssigneeName ?? "-")</b> · @PatrolUi.Days(r.Days) · @PatrolUi.Windows(r.Windows)</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @(r.EnforceOrder ? "Sıra zorunlu: " : "Sıra serbest: ")@string.Join(" → ", r.Checkpoints.Select(c => c.Name))
+                                    </MudText>
+                                </MudCardContent>
+                                @if (Me.Can(Policies.ManageTasks))
+                                {
+                                    <MudCardActions>
+                                        <MudButton StartIcon="@Icons.Material.Filled.Edit" Href="@($"/patrol/routes/{r.Id}")">Düzenle</MudButton>
+                                    </MudCardActions>
+                                }
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudTabPanel>
+    </MudTabs>
+</RequirePolicy>
+
+@code {
+    private int _tab;
+    private List<PatrolRouteDto>? _routes;
+    private List<PatrolRoundDto>? _rounds;
+    private DateRange _range = new(DateTime.Today.AddDays(-6), DateTime.Today);
+    private Guid? _routeId;
+    private PatrolRoundStatus? _status;
+    private readonly HashSet<Guid> _open = [];
+
+    private int Count(PatrolRoundStatus s) => _rounds?.Count(r => r.Status == s) ?? 0;
+
+    private string PointsText => _rounds is null ? "-"
+        : $"{_rounds.Where(r => r.IsClosed).Sum(r => r.VisitedCount)}/{_rounds.Where(r => r.IsClosed).Sum(r => r.Checkpoints.Count)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var routes = Api.GetPatrolRoutesAsync();
+        await LoadRoundsAsync();
+        _routes = await routes;
+    }
+
+    private async Task LoadRoundsAsync()
+    {
+        try
+        {
+            var from = DateOnly.FromDateTime(_range.Start ?? DateTime.Today.AddDays(-6));
+            var to = DateOnly.FromDateTime(_range.End ?? DateTime.Today);
+            _rounds = (await Api.GetPatrolRoundsAsync(new PatrolRoundQuery(from, to, RouteId: _routeId, Status: _status)))
+                .Where(r => r.WindowStart <= DateTime.UtcNow).ToList(); // henüz başlamamış turlar raporda gösterilmez
+        }
+        catch (ApiException ex)
+        {
+            _rounds = [];
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Toggle(Guid id)
+    {
+        if (!_open.Remove(id)) _open.Add(id);
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_rounds is null) return;
+        var rows = _rounds.OrderBy(r => r.WindowStart).SelectMany(r => r.Checkpoints.Select(c => (IReadOnlyList<object?>)new object?[]
+        {
+            Ui.Local(r.WindowStart, "dd.MM.yyyy"), $"{Ui.Local(r.WindowStart, "HH:mm")}–{Ui.Local(r.WindowEnd, "HH:mm")}", r.RouteName,
+            r.AssigneeName, PatrolUi.Status(r.Status), c.Order, c.Name,
+            c.VisitedAt is { } v ? Ui.Local(v, "HH:mm:ss") : null, c.DistanceMeters is { } d ? Math.Round(d) : null
+        }));
+        var bytes = Xlsx.Build("Devriye", ["Tarih", "Saat aralığı", "Rota", "Çalışan", "Tur durumu", "Sıra", "Nokta", "Basış saati", "Mesafe (m)"], rows);
+        await Js.Run("downloadBytes", $"devriye-{_range.Start:yyyyMMdd}-{_range.End:yyyyMMdd}.xlsx", Convert.ToBase64String(bytes),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+}

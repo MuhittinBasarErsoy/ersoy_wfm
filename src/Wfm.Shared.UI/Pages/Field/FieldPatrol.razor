@@ -1,0 +1,207 @@
+@page "/field/patrol"
+@page "/field/patrol/{RoundId:guid}"
+@implements IAsyncDisposable
+@inject IFieldService Field
+@inject IGeolocationService Geo
+@inject ISnackbar Snackbar
+
+<AppTitle Title="Devriye" />
+
+<SyncBanner />
+
+@if (_rounds is null)
+{
+    <MudProgressLinear Indeterminate />
+}
+else if (Round is not { } round)
+{
+    <EmptyState Icon="@Icons.Material.Outlined.Shield" Title="Şu an devriye yok"
+                Text="@(Upcoming is { } u ? $"Sıradaki tur: {u.RouteName}, {PatrolUi.Window(u)}" : "Size atanmış yakın zamanlı bir devriye turu yok.")" />
+}
+else
+{
+    var remaining = round.WindowEnd - DateTime.UtcNow;
+    <MudPaper Elevation="1" Class="pa-3 mb-3">
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Shield" Color="Color.Primary" Size="Size.Large" aria-hidden="true" />
+            <div style="flex:1;min-width:0">
+                <MudText Typo="Typo.subtitle1"><b>@round.RouteName</b></MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @PatrolUi.Window(round) · @(round.EnforceOrder ? "sırayla" : "sıra serbest")
+                    @if (round.IsActiveNow)
+                    {
+                        <span> · @Ui.Duration(remaining) kaldı</span>
+                    }
+                </MudText>
+            </div>
+            <MudChip T="string" Size="Size.Small" Color="@PatrolUi.Color(round.Status)">@PatrolUi.Status(round.Status)</MudChip>
+        </div>
+        <MudProgressLinear Value="@(round.Checkpoints.Count == 0 ? 0 : round.VisitedCount * 100.0 / round.Checkpoints.Count)" Color="Color.Success"
+                           Rounded Size="Size.Large" Class="mt-3" aria-label="İlerleme" />
+        <MudText Typo="Typo.caption" Class="d-block mt-1">@round.VisitedCount / @round.Checkpoints.Count nokta</MudText>
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-1 mb-3">
+        <div style="height:40vh">
+            <LeafletMap @ref="_map" Height="100%" Zoom="17" OnReady="DrawAsync"
+                        Latitude="@round.Checkpoints.Average(c => c.Latitude)" Longitude="@round.Checkpoints.Average(c => c.Longitude)" />
+        </div>
+    </MudPaper>
+
+    @foreach (var c in round.Checkpoints)
+    {
+        var problem = PatrolRules.Problem(round, c, _me);
+        var distance = _me is null ? (double?)null : PatrolRules.Distance(c, _me);
+        var isNext = round.NextInOrder?.Id == c.Id || (!round.EnforceOrder && problem is null);
+        <MudCard Elevation="@(isNext && c.VisitedAt is null ? 3 : 1)" Class="mb-2">
+            <MudCardContent Class="pa-3">
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Size="Size.Medium" Color="@(c.VisitedAt is not null ? Color.Success : isNext ? Color.Primary : Color.Default)">
+                        @if (c.VisitedAt is not null)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Check" />
+                        }
+                        else
+                        {
+                            @c.Order
+                        }
+                    </MudAvatar>
+                    <div style="flex:1;min-width:0">
+                        <MudText Typo="Typo.subtitle1"><b>@c.Name</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @if (c.VisitedAt is { } v)
+                            {
+                                <span>İşaretlendi · @Ui.Local(v, "HH:mm")@(c.Pending ? " (gönderilmedi)" : "")</span>
+                            }
+                            else if (distance is { } d)
+                            {
+                                <span>@Ui.Distance(d) uzakta · yarıçap @c.RadiusMeters m</span>
+                            }
+                            else
+                            {
+                                <span>Yarıçap @c.RadiusMeters m</span>
+                            }
+                        </MudText>
+                    </div>
+                </div>
+                @if (c.VisitedAt is null && round.IsActiveNow)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large" FullWidth Class="mt-3"
+                               StartIcon="@Icons.Material.Filled.PinDrop" Disabled="@(problem is not null || _busy)" OnClick="@(() => VisitAsync(round, c))">
+                        @(problem ?? "Noktadayım")
+                    </MudButton>
+                }
+            </MudCardContent>
+        </MudCard>
+    }
+    @if (_me?.Accuracy is > 50)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Warning">Konum hassasiyeti düşük (±@Math.Round(_me.Accuracy.Value) m). Açık alana çıkmayı deneyin.</MudText>
+    }
+}
+
+@code {
+    [Parameter] public Guid? RoundId { get; set; }
+
+    private IReadOnlyList<PatrolRoundDto>? _rounds;
+    private GeoPoint? _me;
+    private bool _busy;
+    private LeafletMap? _map;
+    private bool _fitted;
+    private readonly CancellationTokenSource _cts = new();
+
+    /// <summary>İstenen tur; verilmediyse şu an açık olan (yoksa en yakın zamanda başlayacak) tur.</summary>
+    private PatrolRoundDto? Round => RoundId is { } id
+        ? _rounds?.FirstOrDefault(r => r.Id == id)
+        : _rounds?.Where(r => r.IsActiveNow).OrderBy(r => r.WindowEnd).FirstOrDefault();
+
+    private PatrolRoundDto? Upcoming => _rounds?.Where(r => !r.IsClosed && r.WindowStart > DateTime.UtcNow).OrderBy(r => r.WindowStart).FirstOrDefault();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Field.Changed += OnChanged;
+        _rounds = await Field.GetPatrolRoundsAsync();
+        _ = Field.SyncAsync();
+        _ = TrackAsync();
+    }
+
+    /// <summary>Sayfa açıkken birkaç saniyede bir konumu tazeler; mesafeler ve tuşun durumu buna göre güncellenir.</summary>
+    private async Task TrackAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            do
+            {
+                if (await Geo.GetCurrentAsync() is { } p) _me = p;
+                await InvokeAsync(StateHasChanged);
+                await DrawAsync();
+            } while (await timer.WaitForNextTickAsync(_cts.Token));
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task VisitAsync(PatrolRoundDto round, PatrolRoundCheckpointDto c)
+    {
+        _busy = true;
+        try
+        {
+            // Basış anında taze konum al: eski konumla uzaktan basılmasın.
+            var me = await Geo.GetCurrentAsync() ?? _me;
+            if (me is null)
+            {
+                Snackbar.Add("Konum alınamadı. Konum izninin açık olduğundan emin olun.", Severity.Warning);
+                return;
+            }
+            _me = me;
+            if (PatrolRules.Problem(round, c, me) is { } problem)
+            {
+                Snackbar.Add(problem, Severity.Warning);
+                return;
+            }
+            var updated = await Field.RecordPatrolVisitAsync(round.Id, new PatrolVisitRequest(c.Id, me.Latitude, me.Longitude, me.Accuracy,
+                DateTime.UtcNow, Guid.NewGuid()));
+            _rounds = await Field.GetPatrolRoundsAsync();
+            Snackbar.Add(updated?.Status == PatrolRoundStatus.Completed ? "Tur tamamlandı, teşekkürler." : $"'{c.Name}' işaretlendi.", Severity.Success);
+            await DrawAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DrawAsync()
+    {
+        if (_map is null || Round is not { } round) return;
+        await _map.SetMarkersAsync("checkpoints", round.Checkpoints.Select(c => new MapMarker(
+            c.Id.ToString(), c.Latitude, c.Longitude, c.VisitedAt is not null ? "#2e7d32" : "#1565c0",
+            Label: c.VisitedAt is not null ? "✓" : c.Order.ToString(), Title: c.Name, Popup: $"<b>{c.Order}. {MapMarker.E(c.Name)}</b>")));
+        if (_me is not null)
+            await _map.SetMarkersAsync("me", [new MapMarker("me", _me.Latitude, _me.Longitude, MapMarker.WorkerOnShift, "Ben", Title: "Konumunuz", Pulse: true)]);
+        if (!_fitted)
+        {
+            _fitted = true;
+            await _map.FitAllAsync();
+        }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        _rounds = await Field.GetPatrolRoundsAsync();
+        StateHasChanged();
+    });
+
+    public ValueTask DisposeAsync()
+    {
+        Field.Changed -= OnChanged;
+        _cts.Cancel();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

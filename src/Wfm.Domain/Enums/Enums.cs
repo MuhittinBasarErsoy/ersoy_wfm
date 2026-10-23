@@ -47,3 +47,15 @@ public enum JobStatus
     Completed = 2,
     Cancelled = 3
 }
+
+public enum PatrolRoundStatus
+{
+    /// <summary>Pencere henüz açılmadı.</summary>
+    Scheduled = 0,
+    InProgress = 1,
+    Completed = 2,
+    /// <summary>Pencere bitti, noktaların bir kısmı yapılmadı.</summary>
+    Incomplete = 3,
+    /// <summary>Pencere bitti, hiçbir noktaya uğranmadı.</summary>
+    Missed = 4
+}

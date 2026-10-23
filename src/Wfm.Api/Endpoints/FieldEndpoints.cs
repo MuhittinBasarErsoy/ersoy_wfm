@@ -196,7 +196,7 @@ public static class FieldEndpoints
             return new SyncResponse(DateTime.UtcNow,
                 tasks.OrderByDescending(t => t.Priority).ThenBy(t => t.ScheduledStart ?? t.CreatedAt)
                     .Select(t => t.ToDetailDto(names, signer) with { Job = jobs.GetValueOrDefault(t.Id) }).ToList(),
-                types.Select(t => t.ToDto()).ToList(), notifications, shift);
+                types.Select(t => t.ToDto()).ToList(), notifications, shift, await PatrolEndpoints.MyRoundsAsync(db, uid, names));
         }).RequireAuthorization();
     }
 

@@ -44,6 +44,29 @@
         </MudButton>
     </MudPaper>
 
+    @* ---------- Devriye ---------- *@
+    @if (Patrol is { } p)
+    {
+        var active = p.IsActiveNow;
+        <Tap Class="mb-3" OnClick="@(() => Nav.NavigateTo($"/field/patrol/{p.Id}"))" AriaLabel="@($"Devriye: {p.RouteName}, {p.VisitedCount}/{p.Checkpoints.Count} nokta")">
+            <MudPaper Elevation="@(active ? 3 : 1)" Class="pa-3" Style="@(active ? "border-left:4px solid var(--mud-palette-primary)" : null)">
+                <div class="d-flex align-center gap-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Shield" Color="@(active ? Color.Primary : Color.Default)" Size="Size.Large" aria-hidden="true" />
+                    <div style="flex:1;min-width:0">
+                        <MudText Typo="Typo.overline" Color="@(active ? Color.Primary : Color.Secondary)" Style="line-height:1.4">
+                            @(active ? "Devriye zamanı" : "Sıradaki devriye")
+                        </MudText>
+                        <MudText Typo="Typo.subtitle1" Style="line-height:1.2"><b>@p.RouteName</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @PatrolUi.Window(p) · @p.VisitedCount/@p.Checkpoints.Count nokta@(active ? $" · {Ui.Duration(p.WindowEnd - DateTime.UtcNow)} kaldı" : "")
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Secondary" aria-hidden="true" />
+                </div>
+            </MudPaper>
+        </Tap>
+    }
+
     <div class="d-flex align-center mb-1">
         <MudText Typo="Typo.h6">Merhaba, @Me.User?.FullName.Split(' ')[0]</MudText>
         <MudSpacer />
@@ -153,6 +176,7 @@
 
 @code {
     private IReadOnlyList<WorkTaskDetailDto>? _tasks;
+    private IReadOnlyList<PatrolRoundDto> _patrols = [];
     private ShiftDto? _shift;
     private GeoPoint? _me;
     private bool _busy, _sortByDistance;
@@ -177,6 +201,12 @@
         }
     }
 
+    /// <summary>Şu an açık devriye turu; yoksa 12 saat içinde başlayacak ilk tur.</summary>
+    private PatrolRoundDto? Patrol =>
+        _patrols.Where(r => r.IsActiveNow).OrderBy(r => r.WindowEnd).FirstOrDefault()
+        ?? _patrols.Where(r => !r.IsClosed && r.WindowStart > DateTime.UtcNow && r.WindowStart < DateTime.UtcNow.AddHours(12))
+            .OrderBy(r => r.WindowStart).FirstOrDefault();
+
     private IEnumerable<WorkTaskDetailDto> Done => (_tasks ?? []).Where(t => Ui.IsClosed(t.Status))
         .OrderByDescending(t => t.CompletedAt ?? t.UpdatedAt);
 
@@ -191,6 +221,7 @@
     {
         Field.Changed += OnChanged;
         _tasks = await Field.GetTasksAsync();
+        _patrols = await Field.GetPatrolRoundsAsync();
         _shift = await Field.GetShiftAsync();
         // Uygulama kapanıp açıldıysa ve mesai açıksa takibi sürdür.
         if (_shift is not null && Tracker.IsSupported && !Tracker.IsRunning) await Tracker.StartAsync();
@@ -220,6 +251,7 @@
         await InvokeAsync(StateHasChanged);
         await Field.SyncAsync();
         _tasks = await Field.GetTasksAsync();
+        _patrols = await Field.GetPatrolRoundsAsync();
         _shift = await Field.GetShiftAsync();
         _busy = false;
         await InvokeAsync(StateHasChanged);
@@ -277,6 +309,7 @@
     private void OnChanged() => _ = InvokeAsync(async () =>
     {
         _tasks = await Field.GetTasksAsync();
+        _patrols = await Field.GetPatrolRoundsAsync();
         StateHasChanged();
     });
 

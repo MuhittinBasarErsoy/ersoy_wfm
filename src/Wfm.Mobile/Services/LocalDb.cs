@@ -96,4 +96,6 @@ public static class OutboxKind
     public const string Attachment = "attachment";
     public const string DeleteAttachment = "delete-attachment";
     public const string Shift = "shift";
+    /// <summary>Devriye kontrol noktası basışı; TaskId tur kimliğini taşır.</summary>
+    public const string PatrolVisit = "patrol-visit";
 }

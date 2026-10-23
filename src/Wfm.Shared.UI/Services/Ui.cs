@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 using MudBlazor.Services;
 using Microsoft.AspNetCore.Components.Authorization;
+using Wfm.Application.Contracts;
 using Wfm.Domain.Entities;
 using Wfm.Domain.Enums;
 using FieldType = Wfm.Domain.Enums.FieldType;
@@ -27,6 +28,43 @@ public static class JobUi
         JobStatus.Completed => ("#2e7d32", "check_circle"),
         _ => ("#424242", "cancel")
     };
+}
+
+public static class PatrolUi
+{
+    public static string Status(PatrolRoundStatus s) => s switch
+    {
+        PatrolRoundStatus.Scheduled => "Bekliyor",
+        PatrolRoundStatus.InProgress => "Devam ediyor",
+        PatrolRoundStatus.Completed => "Tamamlandı",
+        PatrolRoundStatus.Incomplete => "Eksik",
+        PatrolRoundStatus.Missed => "Yapılmadı",
+        _ => s.ToString()
+    };
+
+    public static Color Color(PatrolRoundStatus s) => s switch
+    {
+        PatrolRoundStatus.InProgress => MudBlazor.Color.Info,
+        PatrolRoundStatus.Completed => MudBlazor.Color.Success,
+        PatrolRoundStatus.Incomplete => MudBlazor.Color.Warning,
+        PatrolRoundStatus.Missed => MudBlazor.Color.Error,
+        _ => MudBlazor.Color.Default
+    };
+
+    public static readonly DayOfWeek[] Week =
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
+    public static string DayShort(DayOfWeek d) => Ui.Tr.DateTimeFormat.GetAbbreviatedDayName(d);
+
+    public static string Days(IReadOnlyCollection<DayOfWeek> days) =>
+        days.Count is 0 or 7 ? "Her gün" : string.Join(", ", Week.Where(days.Contains).Select(DayShort));
+
+    public static string Windows(IEnumerable<PatrolWindow> windows) =>
+        string.Join(", ", windows.Select(w => $"{w.Start.ToString("HH:mm")}–{w.End.ToString("HH:mm")}"));
+
+    /// <summary>"09:00–11:00" (pencere tarihi bugün değilse başına gün eklenir).</summary>
+    public static string Window(PatrolRoundDto r) =>
+        $"{(Ui.DayLabel(r.WindowStart) is var d && d == "Bugün" ? "" : d + " ")}{Ui.Local(r.WindowStart, "HH:mm")}–{Ui.Local(r.WindowEnd, "HH:mm")}";
 }
 
 public static class Ui
@@ -102,13 +140,16 @@ public static class Ui
         NotificationKinds.PasswordReset => Icons.Material.Filled.LockReset,
         NotificationKinds.JobOnHold => Icons.Material.Filled.PauseCircle,
         NotificationKinds.JobCompleted => Icons.Material.Filled.TaskAlt,
+        NotificationKinds.PatrolStarting => Icons.Material.Filled.Shield,
+        NotificationKinds.PatrolEndingSoon => Icons.Material.Filled.AlarmOn,
+        NotificationKinds.PatrolMissed => Icons.Material.Filled.GppBad,
         _ => Icons.Material.Filled.Notifications
     };
 
     public static Color NotificationColor(string kind) => kind switch
     {
-        NotificationKinds.Cancelled or NotificationKinds.Rejected or NotificationKinds.Failed => Color.Error,
-        NotificationKinds.Overdue or NotificationKinds.PasswordReset or NotificationKinds.JobOnHold => Color.Warning,
+        NotificationKinds.Cancelled or NotificationKinds.Rejected or NotificationKinds.Failed or NotificationKinds.PatrolMissed => Color.Error,
+        NotificationKinds.Overdue or NotificationKinds.PasswordReset or NotificationKinds.JobOnHold or NotificationKinds.PatrolEndingSoon => Color.Warning,
         NotificationKinds.JobCompleted => Color.Success,
         NotificationKinds.Comment => Color.Secondary,
         _ => Color.Primary

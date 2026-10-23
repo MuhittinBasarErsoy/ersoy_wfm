@@ -71,6 +71,12 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         return string.IsNullOrEmpty(json) ? null : JsonSerializer.Deserialize<ShiftDto>(json, Json);
     }
 
+    public async Task<IReadOnlyList<PatrolRoundDto>> GetPatrolRoundsAsync()
+    {
+        var json = await _local.GetValueAsync("patrol");
+        return string.IsNullOrEmpty(json) ? [] : JsonSerializer.Deserialize<List<PatrolRoundDto>>(json, Json)!;
+    }
+
     // ---------- Yazma (offline destekli) ----------
     public async Task ChangeStatusAsync(Guid taskId, ChangeStatusRequest request)
     {
@@ -185,6 +191,41 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         await PushOutboxAsync();
     }
 
+    public async Task<PatrolRoundDto?> RecordPatrolVisitAsync(Guid roundId, PatrolVisitRequest request)
+    {
+        request = request with { ClientTimestamp = request.ClientTimestamp ?? DateTime.UtcNow, ClientId = request.ClientId ?? Guid.NewGuid() };
+        await PushOutboxAsync();
+        if (PendingCount == 0)
+        {
+            try
+            {
+                var round = await _api.RecordPatrolVisitAsync(roundId, request);
+                await PullAsync();
+                return round;
+            }
+            catch (ApiException ex) when (ex.IsNetworkError)
+            {
+                SetOnline(false);
+            }
+        }
+
+        // Çevrimdışı: noktayı yerelde işaretle (gönderilmedi) ve kuyruğa al; sunucu basış anını ClientTimestamp'ten alır.
+        var rounds = (await GetPatrolRoundsAsync()).ToList();
+        var index = rounds.FindIndex(r => r.Id == roundId);
+        if (index < 0) return null;
+        var updated = rounds[index] with
+        {
+            Checkpoints = rounds[index].Checkpoints.Select(c => c.Id == request.CheckpointId
+                ? c with { VisitedAt = request.ClientTimestamp, Pending = true } : c).ToList()
+        };
+        if (updated.Checkpoints.All(c => c.VisitedAt is not null))
+            updated = updated with { Status = PatrolRoundStatus.Completed, CompletedAt = request.ClientTimestamp };
+        rounds[index] = updated;
+        await _local.SetValueAsync("patrol", JsonSerializer.Serialize(rounds, Json));
+        await EnqueueAsync(new OutboxItem { Kind = OutboxKind.PatrolVisit, TaskId = roundId, Payload = JsonSerializer.Serialize(request, Json) });
+        return updated;
+    }
+
     public async Task<ShiftDto?> SetShiftAsync(bool onShift)
     {
         ShiftDto? shift = onShift ? new ShiftDto(Guid.NewGuid(), DateTime.UtcNow, null) : null;
@@ -293,6 +334,9 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
             case OutboxKind.DeleteAttachment:
                 await _api.DeleteAttachmentAsync(item.TaskId, Guid.Parse(item.Payload));
                 break;
+            case OutboxKind.PatrolVisit:
+                await _api.RecordPatrolVisitAsync(item.TaskId, JsonSerializer.Deserialize<PatrolVisitRequest>(item.Payload, Json)!);
+                break;
             case OutboxKind.Shift:
                 if (item.Payload == "start") await _api.StartShiftAsync();
                 else await _api.EndShiftAsync();
@@ -332,6 +376,10 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
                 tx.InsertOrReplace(new CachedType { Id = type.Id, Json = JsonSerializer.Serialize(type, Json) });
         });
         await _local.SetValueAsync("shift", data.ActiveShift is null ? null : JsonSerializer.Serialize(data.ActiveShift, Json));
+        // Gönderilmeyi bekleyen basışı olan turların yerel hâli korunur.
+        var localRounds = (await GetPatrolRoundsAsync()).Where(r => pendingTaskIds.Contains(r.Id)).ToDictionary(r => r.Id);
+        var rounds = data.PatrolRounds.Select(r => localRounds.GetValueOrDefault(r.Id) ?? r).ToList();
+        await _local.SetValueAsync("patrol", JsonSerializer.Serialize(rounds, Json));
         LastSync = data.ServerTime;
         if (pendingTaskIds.Count == 0) LastError = null;
         Changed?.Invoke();

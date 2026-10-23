@@ -76,6 +76,19 @@ public class OnlineFieldService(WfmApiClient api) : IFieldService
         Changed?.Invoke();
     }
 
+    public async Task<IReadOnlyList<PatrolRoundDto>> GetPatrolRoundsAsync()
+    {
+        if (_data is null) await SyncAsync();
+        return _data?.PatrolRounds ?? [];
+    }
+
+    public async Task<PatrolRoundDto?> RecordPatrolVisitAsync(Guid roundId, PatrolVisitRequest request)
+    {
+        var round = await api.RecordPatrolVisitAsync(roundId, request);
+        await SyncAsync();
+        return round;
+    }
+
     public Task<ShiftDto?> GetShiftAsync() => api.GetShiftAsync();
 
     public async Task<ShiftDto?> SetShiftAsync(bool onShift) => onShift ? await api.StartShiftAsync() : await api.EndShiftAsync();

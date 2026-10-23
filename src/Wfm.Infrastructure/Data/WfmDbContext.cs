@@ -28,6 +28,9 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
     public DbSet<Job> Jobs => Set<Job>();
     public DbSet<JobTemplate> JobTemplates => Set<JobTemplate>();
+    public DbSet<PatrolRoute> PatrolRoutes => Set<PatrolRoute>();
+    public DbSet<PatrolRound> PatrolRounds => Set<PatrolRound>();
+    public DbSet<PatrolVisit> PatrolVisits => Set<PatrolVisit>();
 
     // Global filtre bu alanlara bakar; EF her sorguda güncel değeri kullanır.
     private Guid? CurrentTenantId => tenant.TenantId;
@@ -110,6 +113,32 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         {
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Steps).HasConversion(JsonConverter<List<JobTemplateStep>>(), JsonComparer<List<JobTemplateStep>>());
+        });
+
+        b.Entity<PatrolRoute>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Days).HasConversion(JsonConverter<List<DayOfWeek>>(), JsonComparer<List<DayOfWeek>>());
+            e.Property(x => x.Windows).HasConversion(JsonConverter<List<PatrolWindow>>(), JsonComparer<List<PatrolWindow>>());
+            e.Property(x => x.Checkpoints).HasConversion(JsonConverter<List<PatrolCheckpoint>>(), JsonComparer<List<PatrolCheckpoint>>());
+        });
+
+        b.Entity<PatrolRound>(e =>
+        {
+            e.Property(x => x.RouteName).HasMaxLength(200);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.Property(x => x.Checkpoints).HasConversion(JsonConverter<List<PatrolCheckpoint>>(), JsonComparer<List<PatrolCheckpoint>>());
+            e.HasMany(x => x.Visits).WithOne().HasForeignKey(x => x.RoundId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.RouteId, x.WindowStart }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.WindowStart });
+            e.HasIndex(x => new { x.AssigneeId, x.WindowEnd });
+            e.HasIndex(x => new { x.Status, x.WindowEnd });
+        });
+
+        b.Entity<PatrolVisit>(e =>
+        {
+            e.HasIndex(x => new { x.RoundId, x.CheckpointId }).IsUnique();
+            e.HasIndex(x => x.ClientId);
         });
 
         b.Entity<TaskEvent>(e => e.Property(x => x.Stage).HasMaxLength(100));
