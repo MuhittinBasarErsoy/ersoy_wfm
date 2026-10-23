@@ -61,10 +61,15 @@
                     {
                         var w = _m.Windows[i];
                         <div class="d-flex gap-2 align-center mb-2">
-                            <MudTimePicker Label="Başlangıç" Time="w.Start.ToTimeSpan()" TimeChanged="@(t => w.Start = TimeOnly.FromTimeSpan(t ?? TimeSpan.Zero))"
-                                           Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" Editable Style="max-width:140px" />
-                            <MudTimePicker Label="Bitiş" Time="w.End.ToTimeSpan()" TimeChanged="@(t => w.End = TimeOnly.FromTimeSpan(t ?? TimeSpan.Zero))"
-                                           Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" Editable Style="max-width:140px" />
+                            @* Genişlik sarmalayıcıda: MudTimePicker Style'ı açılır pencereye de uygular ve kadranı keser. *@
+                            <div style="width:140px">
+                                <MudTimePicker Label="Başlangıç" Time="w.Start.ToTimeSpan()" TimeChanged="@(t => w.Start = TimeOnly.FromTimeSpan(t ?? TimeSpan.Zero))"
+                                               Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" Editable />
+                            </div>
+                            <div style="width:140px">
+                                <MudTimePicker Label="Bitiş" Time="w.End.ToTimeSpan()" TimeChanged="@(t => w.End = TimeOnly.FromTimeSpan(t ?? TimeSpan.Zero))"
+                                               Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" Editable />
+                            </div>
                             @if (w.End <= w.Start)
                             {
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">ertesi gün</MudText>
