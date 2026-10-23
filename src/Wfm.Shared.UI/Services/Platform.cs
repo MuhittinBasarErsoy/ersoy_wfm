@@ -36,7 +36,8 @@ public interface ILocationTracker
 /// <summary>Uygulama dışı aksiyonlar: yol tarifi, arama.</summary>
 public interface IExternalActions
 {
-    Task OpenDirectionsAsync(double lat, double lng, string label);
+    /// <param name="walking">true = yürüyüş rotası (devriye noktaları), false = araç.</param>
+    Task OpenDirectionsAsync(double lat, double lng, string label, bool walking = false);
     Task CallAsync(string phone);
 }
 
