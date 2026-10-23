@@ -70,9 +70,9 @@ public class MauiPlatform : IGeolocationService, ICameraService, IExternalAction
     }
 
     // ---------- Harici uygulamalar ----------
-    public Task OpenDirectionsAsync(double lat, double lng, string label) =>
+    public Task OpenDirectionsAsync(double lat, double lng, string label, bool walking = false) =>
         MainThread.InvokeOnMainThreadAsync(() => Map.Default.OpenAsync(lat, lng,
-            new MapLaunchOptions { Name = label, NavigationMode = NavigationMode.Driving }));
+            new MapLaunchOptions { Name = label, NavigationMode = walking ? NavigationMode.Walking : NavigationMode.Driving }));
 
     public Task CallAsync(string phone) => MainThread.InvokeOnMainThreadAsync(() =>
     {

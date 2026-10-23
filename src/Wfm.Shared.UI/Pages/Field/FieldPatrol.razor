@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @inject IFieldService Field
 @inject IGeolocationService Geo
+@inject IExternalActions External
 @inject ISnackbar Snackbar
 
 <AppTitle Title="Devriye" />
@@ -83,6 +84,12 @@ else
                             }
                         </MudText>
                     </div>
+                    @if (c.VisitedAt is null && !round.IsClosed)
+                    {
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.DirectionsWalk"
+                                   OnClick="@(() => External.OpenDirectionsAsync(c.Latitude, c.Longitude, c.Name, walking: true))"
+                                   aria-label="@($"{c.Name} noktasına yürüyüş yol tarifi")">Yol tarifi</MudButton>
+                    }
                 </div>
                 @if (c.VisitedAt is null && round.IsActiveNow)
                 {
@@ -178,7 +185,8 @@ else
 
     private async Task DrawAsync()
     {
-        if (_map is null || Round is not { } round) return;
+        // Harita JS tarafında hazır olmadan çizilen işaretçiler kaybolur; odaklama da boşa gider.
+        if (_map is not { IsReady: true } || Round is not { } round) return;
         await _map.SetMarkersAsync("checkpoints", round.Checkpoints.Select(c => new MapMarker(
             c.Id.ToString(), c.Latitude, c.Longitude, c.VisitedAt is not null ? "#2e7d32" : "#1565c0",
             Label: c.VisitedAt is not null ? "✓" : c.Order.ToString(), Title: c.Name, Popup: $"<b>{c.Order}. {MapMarker.E(c.Name)}</b>")));
