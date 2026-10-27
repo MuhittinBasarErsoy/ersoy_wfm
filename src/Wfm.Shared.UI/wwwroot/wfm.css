@@ -26,6 +26,9 @@
 
 /* ---------- Harita ---------- */
 .wfm-map { width: 100%; height: 100%; border-radius: 8px; z-index: 0; }
+/* Harita / Uydu seçici: dar ekranlarda haritayı kapatmasın. */
+.wfm-map .leaflet-control-layers-expanded { padding: 4px 8px; font-size: 13px; line-height: 1.6; }
+.wfm-map .leaflet-control-layers-expanded label { margin: 0; cursor: pointer; }
 .wfm-dark .leaflet-tile-pane { filter: brightness(.65) invert(1) contrast(2.6) hue-rotate(200deg) saturate(.35) brightness(.75); }
 .wfm-dark .leaflet-popup-content-wrapper, .wfm-dark .leaflet-popup-tip { background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); }
 .wfm-dark .leaflet-popup-content a { color: var(--mud-palette-primary); }
