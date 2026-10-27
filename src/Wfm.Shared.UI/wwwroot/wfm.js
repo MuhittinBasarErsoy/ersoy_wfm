@@ -11,10 +11,12 @@ export function createMap(elementId, lat, lng, zoom, dotnetRef, clickable) {
     if (!el || typeof L === 'undefined') return false;
     if (maps.has(elementId)) disposeMap(elementId);
     const map = L.map(el, { zoomControl: true }).setView([lat, lng], zoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+    const bases = baseLayers();
+    const chosen = bases[readMapStyle()] ?? bases['Harita'];
+    chosen.addTo(map);
+    L.control.layers(bases, null, { position: 'topright', collapsed: false }).addTo(map);
+    // Seçim tüm haritalarda ve sonraki açılışlarda hatırlanır.
+    map.on('baselayerchange', e => writeMapStyle(e.name));
     const state = { map, layers: {}, markers: {}, lines: {}, dotnetRef, pick: null };
     if (clickable) {
         map.on('click', e => dotnetRef.invokeMethodAsync('OnMapClick', e.latlng.lat, e.latlng.lng));
@@ -23,6 +25,36 @@ export function createMap(elementId, lat, lng, zoom, dotnetRef, clickable) {
     // Konteyner boyutu sonradan oturursa (sekme, dialog) haritayı düzelt.
     new ResizeObserver(() => map.invalidateSize()).observe(el);
     return true;
+}
+
+// ---------- Harita görünümü (normal / uydu) ----------
+const mapStyleKey = 'wfm.mapStyle';
+
+function baseLayers() {
+    return {
+        'Harita': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }),
+        // Esri uydu görüntüsü + üzerine yer adları; anahtar gerektirmez, atıf zorunlu.
+        'Uydu': L.layerGroup([
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Uydu: &copy; Esri, Maxar, Earthstar Geographics'
+            }),
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19
+            })
+        ])
+    };
+}
+
+function readMapStyle() {
+    try { return localStorage.getItem(mapStyleKey); } catch { return null; }
+}
+
+function writeMapStyle(name) {
+    try { localStorage.setItem(mapStyleKey, name); } catch { /* gizli sekme vb.: yalnızca bu oturumda geçerli */ }
 }
 
 function layer(state, name) {
