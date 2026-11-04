@@ -42,6 +42,21 @@
                             <MudSelectItem T="TaskPriority" Value="p">@Ui.Priority(p)</MudSelectItem>
                         }
                     </MudSelect>
+                    <div class="d-flex gap-2 flex-wrap mt-3">
+                        <MudSelect T="Guid?" Value="_model.SurveyId" ValueChanged="SurveyChanged" Label="Anket (isteğe bağlı)" Variant="Variant.Outlined" Clearable Style="flex:2;min-width:220px"
+                                   ToStringFunc="@(id => _surveys.FirstOrDefault(s => s.Id == id)?.Title ?? "")" Disabled="@(Existing?.SurveyResponseCount > 0)"
+                                   HelperText="@(Existing?.SurveyResponseCount > 0 ? "Yanıt alındığı için değiştirilemez" : "Çalışan bu anketi sahada doldurur")">
+                            @foreach (var s in _surveys)
+                            {
+                                <MudSelectItem T="Guid?" Value="s.Id">@s.Title</MudSelectItem>
+                            }
+                        </MudSelect>
+                        @if (_model.SurveyId is not null)
+                        {
+                            <MudNumericField T="int" @bind-Value="_model.SurveyTargetCount" Label="Hedef anket sayısı" Variant="Variant.Outlined" Min="1" Max="100000" Style="flex:1;min-width:140px"
+                                             HelperText="Bu kadar yanıt olmadan görev tamamlanamaz" />
+                        }
+                    </div>
                     @if (SelectedType is { } type && type.Fields.Any(f => !f.FilledOnCompletion))
                     {
                         <MudText Typo="Typo.overline" Color="Color.Secondary" Class="mt-4 d-block">@type.Name bilgileri</MudText>
@@ -112,6 +127,10 @@
                     <MudSimpleTable Dense Elevation="0" Bordered>
                         <tbody>
                             <tr><th style="width:34%">Görev</th><td>@SelectedType?.Name · <b>@_model.Title</b> · @Ui.Priority(_model.Priority)</td></tr>
+                            @if (_model.SurveyId is { } surveyId)
+                            {
+                                <tr><th>Anket</th><td>@_surveys.FirstOrDefault(s => s.Id == surveyId)?.Title · hedef @_model.SurveyTargetCount</td></tr>
+                            }
                             <tr><th>Adres</th><td>@(string.IsNullOrWhiteSpace(_model.Address) ? "—" : _model.Address)</td></tr>
                             <tr><th>Müşteri</th><td>@(_model.CustomerName ?? "—")@(_model.CustomerPhone is null ? "" : " · " + _model.CustomerPhone)</td></tr>
                             <tr><th>Zaman</th><td>@ScheduleText</td></tr>
@@ -247,6 +266,7 @@
     private List<WorkerLocationDto> _live = [];
     private Dictionary<Guid, int> _openCounts = [];
     private List<Suggestion> _suggestions = [];
+    private List<SurveyDto> _surveys = [];
 
     private TaskTypeDto? SelectedType => Types.FirstOrDefault(t => t.Id == _model.TaskTypeId);
     private bool HasLocation => _model.Latitude != 0 || _model.Longitude != 0;
@@ -264,7 +284,8 @@
                 TaskTypeId = t.TaskTypeId, Title = t.Title, Description = t.Description, Priority = t.Priority,
                 AssigneeId = t.AssigneeId, TeamId = t.TeamId, Address = t.Address, Latitude = t.Latitude, Longitude = t.Longitude,
                 CustomerName = t.CustomerName, CustomerPhone = t.CustomerPhone,
-                CustomFieldValues = new(t.CustomFieldValues), RowVersion = t.RowVersion
+                CustomFieldValues = new(t.CustomFieldValues), RowVersion = t.RowVersion,
+                SurveyId = t.SurveyId, SurveyTargetCount = t.HasSurvey ? t.SurveyTargetCount : 1
             };
             if (t.ScheduledStart is { } s)
             {
@@ -279,8 +300,18 @@
             _model.TaskTypeId = Types.FirstOrDefault()?.Id ?? Guid.Empty;
             _model.Title = Types.FirstOrDefault()?.Name ?? "";
             _date = DateTime.Today;
+            _model.SurveyId = Types.FirstOrDefault()?.DefaultSurveyId;
         }
         _snapshot = Snapshot();
+
+        try
+        {
+            // Yeni görevlere yalnızca yayımlanmış anket bağlanır; arşivlenmiş olsa da görevin kendi anketi listede kalır.
+            _surveys = (await Api.GetSurveysAsync()).Where(s => s.Status == SurveyStatus.Published || s.Id == _model.SurveyId).ToList();
+            if (_model.SurveyId is { } selected && _surveys.All(s => s.Id != selected)) _model.SurveyId = Existing?.SurveyId;
+            _snapshot = Snapshot();
+        }
+        catch (ApiException) { /* anket isteğe bağlı; görev yine açılabilir */ }
 
         // Atama önerisi için canlı konumlar ve çalışan başına açık görev sayısı.
         try
@@ -311,12 +342,22 @@
             .ToList();
     }
 
+    private void SurveyChanged(Guid? id)
+    {
+        _model.SurveyId = id;
+        if (_model.SurveyTargetCount < 1) _model.SurveyTargetCount = 1;
+    }
+
     private void TypeChanged(Guid id)
     {
-        var previous = SelectedType?.Name;
+        var previous = SelectedType;
         _model.TaskTypeId = id;
+        // Anket seçimi hâlâ önceki tipin önerisiyse yeni tipin önerisine geç; elle seçilene dokunma.
+        if (Existing is not { SurveyResponseCount: > 0 } && _model.SurveyId == previous?.DefaultSurveyId
+            && (SelectedType?.DefaultSurveyId is null || _surveys.Any(s => s.Id == SelectedType.DefaultSurveyId)))
+            _model.SurveyId = SelectedType?.DefaultSurveyId;
         // Başlık hâlâ önceki tipin adıysa yeni tipe göre güncelle.
-        if (string.IsNullOrWhiteSpace(_model.Title) || _model.Title == previous) _model.Title = SelectedType?.Name ?? "";
+        if (string.IsNullOrWhiteSpace(_model.Title) || _model.Title == previous?.Name) _model.Title = SelectedType?.Name ?? "";
     }
 
     private async Task MapReady()

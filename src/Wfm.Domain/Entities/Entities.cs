@@ -45,6 +45,8 @@ public class TaskType : TenantEntity
     public List<string> Stages { get; set; } = [];
     /// <summary>false = masa başı iş: yol/varış adımları ve konum zorunluluğu yok.</summary>
     public bool RequiresVisit { get; set; } = true;
+    /// <summary>Bu tipte görev açılırken önerilen anket.</summary>
+    public Guid? DefaultSurveyId { get; set; }
 }
 
 public class FieldDefinition

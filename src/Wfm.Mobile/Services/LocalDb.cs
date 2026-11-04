@@ -98,4 +98,6 @@ public static class OutboxKind
     public const string Shift = "shift";
     /// <summary>Devriye kontrol noktası basışı; TaskId tur kimliğini taşır.</summary>
     public const string PatrolVisit = "patrol-visit";
+    /// <summary>Doldurulan anket; fotoğrafları kendisinden önce kuyruğa girer.</summary>
+    public const string SurveyResponse = "survey-response";
 }

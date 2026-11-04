@@ -226,6 +226,22 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         return updated;
     }
 
+    public async Task SubmitSurveyResponseAsync(Guid taskId, SubmitSurveyResponseRequest request, IReadOnlyDictionary<Guid, CapturedFile> photos)
+    {
+        // Sayaç hemen artar, çalışan internetsiz de ilerler. Sıra korunur: önce fotoğraflar, sonra yanıt.
+        Directory.CreateDirectory(LocalDb.OutboxFileDirectory);
+        foreach (var (clientId, file) in photos)
+        {
+            var path = Path.Combine(LocalDb.OutboxFileDirectory, $"{clientId:N}{Path.GetExtension(file.FileName)}");
+            await File.WriteAllBytesAsync(path, file.Data);
+            var meta = new AttachmentMeta(clientId, AttachmentKind.SurveyPhoto, file.FileName, file.ContentType, request.Latitude, request.Longitude, request.SubmittedAt);
+            await EnqueueAsync(new OutboxItem { Kind = OutboxKind.Attachment, TaskId = taskId, Payload = JsonSerializer.Serialize(meta, Json), FilePath = path }, push: false);
+        }
+        await UpdateCachedTaskAsync(taskId, t => t with { SurveyResponseCount = t.SurveyResponseCount + 1 });
+        await EnqueueAsync(new OutboxItem { Kind = OutboxKind.SurveyResponse, TaskId = taskId, Payload = JsonSerializer.Serialize(request, Json) });
+        if (PendingCount == 0) await PullAsync();
+    }
+
     public async Task<ShiftDto?> SetShiftAsync(bool onShift)
     {
         ShiftDto? shift = onShift ? new ShiftDto(Guid.NewGuid(), DateTime.UtcNow, null) : null;
@@ -333,6 +349,9 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
                 break;
             case OutboxKind.DeleteAttachment:
                 await _api.DeleteAttachmentAsync(item.TaskId, Guid.Parse(item.Payload));
+                break;
+            case OutboxKind.SurveyResponse:
+                await _api.SubmitSurveyResponseAsync(item.TaskId, JsonSerializer.Deserialize<SubmitSurveyResponseRequest>(item.Payload, Json)!);
                 break;
             case OutboxKind.PatrolVisit:
                 await _api.RecordPatrolVisitAsync(item.TaskId, JsonSerializer.Deserialize<PatrolVisitRequest>(item.Payload, Json)!);

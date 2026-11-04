@@ -617,6 +617,74 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.ToTable("Surveys");
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.SurveyResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Answers")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ConsentGiven")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("float");
+
+                    b.Property<string>("RespondentName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RespondentPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SurveyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SurveyVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveyVersionId");
+
+                    b.HasIndex("SurveyId", "SubmittedAt");
+
+                    b.HasIndex("WorkTaskId", "ClientId")
+                        .IsUnique();
+
+                    b.ToTable("SurveyResponses");
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.SurveyVersion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -646,6 +714,11 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -816,6 +889,9 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DefaultSurveyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
@@ -1052,6 +1128,18 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<int?>("StepOrder")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("SurveyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SurveyResponseCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SurveyTargetCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SurveyVersionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TaskTypeId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1074,6 +1162,8 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SurveyVersionId");
 
                     b.HasIndex("TaskTypeId");
 
@@ -1263,6 +1353,21 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.SurveyResponse", b =>
+                {
+                    b.HasOne("Wfm.Domain.Entities.SurveyVersion", null)
+                        .WithMany()
+                        .HasForeignKey("SurveyVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Wfm.Domain.Entities.WorkTask", null)
+                        .WithMany()
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.SurveyVersion", b =>
                 {
                     b.HasOne("Wfm.Domain.Entities.Survey", null)
@@ -1306,11 +1411,18 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .HasForeignKey("JobId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Wfm.Domain.Entities.SurveyVersion", "SurveyVersion")
+                        .WithMany()
+                        .HasForeignKey("SurveyVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Wfm.Domain.Entities.TaskType", "TaskType")
                         .WithMany()
                         .HasForeignKey("TaskTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("SurveyVersion");
 
                     b.Navigation("TaskType");
                 });

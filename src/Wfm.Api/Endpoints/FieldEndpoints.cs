@@ -181,7 +181,7 @@ public static class FieldEndpoints
             var tasks = await db.Tasks.Where(t => t.AssigneeId == uid &&
                     (t.Status == WorkTaskStatus.Assigned || t.Status == WorkTaskStatus.Accepted || t.Status == WorkTaskStatus.EnRoute ||
                      t.Status == WorkTaskStatus.OnSite || t.UpdatedAt >= since))
-                .Include(t => t.TaskType).Include(t => t.Events).Include(t => t.Attachments)
+                .Include(t => t.TaskType).Include(t => t.SurveyVersion).Include(t => t.Events).Include(t => t.Attachments)
                 .AsSplitQuery().ToListAsync();
             var names = await dir.NamesAsync(tid);
             var types = await db.TaskTypes.ToListAsync();

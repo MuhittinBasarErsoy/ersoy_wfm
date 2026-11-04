@@ -12,7 +12,7 @@ public static class Mapping
 
     public static TaskTypeDto ToDto(this TaskType t) =>
         new(t.Id, t.Name, t.Description, t.Icon, t.Color, t.IsActive, t.Fields.OrderBy(f => f.Order).ToList(), t.Completion,
-            t.Stages.ToList(), t.RequiresVisit);
+            t.Stages.ToList(), t.RequiresVisit, t.DefaultSurveyId);
 
     public static TeamDto ToDto(this Team t) => new(t.Id, t.Name, t.Description);
 
@@ -57,7 +57,10 @@ public static class Mapping
         JobId = t.JobId,
         StepOrder = t.StepOrder,
         PlannedAssigneeId = t.PlannedAssigneeId,
-        PlannedAssigneeName = t.PlannedAssigneeId is { } p && userNames.TryGetValue(p, out var pn) ? pn : null
+        PlannedAssigneeName = t.PlannedAssigneeId is { } p && userNames.TryGetValue(p, out var pn) ? pn : null,
+        SurveyId = t.SurveyId,
+        SurveyTargetCount = t.SurveyTargetCount,
+        SurveyResponseCount = t.SurveyResponseCount
     };
 
     public static WorkTaskDetailDto ToDetailDto(this WorkTask t, IReadOnlyDictionary<Guid, string> userNames, FileUrlSigner signer)
@@ -75,11 +78,16 @@ public static class Mapping
             RowVersion = dto.RowVersion, TrackingToken = dto.TrackingToken,
             JobId = dto.JobId, StepOrder = dto.StepOrder, PlannedAssigneeId = dto.PlannedAssigneeId,
             PlannedAssigneeName = dto.PlannedAssigneeName,
+            SurveyId = dto.SurveyId, SurveyTargetCount = dto.SurveyTargetCount, SurveyResponseCount = dto.SurveyResponseCount,
+            Survey = t.SurveyVersion is { } v
+                ? new SurveyVersionDto(v.Id, v.SurveyId, v.Title, v.VersionNo, v.Questions.OrderBy(q => q.Order).ToList(), v.RespondentMode, v.ConsentText)
+                : null,
             TaskType = t.TaskType?.ToDto(),
             Events = t.Events.OrderBy(e => e.CreatedAt).Select(e => new TaskEventDto(e.Id, e.UserId,
                 userNames.TryGetValue(e.UserId, out var un) ? un : null, e.FromStatus, e.ToStatus, e.Note,
                 e.Latitude, e.Longitude, e.CreatedAt, e.Stage)).ToList(),
-            Attachments = t.Attachments.OrderBy(a => a.CapturedAt).Select(a => new AttachmentDto(a.Id, a.Kind, a.FileName,
+            // Anket fotoğrafları kanıt değildir; eski mobil sürümler bu türü okuyamadığı için listeye de girmez.
+            Attachments = t.Attachments.Where(a => a.Kind != AttachmentKind.SurveyPhoto).OrderBy(a => a.CapturedAt).Select(a => new AttachmentDto(a.Id, a.Kind, a.FileName,
                 a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById)).ToList()
         };
     }

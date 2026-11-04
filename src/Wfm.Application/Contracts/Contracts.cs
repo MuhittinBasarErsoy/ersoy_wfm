@@ -36,13 +36,15 @@ public record SaveTeamRequest(string Name, string? Description);
 
 // ---------- Task types ----------
 public record TaskTypeDto(Guid Id, string Name, string? Description, string Icon, string Color, bool IsActive,
-    List<FieldDefinition> Fields, CompletionRequirements Completion, List<string>? Stages = null, bool RequiresVisit = true)
+    List<FieldDefinition> Fields, CompletionRequirements Completion, List<string>? Stages = null, bool RequiresVisit = true,
+    Guid? DefaultSurveyId = null)
 {
     public List<string> Stages { get; init; } = Stages ?? [];
 }
 
 public record SaveTaskTypeRequest(string Name, string? Description, string Icon, string Color, bool IsActive,
-    List<FieldDefinition> Fields, CompletionRequirements Completion, List<string>? Stages = null, bool RequiresVisit = true);
+    List<FieldDefinition> Fields, CompletionRequirements Completion, List<string>? Stages = null, bool RequiresVisit = true,
+    Guid? DefaultSurveyId = null);
 
 // ---------- Tasks ----------
 public record WorkTaskDto
@@ -84,6 +86,11 @@ public record WorkTaskDto
     public Guid? PlannedAssigneeId { get; init; }
     public string? PlannedAssigneeName { get; init; }
 
+    public Guid? SurveyId { get; init; }
+    public int SurveyTargetCount { get; init; }
+    public int SurveyResponseCount { get; init; }
+    public bool HasSurvey => SurveyId is not null;
+
     /// <summary>Planlanan bitiş zamanı geçtiği hâlde açık.</summary>
     public bool IsOverdue => Status is not (WorkTaskStatus.Completed or WorkTaskStatus.Cancelled or WorkTaskStatus.Failed)
                              && ScheduledEnd is { } end && end < DateTime.UtcNow;
@@ -99,6 +106,8 @@ public record WorkTaskDetailDto : WorkTaskDto
     public List<AttachmentDto> Attachments { get; init; } = [];
     /// <summary>Görev bir işin adımıysa işin özeti ve önceki adımların sonuçları.</summary>
     public TaskJobContextDto? Job { get; init; }
+    /// <summary>Görevin anketi; telefonda önbelleğe girer, internetsiz de doldurulur.</summary>
+    public SurveyVersionDto? Survey { get; init; }
 }
 
 public record TaskJobContextDto(Guid JobId, string Title, int StepOrder, int OrderCount, List<JobStepSummaryDto> PreviousSteps);
@@ -126,6 +135,8 @@ public record SaveWorkTaskRequest
     public DateTime? ScheduledStart { get; set; }
     public DateTime? ScheduledEnd { get; set; }
     public Dictionary<string, string?> CustomFieldValues { get; set; } = [];
+    public Guid? SurveyId { get; set; }
+    public int SurveyTargetCount { get; set; } = 1;
     /// <summary>Güncellemede eşzamanlılık kontrolü için (base64).</summary>
     public string? RowVersion { get; set; }
 }
@@ -257,6 +268,24 @@ public record SaveSurveyRequest
     public string? ConsentText { get; set; }
     public List<SurveyQuestion> Questions { get; set; } = [];
 }
+
+public record SurveyVersionDto(Guid Id, Guid SurveyId, string Title, int VersionNo, List<SurveyQuestion> Questions,
+    SurveyRespondentMode RespondentMode, string? ConsentText);
+
+public record SubmitSurveyResponseRequest
+{
+    public Guid ClientId { get; set; }
+    public List<SurveyAnswer> Answers { get; set; } = [];
+    public string? RespondentName { get; set; }
+    public string? RespondentPhone { get; set; }
+    public bool ConsentGiven { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public DateTime StartedAt { get; set; }
+    public DateTime SubmittedAt { get; set; }
+}
+
+public record SurveyResponseResultDto(Guid Id, int ResponseCount, int TargetCount);
 
 // ---------- Devriye (bekçi turları) ----------
 public record PatrolRouteDto(Guid Id, string Name, string? Description, Guid? AssigneeId, string? AssigneeName, bool IsActive,

@@ -70,7 +70,7 @@ public static class SurveyEndpoints
             {
                 var version = new SurveyVersion
                 {
-                    TenantId = s.TenantId, SurveyId = s.Id, VersionNo = s.Versions.Select(v => v.VersionNo).DefaultIfEmpty(0).Max() + 1,
+                    TenantId = s.TenantId, SurveyId = s.Id, VersionNo = s.Versions.Select(v => v.VersionNo).DefaultIfEmpty(0).Max() + 1, Title = s.Title,
                     Questions = Copy(s.Questions), RespondentMode = s.RespondentMode, ConsentText = s.ConsentText,
                     PublishedById = ctx.User.UserId()
                 };
@@ -93,6 +93,99 @@ public static class SurveyEndpoints
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(s));
         }).RequireAuthorization(Policies.ManageTasks);
+
+        // ---------- Sahadan yanıt ----------
+        app.MapPost("/api/tasks/{id:guid}/survey-responses", async (Guid id, SubmitSurveyResponseRequest req, HttpContext ctx, WfmDbContext db) =>
+        {
+            var uid = ctx.User.UserId();
+            if (req.ClientId == Guid.Empty) return Results.BadRequest(new ApiError("İstemci kimliği eksik."));
+            var now = DateTime.UtcNow;
+            // İnternetsiz doldurulan ankette an cihazdan gelir; gelecekteki zamanlara izin verilmez.
+            var submittedAt = req.SubmittedAt != default && req.SubmittedAt.ToUniversalTime() < now ? req.SubmittedAt.ToUniversalTime() : now;
+
+            for (var attempt = 0; ; attempt++)
+            {
+                var task = await db.Tasks.Include(t => t.TaskType).Include(t => t.SurveyVersion).FirstOrDefaultAsync(t => t.Id == id);
+                if (task is null) return Results.NotFound();
+                if (task.AssigneeId != uid) return Results.Json(new ApiError("Bu görev size atanmamış."), statusCode: 403);
+                if (task.SurveyVersion is not { } version) return Results.BadRequest(new ApiError("Bu görevde anket yok."));
+
+                // Tekrar gönderim: aynı yanıt zaten kayıtlıysa başarı dön (idempotent).
+                if (await db.SurveyResponses.Where(r => r.WorkTaskId == id && r.ClientId == req.ClientId).Select(r => (Guid?)r.Id).FirstOrDefaultAsync() is { } existing)
+                    return Results.Ok(new SurveyResponseResultDto(existing, task.SurveyResponseCount, task.SurveyTargetCount));
+
+                // Kapanış sonrası gelen yanıt, cihazda kapanıştan önce doldurulduysa kabul edilir: internetsiz veri kaybolmasın.
+                if (!task.AcceptsSurveyResponses)
+                {
+                    var closedAt = task.IsOpen ? (DateTime?)null : task.CompletedAt ?? task.UpdatedAt;
+                    if (closedAt is null) return Results.BadRequest(new ApiError("Anket için önce görev yerine varın."));
+                    if (submittedAt > closedAt) return Results.BadRequest(new ApiError("Görev kapandı, anket eklenemez."));
+                }
+
+                var errors = SurveyRules.ValidateAnswers(version.Questions, version.RespondentMode, req.Answers, req.RespondentName, req.RespondentPhone, req.ConsentGiven);
+                if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
+
+                var anonymous = version.RespondentMode == SurveyRespondentMode.None;
+                var response = new SurveyResponse
+                {
+                    TenantId = task.TenantId, SurveyId = version.SurveyId, SurveyVersionId = version.Id, WorkTaskId = id, UserId = uid,
+                    StartedAt = req.StartedAt == default ? submittedAt : req.StartedAt.ToUniversalTime(),
+                    SubmittedAt = submittedAt,
+                    Latitude = req.Latitude, Longitude = req.Longitude,
+                    RespondentName = anonymous ? null : Clip(req.RespondentName, 200),
+                    RespondentPhone = anonymous ? null : Clip(req.RespondentPhone, 50),
+                    ConsentGiven = !anonymous && req.ConsentGiven,
+                    Answers = SurveyRules.VisibleAnswers(version.Questions, req.Answers),
+                    ClientId = req.ClientId
+                };
+                db.SurveyResponses.Add(response);
+                task.SurveyResponseCount++;
+                try
+                {
+                    await db.SaveChangesAsync();
+                    return Results.Ok(new SurveyResponseResultDto(response.Id, task.SurveyResponseCount, task.SurveyTargetCount));
+                }
+                catch (DbUpdateException) when (attempt < 3)
+                {
+                    // Görev aynı anda güncellendi ya da aynı yanıt iki kez geldi: güncel hâliyle tekrar dene.
+                    db.ChangeTracker.Clear();
+                }
+            }
+        }).RequireAuthorization(Policies.FieldWork);
+    }
+
+    private static string? Clip(string? text, int max)
+    {
+        var t = text?.Trim();
+        return string.IsNullOrEmpty(t) ? null : t.Length > max ? t[..max] : t;
+    }
+
+    /// <summary>Görev formundaki anket seçimini uygular. Görev mevcut sürümünde kalır; ilk yanıttan sonra anket değiştirilemez.</summary>
+    public static async Task<string?> ApplyToTaskAsync(WorkTask task, SaveWorkTaskRequest req, WfmDbContext db)
+    {
+        if (req.SurveyId == task.SurveyId)
+        {
+            if (task.SurveyId is null) return null;
+        }
+        else
+        {
+            if (task.SurveyResponseCount > 0) return "Yanıt alınmış görevin anketi değiştirilemez.";
+            if (req.SurveyId is not { } surveyId)
+            {
+                task.SurveyId = task.SurveyVersionId = null;
+                task.SurveyVersion = null;
+                task.SurveyTargetCount = 0;
+                return null;
+            }
+            var survey = await db.Surveys.FirstOrDefaultAsync(s => s.Id == surveyId);
+            if (survey is null) return "Anket bulunamadı.";
+            if (survey.Status != SurveyStatus.Published || survey.CurrentVersionId is null) return "Yalnızca yayımlanmış anket göreve bağlanabilir.";
+            task.SurveyId = survey.Id;
+            task.SurveyVersionId = survey.CurrentVersionId;
+        }
+        if (req.SurveyTargetCount is < 1 or > 100_000) return "Hedef anket sayısı 1 ile 100.000 arasında olmalı.";
+        task.SurveyTargetCount = req.SurveyTargetCount;
+        return null;
     }
 
     private static Task<Survey?> Load(WfmDbContext db, Guid id) =>
@@ -101,7 +194,7 @@ public static class SurveyEndpoints
     private static SurveyVersion? Current(Survey s) => s.Versions.FirstOrDefault(v => v.Id == s.CurrentVersionId);
 
     private static bool HasChanges(Survey s, SurveyVersion v) =>
-        s.RespondentMode != v.RespondentMode || s.ConsentText != v.ConsentText ||
+        s.Title != v.Title || s.RespondentMode != v.RespondentMode || s.ConsentText != v.ConsentText ||
         JsonSerializer.Serialize(s.Questions.OrderBy(q => q.Order)) != JsonSerializer.Serialize(v.Questions.OrderBy(q => q.Order));
 
     private static List<SurveyQuestion> Copy(List<SurveyQuestion> questions) =>

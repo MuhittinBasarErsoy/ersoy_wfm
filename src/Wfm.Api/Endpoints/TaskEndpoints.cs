@@ -59,10 +59,11 @@ public static class TaskEndpoints
             if (type is null) return Results.BadRequest(new ApiError("Görev tipi bulunamadı."));
             var errors = Validate(req, type);
             if (await InvalidAssignee(db, ctx.User, req.AssigneeId)) errors.Add("Atanan kullanıcı bu şirkette bir saha çalışanı değil.");
-            if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
-
             var userId = ctx.User.UserId();
             var task = new WorkTask { TenantId = ctx.User.TenantId(), CreatedById = userId };
+            if (await SurveyEndpoints.ApplyToTaskAsync(task, req, db) is { } surveyError) errors.Add(surveyError);
+            if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
+
             Apply(task, req);
             if (req.AssigneeId is not null) task.Assign(req.AssigneeId, userId);
             db.Tasks.Add(task);
@@ -86,6 +87,7 @@ public static class TaskEndpoints
             if (type is null) return Results.BadRequest(new ApiError("Görev tipi bulunamadı."));
             var errors = Validate(req, type);
             if (await InvalidAssignee(db, ctx.User, req.AssigneeId)) errors.Add("Atanan kullanıcı bu şirkette bir saha çalışanı değil.");
+            if (await SurveyEndpoints.ApplyToTaskAsync(task, req, db) is { } surveyError) errors.Add(surveyError);
             if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
 
             if (!string.IsNullOrEmpty(req.RowVersion))
@@ -172,6 +174,8 @@ public static class TaskEndpoints
                 var errors = TaskRules.ValidateCompletion(task.TaskType!, task.CustomFieldValues,
                     task.Attachments.Count(a => a.Kind == AttachmentKind.Photo),
                     task.Attachments.Any(a => a.Kind == AttachmentKind.Signature), req.Note, distance);
+                if (task.SurveyId is not null && task.SurveyResponseCount < task.SurveyTargetCount)
+                    errors.Add($"Anket eksik: {task.SurveyResponseCount} / {task.SurveyTargetCount}.");
                 if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
                 task.CompletionNote = req.Note;
             }
@@ -319,6 +323,8 @@ public static class TaskEndpoints
             if (task is null) return Results.NotFound();
             if (task.Status != WorkTaskStatus.Draft && task.Status != WorkTaskStatus.Cancelled)
                 return Results.BadRequest(new ApiError("Yalnızca taslak veya iptal edilmiş görevler silinebilir."));
+            if (task.SurveyResponseCount > 0)
+                return Results.BadRequest(new ApiError("Anket yanıtı olan görev silinemez."));
             foreach (var a in task.Attachments) await files.DeleteAsync(a.StoragePath);
             db.Tasks.Remove(task);
             await db.SaveChangesAsync();
@@ -366,7 +372,7 @@ public static class TaskEndpoints
     }
 
     public static Task<WorkTask?> LoadDetail(IQueryable<WorkTask> q, Guid id) =>
-        q.Include(t => t.TaskType).Include(t => t.Events).Include(t => t.Attachments)
+        q.Include(t => t.TaskType).Include(t => t.SurveyVersion).Include(t => t.Events).Include(t => t.Attachments)
             .AsSplitQuery().FirstOrDefaultAsync(t => t.Id == id);
 
     private static List<string> Validate(SaveWorkTaskRequest req, TaskType type)

@@ -30,6 +30,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<JobTemplate> JobTemplates => Set<JobTemplate>();
     public DbSet<Survey> Surveys => Set<Survey>();
     public DbSet<SurveyVersion> SurveyVersions => Set<SurveyVersion>();
+    public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
     public DbSet<PatrolRoute> PatrolRoutes => Set<PatrolRoute>();
     public DbSet<PatrolRound> PatrolRounds => Set<PatrolRound>();
     public DbSet<PatrolVisit> PatrolVisits => Set<PatrolVisit>();
@@ -98,6 +99,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.Property(x => x.TrackingToken).HasMaxLength(64);
             e.HasIndex(x => x.TrackingToken).IsUnique().HasFilter("[TrackingToken] IS NOT NULL");
             e.HasIndex(x => new { x.JobId, x.StepOrder });
+            e.HasOne(x => x.SurveyVersion).WithMany().HasForeignKey(x => x.SurveyVersionId).OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<Job>(e =>
@@ -128,7 +130,19 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         b.Entity<SurveyVersion>(e =>
         {
             e.Property(x => x.Questions).HasConversion(JsonConverter<List<SurveyQuestion>>(), JsonComparer<List<SurveyQuestion>>());
+            e.Property(x => x.Title).HasMaxLength(200);
             e.HasIndex(x => new { x.SurveyId, x.VersionNo }).IsUnique();
+        });
+
+        b.Entity<SurveyResponse>(e =>
+        {
+            e.Property(x => x.RespondentName).HasMaxLength(200);
+            e.Property(x => x.RespondentPhone).HasMaxLength(50);
+            e.Property(x => x.Answers).HasConversion(JsonConverter<List<SurveyAnswer>>(), JsonComparer<List<SurveyAnswer>>());
+            e.HasOne<WorkTask>().WithMany().HasForeignKey(x => x.WorkTaskId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<SurveyVersion>().WithMany().HasForeignKey(x => x.SurveyVersionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.WorkTaskId, x.ClientId }).IsUnique();
+            e.HasIndex(x => new { x.SurveyId, x.SubmittedAt });
         });
 
         b.Entity<PatrolRoute>(e =>

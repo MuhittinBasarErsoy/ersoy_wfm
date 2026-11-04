@@ -127,6 +127,7 @@ public static class UserEndpoints
         types.MapPost("/", async (SaveTaskTypeRequest req, WfmDbContext db) =>
         {
             var errors = TaskRules.ValidateTaskType(req.Name, req.Fields, req.Stages);
+            if (req.DefaultSurveyId is { } surveyId && !await db.Surveys.AnyAsync(s => s.Id == surveyId)) errors.Add("Anket bulunamadı.");
             if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
             var t = new TaskType();
             Apply(t, req);
@@ -137,6 +138,7 @@ public static class UserEndpoints
         types.MapPut("/{id:guid}", async (Guid id, SaveTaskTypeRequest req, WfmDbContext db) =>
         {
             var errors = TaskRules.ValidateTaskType(req.Name, req.Fields, req.Stages);
+            if (req.DefaultSurveyId is { } surveyId && !await db.Surveys.AnyAsync(s => s.Id == surveyId)) errors.Add("Anket bulunamadı.");
             if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
             var t = await db.TaskTypes.FirstOrDefaultAsync(x => x.Id == id);
             if (t is null) return Results.NotFound();
@@ -157,5 +159,6 @@ public static class UserEndpoints
         t.Completion = req.Completion;
         t.Stages = (req.Stages ?? []).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
         t.RequiresVisit = req.RequiresVisit;
+        t.DefaultSurveyId = req.DefaultSurveyId;
     }
 }
