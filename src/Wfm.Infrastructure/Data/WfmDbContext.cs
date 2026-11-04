@@ -126,12 +126,14 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         b.Entity<PatrolRound>(e =>
         {
             e.Property(x => x.RouteName).HasMaxLength(200);
+            e.Property(x => x.TeamName).HasMaxLength(200);
             e.Property(x => x.RowVersion).IsRowVersion();
             e.Property(x => x.Checkpoints).HasConversion(JsonConverter<List<PatrolCheckpoint>>(), JsonComparer<List<PatrolCheckpoint>>());
             e.HasMany(x => x.Visits).WithOne().HasForeignKey(x => x.RoundId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.RouteId, x.WindowStart }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.WindowStart });
             e.HasIndex(x => new { x.AssigneeId, x.WindowEnd });
+            e.HasIndex(x => new { x.TeamId, x.WindowEnd });
             e.HasIndex(x => new { x.Status, x.WindowEnd });
         });
 

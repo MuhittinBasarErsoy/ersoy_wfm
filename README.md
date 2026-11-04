@@ -123,6 +123,9 @@ dolaşması gereken kontrol noktalarıdır. Çalışan her noktaya varınca **"N
   bitişe N dakika kala (eksik nokta varsa) yeniden çalışana bildirim gönderir. Aralık bitince tamamlanmamış tur
   **Eksik** (bazı noktalar yapıldı) veya **Yapılmadı** (hiç basılmadı) olarak kapanır ve şirket yöneticileri ile
   dispeçerlere bildirilir.
+- Rota bir kişiye ya da bir **ekibe** atanabilir. Ekip turunda ekibin tüm saha çalışanları turu görür ve bildirim alır;
+  herhangi biri noktaları işaretleyebilir, kimin bastığı raporda görünür. İlk basış geçerlidir, aynı noktaya ikinci üyenin
+  basması hata vermez. Üyelik basış anına göre değerlendirilir; rotası olan ekip silinemez.
 - Basış GPS ile doğrulanır: çalışan noktanın yarıçapı (varsayılan 50 m) dışındaysa kabul edilmez. Rota bazında
   **sıra zorunlu** (1 → 2 → 3) ya da serbest seçilebilir. Aynı noktaya ikinci basış reddedilir.
 - Saat aralıkları şirketin yerel saatindedir (Europe/Istanbul); bitiş başlangıçtan küçükse (23:00–01:00) tur ertesi güne taşar.

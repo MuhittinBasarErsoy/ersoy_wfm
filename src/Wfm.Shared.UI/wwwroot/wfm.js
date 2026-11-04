@@ -98,13 +98,13 @@ export function upsertMarker(elementId, layerName, m) {
     }
 }
 
-export function setPolyline(elementId, name, points, color) {
+export function setPolyline(elementId, name, points, color, fit = true) {
     const state = maps.get(elementId);
     if (!state) return;
     if (state.lines[name]) { state.lines[name].remove(); delete state.lines[name]; }
     if (points && points.length > 1) {
         state.lines[name] = L.polyline(points.map(p => [p.lat, p.lng]), { color, weight: 4, opacity: .8 }).addTo(state.map);
-        state.map.fitBounds(state.lines[name].getBounds(), { padding: [30, 30] });
+        if (fit) state.map.fitBounds(state.lines[name].getBounds(), { padding: [30, 30] });
     }
 }
 

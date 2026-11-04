@@ -108,6 +108,8 @@ public static class UserEndpoints
         teams.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, WfmDbContext db) =>
         {
             var t = await db.Teams.FirstOrDefaultAsync(x => x.Id == id);
+            if (t is not null && await db.PatrolRoutes.AnyAsync(r => r.TeamId == id))
+                return Results.BadRequest(new ApiError("Bu ekibe atanmış devriye rotası var. Önce rotayı başka bir ekibe ya da kişiye atayın."));
             if (t is null) return Results.NotFound();
             var tid = ctx.User.TenantId();
             await db.Users.Where(u => u.TenantId == tid && u.TeamId == id).ExecuteUpdateAsync(s => s.SetProperty(u => u.TeamId, (Guid?)null));

@@ -11,7 +11,10 @@ public class PatrolRoute : TenantEntity
 {
     public string Name { get; set; } = "";
     public string? Description { get; set; }
-    public Guid AssigneeId { get; set; }
+    /// <summary>Rotanın atandığı kişi; ekibe atandıysa boş.</summary>
+    public Guid? AssigneeId { get; set; }
+    /// <summary>Rotanın atandığı ekip: ekipteki herhangi bir saha çalışanı noktaları işaretleyebilir.</summary>
+    public Guid? TeamId { get; set; }
     public Guid CreatedById { get; set; }
     public bool IsActive { get; set; } = true;
     /// <summary>true = noktalar sırayla (1 → 2 → 3) basılmalı; false = pencere içinde her noktaya uğramak yeterli.</summary>
@@ -52,7 +55,10 @@ public class PatrolRound : TenantEntity
 {
     public Guid RouteId { get; set; }
     public string RouteName { get; set; } = "";
-    public Guid AssigneeId { get; set; }
+    public Guid? AssigneeId { get; set; }
+    public Guid? TeamId { get; set; }
+    /// <summary>Ekip sonradan silinse de raporlarda adı görünsün diye kopyalanır.</summary>
+    public string? TeamName { get; set; }
     public DateTime WindowStart { get; set; }
     public DateTime WindowEnd { get; set; }
     public bool EnforceOrder { get; set; }

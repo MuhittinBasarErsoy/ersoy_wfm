@@ -5,6 +5,7 @@
 @inject IGeolocationService Geo
 @inject IExternalActions External
 @inject ISnackbar Snackbar
+@inject UserContext Me
 
 <AppTitle Title="Devriye" />
 
@@ -28,7 +29,7 @@ else
             <div style="flex:1;min-width:0">
                 <MudText Typo="Typo.subtitle1"><b>@round.RouteName</b></MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @PatrolUi.Window(round) · @(round.EnforceOrder ? "sırayla" : "sıra serbest")
+                    @PatrolUi.Window(round) · @(round.EnforceOrder ? "sırayla" : "sıra serbest")@(round.TeamName is { } team ? $" · Ekip: {team}" : "")
                     @if (round.IsActiveNow)
                     {
                         <span> · @Ui.Duration(remaining) kaldı</span>
@@ -72,7 +73,7 @@ else
                         <MudText Typo="Typo.caption" Color="Color.Secondary">
                             @if (c.VisitedAt is { } v)
                             {
-                                <span>İşaretlendi · @Ui.Local(v, "HH:mm")@(c.Pending ? " (gönderilmedi)" : "")</span>
+                                <span>İşaretlendi · @Ui.Local(v, "HH:mm")@(round.IsTeamRound && c.VisitedByName is { } who ? $" · {who}" : "")@(c.Pending ? " (gönderilmedi)" : "")</span>
                             }
                             else if (distance is { } d)
                             {
@@ -136,10 +137,13 @@ else
     private async Task TrackAsync()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        var ticks = 0;
         try
         {
             do
             {
+                // Ekip turunda diğer üyelerin işaretledikleri de görünsün (Changed olayı listeyi yeniler).
+                if (Round is { IsTeamRound: true, IsClosed: false } && ++ticks % 6 == 0) await Field.SyncAsync();
                 if (await Geo.GetCurrentAsync() is { } p) _me = p;
                 await InvokeAsync(StateHasChanged);
                 await DrawAsync();
@@ -170,7 +174,10 @@ else
             var updated = await Field.RecordPatrolVisitAsync(round.Id, new PatrolVisitRequest(c.Id, me.Latitude, me.Longitude, me.Accuracy,
                 DateTime.UtcNow, Guid.NewGuid()));
             _rounds = await Field.GetPatrolRoundsAsync();
-            Snackbar.Add(updated?.Status == PatrolRoundStatus.Completed ? "Tur tamamlandı, teşekkürler." : $"'{c.Name}' işaretlendi.", Severity.Success);
+            var byOther = updated?.Checkpoints.FirstOrDefault(x => x.Id == c.Id)?.VisitedByName is { } who && who != Me.User?.FullName ? who : null;
+            Snackbar.Add(byOther is not null ? $"'{c.Name}' zaten işaretlenmiş: {byOther}."
+                : updated?.Status == PatrolRoundStatus.Completed ? "Tur tamamlandı, teşekkürler." : $"'{c.Name}' işaretlendi.",
+                byOther is not null ? Severity.Info : Severity.Success);
             await DrawAsync();
         }
         catch (ApiException ex)

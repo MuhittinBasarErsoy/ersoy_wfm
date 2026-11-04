@@ -8,7 +8,7 @@ namespace Wfm.Api.Services;
 
 /// <summary>
 /// Devriye turlarını yürütür (dakikada bir): aktif rotalar için bugünün ve yarının turlarını üretir, pencere açılınca ve
-/// bitmeye az kala çalışana hatırlatır, pencere biten eksik turları kapatıp yöneticilere bildirir.
+/// bitmeye az kala çalışana (ekip turunda tüm üyelere) hatırlatır, pencere biten eksik turları kapatıp yöneticilere bildirir.
 /// </summary>
 public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolSchedulerService> log) : BackgroundService
 {
@@ -55,8 +55,9 @@ public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolS
                 r.StartReminderSent = true;
                 if (r.Status == PatrolRoundStatus.Scheduled) r.Status = PatrolRoundStatus.InProgress;
                 await db.SaveChangesAsync(ct);
-                await notify.NotifyAsync(r.TenantId, r.AssigneeId, "Devriye başladı",
-                    $"{r.RouteName}: {r.Checkpoints.Count} nokta, bitiş {Local(r.WindowEnd):HH:mm}.", null, NotificationKinds.PatrolStarting);
+                foreach (var u in await RecipientsAsync(db, r, ct))
+                    await notify.NotifyAsync(r.TenantId, u, "Devriye başladı",
+                        $"{r.RouteName}: {r.Checkpoints.Count} nokta, bitiş {Local(r.WindowEnd):HH:mm}.", null, NotificationKinds.PatrolStarting);
                 continue;
             }
 
@@ -67,8 +68,9 @@ public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolS
                 r.EndReminderSent = true;
                 await db.SaveChangesAsync(ct);
                 var left = (int)Math.Ceiling((r.WindowEnd - now).TotalMinutes);
-                await notify.NotifyAsync(r.TenantId, r.AssigneeId, "Devriye bitmek üzere",
-                    $"{r.RouteName}: {left} dk kaldı, {r.MissingCount} nokta eksik.", null, NotificationKinds.PatrolEndingSoon);
+                foreach (var u in await RecipientsAsync(db, r, ct))
+                    await notify.NotifyAsync(r.TenantId, u, "Devriye bitmek üzere",
+                        $"{r.RouteName}: {left} dk kaldı, {r.MissingCount} nokta eksik.", null, NotificationKinds.PatrolEndingSoon);
             }
         }
     }
@@ -81,6 +83,8 @@ public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolS
         var today = PatrolSchedule.LocalToday(now);
         var horizon = now.AddDays(2);
         var ids = routes.Select(r => r.Id).ToList();
+        var teamIds = routes.Where(r => r.TeamId != null).Select(r => r.TeamId!.Value).ToList();
+        var teams = await db.Teams.IgnoreQueryFilters().Where(t => teamIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name, ct);
         var existing = (await db.PatrolRounds.IgnoreQueryFilters()
                 .Where(r => ids.Contains(r.RouteId) && r.WindowEnd > now && r.WindowStart < horizon)
                 .Select(r => new { r.RouteId, r.WindowStart }).ToListAsync(ct))
@@ -92,7 +96,7 @@ public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolS
                 foreach (var (start, end) in PatrolSchedule.WindowsOn(route, day))
                 {
                     if (end <= now || !existing.Add((route.Id, start))) continue;
-                    db.PatrolRounds.Add(NewRound(route, start, end));
+                    db.PatrolRounds.Add(NewRound(route, start, end, route.TeamId is { } t ? teams.GetValueOrDefault(t) : null));
                     added = true;
                 }
         if (!added) return;
@@ -107,12 +111,14 @@ public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolS
         }
     }
 
-    public static PatrolRound NewRound(PatrolRoute route, DateTime start, DateTime end) => new()
+    public static PatrolRound NewRound(PatrolRoute route, DateTime start, DateTime end, string? teamName = null) => new()
     {
         TenantId = route.TenantId,
         RouteId = route.Id,
         RouteName = route.Name,
         AssigneeId = route.AssigneeId,
+        TeamId = route.TeamId,
+        TeamName = teamName,
         WindowStart = start,
         WindowEnd = end,
         EnforceOrder = route.EnforceOrder,
@@ -121,9 +127,20 @@ public class PatrolSchedulerService(IServiceScopeFactory scopes, ILogger<PatrolS
             .ToList()
     };
 
+    /// <summary>Kişisel turda atanan kişi; ekip turunda ekibin o anki aktif saha çalışanları.</summary>
+    private static async Task<List<Guid>> RecipientsAsync(WfmDbContext db, PatrolRound r, CancellationToken ct)
+    {
+        if (r.TeamId is not { } teamId) return r.AssigneeId is { } a ? [a] : [];
+        return await (from u in db.Users
+                      join ur in db.UserRoles on u.Id equals ur.UserId
+                      join role in db.Roles on ur.RoleId equals role.Id
+                      where u.TenantId == r.TenantId && u.TeamId == teamId && u.IsActive && role.Name == Roles.FieldWorker
+                      select u.Id).Distinct().ToListAsync(ct);
+    }
+
     private static async Task NotifyManagersAsync(WfmDbContext db, NotificationService notify, PatrolRound r, CancellationToken ct)
     {
-        var worker = await db.Users.Where(u => u.Id == r.AssigneeId).Select(u => u.FullName).FirstOrDefaultAsync(ct) ?? "Çalışan";
+        var worker = r.TeamName ?? await db.Users.Where(u => u.Id == r.AssigneeId).Select(u => u.FullName).FirstOrDefaultAsync(ct) ?? "Çalışan";
         var done = r.Checkpoints.Count - r.MissingCount;
         var title = r.Status == PatrolRoundStatus.Missed ? "Devriye yapılmadı" : "Devriye eksik";
         var body = $"{worker}, {r.RouteName} ({Local(r.WindowStart):HH:mm}–{Local(r.WindowEnd):HH:mm}): {done}/{r.Checkpoints.Count} nokta.";

@@ -8,6 +8,7 @@
 @inject IDialogService Dialogs
 @inject NavigationManager Nav
 @inject WfmJs Js
+@inject NotificationCenter Center
 
 <AppTitle Title="Görevlerim" />
 
@@ -58,7 +59,7 @@
                         </MudText>
                         <MudText Typo="Typo.subtitle1" Style="line-height:1.2"><b>@p.RouteName</b></MudText>
                         <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            @PatrolUi.Window(p) · @p.VisitedCount/@p.Checkpoints.Count nokta@(active ? $" · {Ui.Duration(p.WindowEnd - DateTime.UtcNow)} kaldı" : "")
+                            @PatrolUi.Window(p)@(p.TeamName is { } team ? $" · Ekip: {team}" : "") · @p.VisitedCount/@p.Checkpoints.Count nokta@(active ? $" · {Ui.Duration(p.WindowEnd - DateTime.UtcNow)} kaldı" : "")
                         </MudText>
                     </div>
                     <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Secondary" aria-hidden="true" />
@@ -220,6 +221,7 @@
     protected override async Task OnInitializedAsync()
     {
         Field.Changed += OnChanged;
+        Center.Received += OnNotification;
         _tasks = await Field.GetTasksAsync();
         _patrols = await Field.GetPatrolRoundsAsync();
         _shift = await Field.GetShiftAsync();
@@ -306,6 +308,12 @@
         }
     }
 
+    /// <summary>Devriye turu başlayınca kart sayfa yenilenmeden görünsün.</summary>
+    private void OnNotification(NotificationDto n)
+    {
+        if (n.Kind == NotificationKinds.PatrolStarting) _ = InvokeAsync(RefreshAsync);
+    }
+
     private void OnChanged() => _ = InvokeAsync(async () =>
     {
         _tasks = await Field.GetTasksAsync();
@@ -316,6 +324,7 @@
     public async ValueTask DisposeAsync()
     {
         Field.Changed -= OnChanged;
+        Center.Received -= OnNotification;
         if (_ref is not null)
         {
             await Js.Run("unregisterPullToRefresh", _pullId);

@@ -12,6 +12,9 @@ public class UserDirectory(WfmDbContext db)
 {
     public async Task<Dictionary<Guid, string>> NamesAsync(Guid tenantId) =>
         await db.Users.Where(u => u.TenantId == tenantId).ToDictionaryAsync(u => u.Id, u => u.FullName);
+
+    public async Task<Dictionary<Guid, string>> TeamNamesAsync() =>
+        await db.Teams.ToDictionaryAsync(t => t.Id, t => t.Name);
 }
 
 /// <summary>Konum ping'lerini kaydeder ve izleyicilere canlı yayınlar.</summary>
