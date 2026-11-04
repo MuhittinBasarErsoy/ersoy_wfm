@@ -117,6 +117,7 @@ app.MapUserEndpoints();
 app.MapTaskEndpoints();
 app.MapJobEndpoints();
 app.MapPatrolEndpoints();
+app.MapSurveyEndpoints();
 app.MapFieldEndpoints();
 app.MapReportEndpoints();
 app.MapPublicEndpoints();

@@ -136,6 +136,18 @@ dolaşması gereken kontrol noktalarıdır. Çalışan her noktaya varınca **"N
   saha: `/field/patrol`. API: `/api/patrol-routes`, `/api/patrol/rounds`, `POST /api/patrol/rounds/{id}/visits`.
   Demo veride Burak'a atanmış "Depo ve otopark turu" bulunur.
 
+## Anketler
+
+Şirket kendi anketlerini tanımlar (`/surveys`): tek/çoklu seçim, evet/hayır, kısa/uzun metin, sayı, tarih, 1–5 ve 0–10 puan,
+fotoğraf ve konum soruları. Bir soru, önceki bir sorunun cevabına bağlanabilir ("X'in cevabı Y ise göster"); gizli kalan soru
+zorunlu sayılmaz ve kaydedilmez. Cevaplayan kişi bilgisi anket bazında ayarlanır (anonim / isteğe bağlı / zorunlu); kişi bilgisi
+girilirse ankete yazılan onay metni onaylatılır.
+
+- Düzenleme taslağı değiştirir, **Yayımla** değişmez bir sürüm (`SurveyVersion`) oluşturur. Soru kimlikleri sürümler arasında korunur.
+- Yayımlanmış anket silinmez, arşivlenir. Hiç yayımlanmamış taslak silinebilir.
+- Kurallar `SurveyRules` içinde; API ve istemci aynısını kullanır. Doldurma sihirbazı `SurveyRunner` bileşenidir, düzenleyicideki önizleme de bunu kullanır.
+- API: `/api/surveys`, `POST /api/surveys/{id}/publish`, `POST /api/surveys/{id}/archive`.
+
 ## Konum takibi ve bildirimler
 
 - Saha çalışanı **mesaiye başladığında** konum paylaşımı başlar, mesai bitince durur.

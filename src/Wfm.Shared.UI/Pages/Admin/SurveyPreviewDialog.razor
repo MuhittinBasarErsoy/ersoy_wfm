@@ -1,0 +1,28 @@
+@* Anketi çalışanın göreceği hâliyle deneme; hiçbir şey kaydedilmez. *@
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">Önizleme: @Title</MudText></TitleContent>
+    <DialogContent>
+        @if (_done)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3">Önizleme bitti, cevaplar kaydedilmedi.</MudAlert>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => _done = false)">Yeniden dene</MudButton>
+        }
+        else
+        {
+            <SurveyRunner Questions="Questions" Mode="Mode" ConsentText="@ConsentText" OnSubmit="@(_ => _done = true)" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Close())">Kapat</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public IReadOnlyList<SurveyQuestion> Questions { get; set; } = [];
+    [Parameter] public SurveyRespondentMode Mode { get; set; }
+    [Parameter] public string? ConsentText { get; set; }
+
+    private bool _done;
+}

@@ -1,0 +1,80 @@
+@page "/surveys"
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+@inject UserContext Me
+
+<RequirePolicy Policy="@Policies.ViewTracking">
+    <PageHeader Title="Anketler" Subtitle="Anketleri bir kez tanımlayın, yayımlayın ve sahada görev olarak yaptırın.">
+        <Actions>
+            @if (Me.Can(Policies.ManageTasks))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/surveys/new">Yeni anket</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    @if (_surveys is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else if (_surveys.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Quiz" Title="Henüz anket yok"
+                    Text="Ör. 'Müşteri memnuniyeti': puan, seçim ve açık uçlu sorularla, cevaba göre değişen koşullu sorularla.">
+            @if (Me.Can(Policies.ManageTasks))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/surveys/new">İlk anketi oluştur</MudButton>
+            }
+        </EmptyState>
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            @foreach (var s in _surveys)
+            {
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="1" Style="height:100%">
+                        <MudCardContent>
+                            <div class="d-flex align-center gap-2 mb-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="@(s.Status == SurveyStatus.Archived ? Color.Default : Color.Primary)" aria-hidden="true" />
+                                <MudText Typo="Typo.h6" Style="flex:1;min-width:0">@s.Title</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="@SurveyUi.StatusColor(s.Status)" Variant="Variant.Text">@SurveyUi.Status(s.Status)</MudChip>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(s.Description))
+                            {
+                                <MudText Typo="Typo.body2" Class="mb-1">@s.Description</MudText>
+                            }
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @s.Questions.Count soru · @SurveyUi.RespondentMode(s.RespondentMode)@(s.CurrentVersionNo is { } v ? $" · Sürüm {v}" : "")
+                            </MudText>
+                            @if (s.HasUnpublishedChanges)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Warning" Class="d-block">Yayımlanmamış değişiklik var</MudText>
+                            }
+                        </MudCardContent>
+                        @if (Me.Can(Policies.ManageTasks))
+                        {
+                            <MudCardActions>
+                                <MudButton StartIcon="@Icons.Material.Filled.Edit" Href="@($"/surveys/{s.Id}")">Düzenle</MudButton>
+                            </MudCardActions>
+                        }
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    private List<SurveyDto>? _surveys;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _surveys = await Api.GetSurveysAsync(); }
+        catch (ApiException ex)
+        {
+            _surveys = [];
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

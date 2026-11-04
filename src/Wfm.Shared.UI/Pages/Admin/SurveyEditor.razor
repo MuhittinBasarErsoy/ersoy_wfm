@@ -1,0 +1,328 @@
+@page "/surveys/new"
+@page "/surveys/{Id:guid}"
+@inject WfmApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService Dialogs
+
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" ConfirmExternalNavigation="Dirty" />
+
+<RequirePolicy Policy="@Policies.ManageTasks">
+    <PageHeader Title="@(Id is null ? "Yeni anket" : (string.IsNullOrWhiteSpace(_m.Title) ? "Anket" : _m.Title))" BackHref="/surveys" BackLabel="Anketlere dön"
+                Subtitle="@Subtitle">
+        <Badges>
+            @if (_saved is { } s)
+            {
+                <MudChip T="string" Size="Size.Small" Color="@SurveyUi.StatusColor(s.Status)" Variant="Variant.Text">@SurveyUi.Status(s.Status)</MudChip>
+            }
+        </Badges>
+        <Actions>
+            @if (_saved is { CurrentVersionId: null })
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteAsync" Disabled="_busy">Sil</MudButton>
+            }
+            @if (_saved is { CurrentVersionId: not null, Status: not SurveyStatus.Archived })
+            {
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Archive" OnClick="ArchiveAsync" Disabled="_busy">Arşivle</MudButton>
+            }
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Visibility" OnClick="PreviewAsync" Disabled="@(_busy || _m.Questions.Count == 0)">Önizle</MudButton>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Save" OnClick="@(() => SaveAsync())" Disabled="_busy">Kaydet</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Publish" OnClick="PublishAsync" Disabled="_busy">Yayımla</MudButton>
+        </Actions>
+    </PageHeader>
+
+    @if (!_loaded)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else
+    {
+        @if (_errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3" Dense role="alert">
+                @foreach (var e in _errors) { <div>@e</div> }
+            </MudAlert>
+        }
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Genel</b></MudText>
+                    <MudTextField T="string" @bind-Value="_m.Title" Label="Anket adı *" Variant="Variant.Outlined" Class="mb-3" MaxLength="200" Placeholder="ör. Müşteri memnuniyeti" />
+                    <MudTextField T="string" @bind-Value="_m.Description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+                    <MudSelect T="SurveyRespondentMode" Value="_m.RespondentMode" ValueChanged="ModeChanged" Label="Cevaplayan kişi" Variant="Variant.Outlined" Class="mb-3"
+                               ToStringFunc="SurveyUi.RespondentMode">
+                        @foreach (var mode in Enum.GetValues<SurveyRespondentMode>())
+                        {
+                            <MudSelectItem T="SurveyRespondentMode" Value="mode">@SurveyUi.RespondentMode(mode)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_m.RespondentMode != SurveyRespondentMode.None)
+                    {
+                        <MudTextField T="string" @bind-Value="_m.ConsentText" Label="Onay metni (KVKK) *" Variant="Variant.Outlined" Lines="4"
+                                      HelperText="Kişi bilgisi girilirse bu metin onaylatılır. Hukuk biriminize göstermenizi öneririz." />
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Elevation="1" Class="pa-4">
+                    <div class="d-flex align-center mb-2">
+                        <MudText Typo="Typo.subtitle1"><b>Sorular</b></MudText>
+                        <MudSpacer />
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="AddQuestion">Soru ekle</MudButton>
+                    </div>
+                    @if (_saved is { CurrentVersionNo: not null })
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                            Değişiklikler "Yayımla" deyince yeni sürüm olur. Mevcut görevler ve eski yanıtlar kendi sürümleriyle kalır.
+                        </MudText>
+                    }
+                    @if (_m.Questions.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Henüz soru yok. "Soru ekle" ile başlayın.</MudText>
+                    }
+                    @for (var i = 0; i < _m.Questions.Count; i++)
+                    {
+                        var index = i;
+                        var q = _m.Questions[i];
+                        var parents = _m.Questions.Take(index).Where(p => SurveyRules.CanBeCondition(p.Type)).ToList();
+                        <MudPaper Outlined Class="pa-3 mb-2">
+                            <div class="d-flex align-center gap-1 mb-2">
+                                <MudText Typo="Typo.subtitle2" Style="flex:1"><b>@(index + 1). soru</b></MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="index == 0" OnClick="@(() => Move(index, -1))" aria-label="@($"{index + 1}. soruyu yukarı taşı")" />
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="@(index == _m.Questions.Count - 1)" OnClick="@(() => Move(index, 1))" aria-label="@($"{index + 1}. soruyu aşağı taşı")" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Remove(q))" aria-label="@($"{index + 1}. soruyu sil")" />
+                            </div>
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="8">
+                                    <MudTextField T="string" @bind-Value="q.Text" Label="Soru metni" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="@SurveyRules.MaxTextLength" />
+                                </MudItem>
+                                <MudItem xs="12" sm="4">
+                                    <MudSelect T="SurveyQuestionType" @bind-Value="q.Type" Label="Tür" Variant="Variant.Outlined" Margin="Margin.Dense" ToStringFunc="SurveyUi.QuestionType">
+                                        @foreach (var t in Enum.GetValues<SurveyQuestionType>())
+                                        {
+                                            <MudSelectItem T="SurveyQuestionType" Value="t">@SurveyUi.QuestionType(t)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                @if (SurveyRules.HasOptions(q.Type))
+                                {
+                                    <MudItem xs="12">
+                                        <MudTextField T="string" Value="@string.Join("\n", q.Options)" ValueChanged="@(v => SetOptions(q, v))" Label="Seçenekler (her satıra bir tane)"
+                                                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="4" />
+                                    </MudItem>
+                                }
+                                <MudItem xs="12">
+                                    <MudTextField T="string" @bind-Value="q.HelpText" Label="Açıklama (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="12" Class="d-flex align-center">
+                                    <MudSwitch T="bool" @bind-Value="q.Required" Color="Color.Primary" Label="Zorunlu" />
+                                </MudItem>
+                                @if (parents.Count > 0 || q.ShowIf is not null)
+                                {
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="Guid?" Value="q.ShowIf?.QuestionId" ValueChanged="@(v => SetParent(q, v))" Label="Şu soruya bağlı göster" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable
+                                                   ToStringFunc="@(id => QuestionLabel(id))">
+                                            @foreach (var p in parents)
+                                            {
+                                                <MudSelectItem T="Guid?" Value="p.Id">@QuestionLabel(p.Id)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    @if (q.ShowIf is { } c)
+                                    {
+                                        <MudItem xs="12" sm="6">
+                                            <MudSelect T="string" @bind-Value="c.Value" Label="Cevap şu ise" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                                @foreach (var v in ParentValues(c))
+                                                {
+                                                    <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
+                                                }
+                                            </MudSelect>
+                                        </MudItem>
+                                    }
+                                }
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                    @if (_m.Questions.Count > 0)
+                    {
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Text" Size="Size.Small" OnClick="AddQuestion">Soru ekle</MudButton>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private SaveSurveyRequest _m = new();
+    private SurveyDto? _saved;
+    private List<string> _errors = [];
+    private bool _loaded, _busy;
+    private string _snapshot = "";
+
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(_m);
+    private bool Dirty => _loaded && Snapshot() != _snapshot;
+
+    private string? Subtitle => Dirty ? "Kaydedilmemiş değişiklikler var"
+        : _saved?.HasUnpublishedChanges == true ? "Yayımlanmamış değişiklikler var"
+        : _saved?.CurrentVersionNo is { } v ? $"Sürüm {v} yayında" : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is { } id)
+        {
+            _saved = await Api.GetSurveyAsync(id);
+            Load(_saved);
+        }
+        _snapshot = Snapshot();
+        _loaded = true;
+    }
+
+    private void Load(SurveyDto s) => _m = new SaveSurveyRequest
+    {
+        Title = s.Title, Description = s.Description, RespondentMode = s.RespondentMode, ConsentText = s.ConsentText, Questions = s.Questions
+    };
+
+    private void ModeChanged(SurveyRespondentMode mode)
+    {
+        _m.RespondentMode = mode;
+        if (mode != SurveyRespondentMode.None && string.IsNullOrWhiteSpace(_m.ConsentText)) _m.ConsentText = Survey.DefaultConsentText;
+    }
+
+    private void AddQuestion() => _m.Questions.Add(new SurveyQuestion { Type = SurveyQuestionType.SingleChoice, Order = _m.Questions.Count + 1, Required = true });
+
+    private void Move(int index, int delta)
+    {
+        var q = _m.Questions[index];
+        _m.Questions.RemoveAt(index);
+        _m.Questions.Insert(index + delta, q);
+        Renumber();
+    }
+
+    private void Remove(SurveyQuestion q)
+    {
+        _m.Questions.Remove(q);
+        // Silinen soruya bağlı koşullar da kalkar; sorular herkese sorulur.
+        foreach (var other in _m.Questions.Where(o => o.ShowIf?.QuestionId == q.Id)) other.ShowIf = null;
+        Renumber();
+    }
+
+    private void Renumber()
+    {
+        for (var i = 0; i < _m.Questions.Count; i++) _m.Questions[i].Order = i + 1;
+    }
+
+    private static void SetOptions(SurveyQuestion q, string? text) =>
+        q.Options = (text ?? "").Split('\n').Select(o => o.Trim()).Where(o => o.Length > 0).ToList();
+
+    private void SetParent(SurveyQuestion q, Guid? parentId) =>
+        q.ShowIf = parentId is { } id ? new SurveyCondition { QuestionId = id, Value = ParentValues(new SurveyCondition { QuestionId = id }).FirstOrDefault() ?? "" } : null;
+
+    private IReadOnlyList<string> ParentValues(SurveyCondition c) =>
+        _m.Questions.FirstOrDefault(p => p.Id == c.QuestionId) is { } parent ? SurveyRules.ConditionValues(parent) : [];
+
+    private string QuestionLabel(Guid? id)
+    {
+        var index = _m.Questions.FindIndex(q => q.Id == id);
+        if (index < 0) return "";
+        var text = _m.Questions[index].Text;
+        return $"{index + 1}. {(text.Length > 30 ? text[..30] + "…" : text)}";
+    }
+
+    private async Task PreviewAsync()
+    {
+        var parameters = new DialogParameters<SurveyPreviewDialog>
+        {
+            { x => x.Title, _m.Title },
+            { x => x.Questions, Normalized() },
+            { x => x.Mode, _m.RespondentMode },
+            { x => x.ConsentText, _m.ConsentText }
+        };
+        await Dialogs.ShowAsync<SurveyPreviewDialog>("Önizleme", parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = false });
+    }
+
+    private List<SurveyQuestion> Normalized() => _m.Questions.Select((q, i) => new SurveyQuestion
+    {
+        Id = q.Id, Order = i + 1, Type = q.Type, Text = q.Text, HelpText = q.HelpText, Required = q.Required, Options = q.Options, ShowIf = q.ShowIf
+    }).ToList();
+
+    private async Task<bool> SaveAsync(bool quiet = false)
+    {
+        _errors.Clear();
+        if (string.IsNullOrWhiteSpace(_m.Title))
+        {
+            _errors.Add("Anket adı zorunlu.");
+            return false;
+        }
+        _busy = true;
+        try
+        {
+            Renumber();
+            _saved = _saved is { } s ? await Api.UpdateSurveyAsync(s.Id, _m) : await Api.CreateSurveyAsync(_m);
+            Load(_saved);
+            _snapshot = Snapshot();
+            // Yeni anket kendi adresine geçer: başlık, yenileme ve paylaşılan bağlantı doğru çalışsın.
+            if (Id is null) Nav.NavigateTo($"/surveys/{_saved.Id}", replace: true);
+            if (!quiet) Snackbar.Add("Anket kaydedildi.", Severity.Success);
+            return true;
+        }
+        catch (ApiException ex)
+        {
+            _errors.Add(ex.Message);
+            return false;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PublishAsync()
+    {
+        // Sunucuya gitmeden, tüm eksikler tek seferde gösterilir.
+        _errors = SurveyRules.ValidateDefinition(Normalized(), _m.RespondentMode, _m.ConsentText);
+        if (_errors.Count > 0) return;
+        if (!await SaveAsync(quiet: true)) return;
+        _busy = true;
+        try
+        {
+            _saved = await Api.PublishSurveyAsync(_saved!.Id);
+            Load(_saved);
+            _snapshot = Snapshot();
+            Snackbar.Add($"Anket yayımlandı (sürüm {_saved.CurrentVersionNo}).", Severity.Success);
+        }
+        catch (ApiException ex) { _errors.Add(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task ArchiveAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Anket arşivlensin mi?", "Yeni görevlere bağlanamaz. Açık görevler ve eski yanıtlar etkilenmez. Yeniden yayımlayarak geri alabilirsiniz.",
+                "Arşivle", cancelText: "Vazgeç") != true) return;
+        try { _saved = await Api.ArchiveSurveyAsync(_saved!.Id); }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Anket silinsin mi?", "Bu taslak kalıcı olarak silinir.", "Sil", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeleteSurveyAsync(_saved!.Id);
+            _loaded = false; // gezinti onayı sorulmasın
+            Nav.NavigateTo("/surveys");
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (!Dirty) return;
+        if (await Dialogs.ShowMessageBoxAsync("Değişiklikler kaydedilmedi", "Sayfadan çıkarsanız değişiklikler kaybolacak.", "Çık",
+                cancelText: "Kalmaya devam et") != true)
+            ctx.PreventNavigation();
+    }
+}

@@ -30,6 +30,47 @@ public static class JobUi
     };
 }
 
+public static class SurveyUi
+{
+    public static string Status(SurveyStatus s) => s switch
+    {
+        SurveyStatus.Draft => "Taslak",
+        SurveyStatus.Published => "Yayında",
+        SurveyStatus.Archived => "Arşiv",
+        _ => s.ToString()
+    };
+
+    public static Color StatusColor(SurveyStatus s) => s switch
+    {
+        SurveyStatus.Published => Color.Success,
+        SurveyStatus.Archived => Color.Default,
+        _ => Color.Warning
+    };
+
+    public static string QuestionType(SurveyQuestionType t) => t switch
+    {
+        SurveyQuestionType.SingleChoice => "Tek seçim",
+        SurveyQuestionType.MultiChoice => "Çoklu seçim",
+        SurveyQuestionType.YesNo => "Evet / Hayır",
+        SurveyQuestionType.ShortText => "Kısa metin",
+        SurveyQuestionType.LongText => "Uzun metin",
+        SurveyQuestionType.Number => "Sayı",
+        SurveyQuestionType.Date => "Tarih",
+        SurveyQuestionType.Rating5 => "Puan (1–5)",
+        SurveyQuestionType.Nps10 => "Tavsiye puanı (0–10)",
+        SurveyQuestionType.Photo => "Fotoğraf",
+        SurveyQuestionType.Location => "Konum",
+        _ => t.ToString()
+    };
+
+    public static string RespondentMode(SurveyRespondentMode m) => m switch
+    {
+        SurveyRespondentMode.Optional => "Ad ve telefon isteğe bağlı",
+        SurveyRespondentMode.Required => "Ad zorunlu",
+        _ => "Anonim"
+    };
+}
+
 public static class PatrolUi
 {
     public static string Status(PatrolRoundStatus s) => s switch

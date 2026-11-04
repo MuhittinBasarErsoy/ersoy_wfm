@@ -1,4 +1,5 @@
 using Wfm.Application.Contracts;
+using Wfm.Domain.Entities;
 using Wfm.Domain.Enums;
 
 namespace Wfm.Shared.UI.Services;
@@ -6,6 +7,9 @@ namespace Wfm.Shared.UI.Services;
 public record GeoPoint(double Latitude, double Longitude, double? Accuracy = null);
 public record CapturedFile(byte[] Data, string FileName, string ContentType);
 public record AddressResult(string Address, double Latitude, double Longitude);
+/// <summary>Doldurulan anket. Fotoğraflar gönderime kadar bellekte durur; cevaptaki değer ekin istemci kimliğidir.</summary>
+public record SurveySubmission(List<SurveyAnswer> Answers, IReadOnlyDictionary<Guid, CapturedFile> Photos,
+    string? RespondentName, string? RespondentPhone, bool ConsentGiven, DateTime StartedAt);
 
 /// <summary>Uygulamanın çalıştığı platform (web dashboard / mobil uygulama).</summary>
 public interface IPlatformInfo

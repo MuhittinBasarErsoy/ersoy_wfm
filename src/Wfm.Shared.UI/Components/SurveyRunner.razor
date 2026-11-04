@@ -1,0 +1,289 @@
+@using System.Globalization
+@inject ICameraService Camera
+@inject IGeolocationService Geo
+@inject ISnackbar Snackbar
+
+@* Anketi soru soru doldurtan sihirbaz. Önizleme ve saha ekranı aynı bileşeni kullanır. *@
+<MudProgressLinear Value="@Progress" Color="Color.Primary" Rounded Class="mb-1" aria-label="Anket ilerlemesi" />
+<MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">@StepLabel</MudText>
+
+@if (OnRespondentStep)
+{
+    <MudText Typo="Typo.h6" Class="mb-1">Cevaplayan kişi</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+        @(Mode == SurveyRespondentMode.Required ? "Devam etmek için kişinin adını ve onayını alın." : "İsteğe bağlı; boş bırakılırsa anket anonim kaydedilir.")
+    </MudText>
+    <MudTextField T="string" @bind-Value="_name" Label="@(Mode == SurveyRespondentMode.Required ? "Ad soyad *" : "Ad soyad")" Variant="Variant.Outlined" Class="mb-3" Immediate MaxLength="200" />
+    <MudTextField T="string" @bind-Value="_phone" Label="Telefon" Variant="Variant.Outlined" Class="mb-3" InputType="InputType.Telephone" Immediate MaxLength="50" />
+    <MudCheckBox T="bool" @bind-Value="_consent" Color="Color.Primary" Label="@(ConsentText ?? "Onaylıyorum")" />
+}
+else if (Current is { } q)
+{
+    var answer = Answer(q);
+    <MudText Typo="Typo.h6" Class="mb-1" Style="white-space:pre-wrap">@q.Text@(q.Required ? " *" : "")</MudText>
+    @if (!string.IsNullOrWhiteSpace(q.HelpText))
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2" Style="white-space:pre-wrap">@q.HelpText</MudText>
+    }
+    <div class="wfm-survey-answer">
+        @switch (q.Type)
+        {
+            case SurveyQuestionType.SingleChoice:
+                <MudRadioGroup T="string" Value="@answer.Value" ValueChanged="@(v => SetValue(q, v))">
+                    <div class="d-flex flex-column">
+                        @foreach (var o in q.Options)
+                        {
+                            <MudRadio T="string" Value="@o" Color="Color.Primary">@o</MudRadio>
+                        }
+                    </div>
+                </MudRadioGroup>
+                break;
+            case SurveyQuestionType.MultiChoice:
+                <div class="d-flex flex-column">
+                    @foreach (var o in q.Options)
+                    {
+                        var option = o;
+                        <MudCheckBox T="bool" Value="@answer.Values.Contains(option)" ValueChanged="@(v => Toggle(q, option, v))" Color="Color.Primary" Label="@option" />
+                    }
+                </div>
+                break;
+            case SurveyQuestionType.YesNo:
+                <div class="d-flex gap-2">
+                    @foreach (var o in new[] { SurveyRules.Yes, SurveyRules.No })
+                    {
+                        var option = o;
+                        <MudButton Variant="@(answer.Value == option ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" Size="Size.Large" Style="flex:1"
+                                   aria-pressed="@(answer.Value == option ? "true" : "false")" OnClick="@(() => SetValue(q, option))">@option</MudButton>
+                    }
+                </div>
+                break;
+            case SurveyQuestionType.Rating5:
+            case SurveyQuestionType.Nps10:
+                <div class="wfm-survey-scale" role="group" aria-label="Puan">
+                    @foreach (var o in SurveyRules.ConditionValues(q))
+                    {
+                        var option = o;
+                        <MudButton Variant="@(answer.Value == option ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                                   aria-pressed="@(answer.Value == option ? "true" : "false")" OnClick="@(() => SetValue(q, option))">@option</MudButton>
+                    }
+                </div>
+                <div class="d-flex mt-1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@(q.Type == SurveyQuestionType.Nps10 ? "Hiç tavsiye etmem" : "Çok kötü")</MudText>
+                    <MudSpacer />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@(q.Type == SurveyQuestionType.Nps10 ? "Kesinlikle ederim" : "Çok iyi")</MudText>
+                </div>
+                break;
+            case SurveyQuestionType.ShortText:
+                <MudTextField T="string" Value="@answer.Value" ValueChanged="@(v => SetValue(q, v))" Variant="Variant.Outlined" Immediate MaxLength="@SurveyRules.MaxAnswerLength" aria-label="@q.Text" />
+                break;
+            case SurveyQuestionType.LongText:
+                <MudTextField T="string" Value="@answer.Value" ValueChanged="@(v => SetValue(q, v))" Variant="Variant.Outlined" Lines="4" Immediate MaxLength="@SurveyRules.MaxAnswerLength" aria-label="@q.Text" />
+                break;
+            case SurveyQuestionType.Number:
+                <MudNumericField T="double?" Value="@ParseNumber(answer.Value)" ValueChanged="@(v => SetValue(q, v?.ToString(CultureInfo.InvariantCulture)))" Variant="Variant.Outlined" Culture="Ui.Tr" Immediate aria-label="@q.Text" />
+                break;
+            case SurveyQuestionType.Date:
+                <MudDatePicker Date="@ParseDate(answer.Value)" DateChanged="@(d => SetValue(q, d?.ToString("yyyy-MM-dd")))" Variant="Variant.Outlined" DateFormat="dd.MM.yyyy" Culture="Ui.Tr" Label="Tarih" />
+                break;
+            case SurveyQuestionType.Photo:
+                @if (answer.Value is { } photoId && Guid.TryParse(photoId, out var pid) && _photos.TryGetValue(pid, out var photo))
+                {
+                    <MudAlert Severity="Severity.Success" Dense Class="mb-2" Icon="@Icons.Material.Filled.PhotoCamera">
+                        Fotoğraf eklendi (@photo.FileName)
+                        <MudButton Size="Size.Small" Class="ml-2" OnClick="@(() => RemovePhoto(q, pid))">Kaldır</MudButton>
+                    </MudAlert>
+                }
+                else
+                {
+                    <div class="d-flex gap-2 flex-wrap">
+                        @if (Camera.IsSupported)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Filled.PhotoCamera" OnClick="@(() => TakePhotoAsync(q))">Fotoğraf çek</MudButton>
+                        }
+                        <InputFile id="@_fileId" accept="image/*" OnChange="@(e => UploadPhotoAsync(q, e.File))" hidden />
+                        <MudButton HtmlTag="label" for="@_fileId" Variant="Variant.Outlined" Size="Size.Large" StartIcon="@Icons.Material.Filled.AddPhotoAlternate">@(Camera.IsSupported ? "Galeriden" : "Fotoğraf ekle")</MudButton>
+                    </div>
+                }
+                break;
+            case SurveyQuestionType.Location:
+                @if (!string.IsNullOrEmpty(answer.Value))
+                {
+                    <MudAlert Severity="Severity.Success" Dense Class="mb-2" Icon="@Icons.Material.Filled.Place">Konum alındı: @answer.Value.Replace(",", ", ")</MudAlert>
+                }
+                <MudButton Variant="@(string.IsNullOrEmpty(answer.Value) ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.MyLocation" Disabled="_locating" OnClick="@(() => TakeLocationAsync(q))">
+                    @(_locating ? "Konum alınıyor…" : string.IsNullOrEmpty(answer.Value) ? "Konumu al" : "Yeniden al")
+                </MudButton>
+                break;
+        }
+    </div>
+}
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Dense Class="mt-3" role="alert">@_error</MudAlert>
+}
+
+<div class="d-flex gap-2 mt-4">
+    <MudButton Variant="Variant.Outlined" Size="Size.Large" Style="flex:1" Disabled="@(_index == 0 || Busy)" OnClick="Back" StartIcon="@Icons.Material.Filled.ChevronLeft">Geri</MudButton>
+    @if (IsLast)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large" Style="flex:2" Disabled="Busy" OnClick="SubmitAsync" StartIcon="@Icons.Material.Filled.Send">Gönder</MudButton>
+    }
+    else
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Style="flex:2" Disabled="Busy" OnClick="Next" EndIcon="@Icons.Material.Filled.ChevronRight">İleri</MudButton>
+    }
+</div>
+
+@code {
+    private const long MaxPhotoBytes = 10 * 1024 * 1024;
+
+    [Parameter, EditorRequired] public IReadOnlyList<SurveyQuestion> Questions { get; set; } = [];
+    [Parameter] public SurveyRespondentMode Mode { get; set; }
+    [Parameter] public string? ConsentText { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<SurveySubmission> OnSubmit { get; set; }
+
+    private readonly Dictionary<Guid, SurveyAnswer> _answers = [];
+    private readonly Dictionary<Guid, CapturedFile> _photos = [];
+    private readonly string _fileId = "survey-file-" + Guid.NewGuid().ToString("N")[..8];
+    private DateTime _startedAt = DateTime.UtcNow;
+    private string? _name, _phone, _error;
+    private bool _consent, _locating;
+    private int _index;
+
+    /// <summary>Herhangi bir cevap girildi mi (yarıda çıkma uyarısı için).</summary>
+    public bool HasInput => _answers.Values.Any(SurveyRules.HasValue) || !string.IsNullOrWhiteSpace(_name) || !string.IsNullOrWhiteSpace(_phone);
+
+    /// <summary>Yeni anket için formu temizler.</summary>
+    public void Reset()
+    {
+        _answers.Clear();
+        _photos.Clear();
+        _name = _phone = _error = null;
+        _consent = false;
+        _index = 0;
+        _startedAt = DateTime.UtcNow;
+        StateHasChanged();
+    }
+
+    private bool HasRespondentStep => Mode != SurveyRespondentMode.None;
+    private List<SurveyQuestion> Visible => SurveyRules.VisibleQuestions(Questions, _answers);
+    private int StepCount => Visible.Count + (HasRespondentStep ? 1 : 0);
+    private bool OnRespondentStep => HasRespondentStep && _index == 0;
+    private SurveyQuestion? Current => Visible.ElementAtOrDefault(_index - (HasRespondentStep ? 1 : 0));
+    private bool IsLast => _index >= StepCount - 1;
+    private double Progress => StepCount == 0 ? 0 : (_index + 1) * 100.0 / StepCount;
+    private string StepLabel => $"{_index + 1} / {StepCount}";
+
+    private SurveyAnswer Answer(SurveyQuestion q) =>
+        _answers.TryGetValue(q.Id, out var a) ? a : new SurveyAnswer { QuestionId = q.Id };
+
+    private void SetValue(SurveyQuestion q, string? value)
+    {
+        _answers[q.Id] = new SurveyAnswer { QuestionId = q.Id, Value = value };
+        _error = null;
+    }
+
+    private void Toggle(SurveyQuestion q, string option, bool on)
+    {
+        var values = Answer(q).Values.Where(v => v != option).ToList();
+        if (on) values.Add(option);
+        // Seçenek sırası korunur, işaretlenme sırası raporu etkilemesin.
+        _answers[q.Id] = new SurveyAnswer { QuestionId = q.Id, Values = q.Options.Where(values.Contains).ToList() };
+        _error = null;
+    }
+
+    private string? StepError()
+    {
+        if (OnRespondentStep) return SurveyRules.RespondentErrors(Mode, _name, _phone, _consent).FirstOrDefault();
+        return Current is { } q ? SurveyRules.AnswerError(q, _answers.GetValueOrDefault(q.Id)) : null;
+    }
+
+    private void Next()
+    {
+        _error = StepError();
+        if (_error is null) _index++;
+    }
+
+    private void Back()
+    {
+        _error = null;
+        _index = Math.Max(0, _index - 1);
+    }
+
+    private async Task SubmitAsync()
+    {
+        var answers = _answers.Values.ToList();
+        var errors = SurveyRules.ValidateAnswers(Questions, Mode, answers, _name, _phone, _consent);
+        if (errors.Count > 0)
+        {
+            _error = string.Join(" ", errors);
+            return;
+        }
+        // Gizli kalan sorulara önceden verilmiş cevaplar ve fotoğraflar gönderilmez.
+        var kept = SurveyRules.VisibleAnswers(Questions, answers);
+        var photoIds = kept.Select(a => Guid.TryParse(a.Value, out var id) ? id : Guid.Empty).ToHashSet();
+        var anonymous = Mode == SurveyRespondentMode.None;
+        await OnSubmit.InvokeAsync(new SurveySubmission(kept, _photos.Where(p => photoIds.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value),
+            anonymous ? null : _name?.Trim(), anonymous ? null : _phone?.Trim(), !anonymous && _consent, _startedAt));
+    }
+
+    private void AddPhoto(SurveyQuestion q, CapturedFile file)
+    {
+        var id = Guid.NewGuid();
+        _photos[id] = file;
+        SetValue(q, id.ToString());
+    }
+
+    private void RemovePhoto(SurveyQuestion q, Guid id)
+    {
+        _photos.Remove(id);
+        SetValue(q, null);
+    }
+
+    private async Task TakePhotoAsync(SurveyQuestion q)
+    {
+        try
+        {
+            if (await Camera.CapturePhotoAsync() is { } photo) AddPhoto(q, photo);
+        }
+        catch (InvalidOperationException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task UploadPhotoAsync(SurveyQuestion q, IBrowserFile? file)
+    {
+        if (file is null) return;
+        if (file.Size > MaxPhotoBytes)
+        {
+            Snackbar.Add("Fotoğraf 10 MB'tan büyük olamaz.", Severity.Warning);
+            return;
+        }
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(MaxPhotoBytes).CopyToAsync(ms);
+        AddPhoto(q, new CapturedFile(ms.ToArray(), file.Name, file.ContentType));
+    }
+
+    private async Task TakeLocationAsync(SurveyQuestion q)
+    {
+        _locating = true;
+        try
+        {
+            if (await Geo.GetCurrentAsync() is { } p)
+                SetValue(q, string.Create(CultureInfo.InvariantCulture, $"{p.Latitude:0.000000},{p.Longitude:0.000000}"));
+            else
+                Snackbar.Add("Konum alınamadı. Konum izninin açık olduğundan emin olun.", Severity.Warning);
+        }
+        finally
+        {
+            _locating = false;
+        }
+    }
+
+    private static double? ParseNumber(string? v) =>
+        double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : null;
+
+    private static DateTime? ParseDate(string? v) =>
+        DateTime.TryParseExact(v, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+}
