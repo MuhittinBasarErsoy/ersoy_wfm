@@ -24,12 +24,13 @@ public static class PatrolEndpoints
         routes.MapGet("/", async (HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
         {
             var names = await dir.NamesAsync(ctx.User.TenantId());
-            return (await db.PatrolRoutes.OrderBy(r => r.Name).ToListAsync()).Select(r => r.ToDto(names)).ToList();
+            var teams = await dir.TeamNamesAsync();
+            return (await db.PatrolRoutes.OrderBy(r => r.Name).ToListAsync()).Select(r => r.ToDto(names, teams)).ToList();
         });
 
         routes.MapGet("/{id:guid}", async (Guid id, HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
             await db.PatrolRoutes.FirstOrDefaultAsync(r => r.Id == id) is { } r
-                ? Results.Ok(r.ToDto(await dir.NamesAsync(ctx.User.TenantId()))) : Results.NotFound());
+                ? Results.Ok(r.ToDto(await dir.NamesAsync(ctx.User.TenantId()), await dir.TeamNamesAsync())) : Results.NotFound());
 
         routes.MapPost("/", async (SavePatrolRouteRequest req, HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
         {
@@ -39,7 +40,7 @@ public static class PatrolEndpoints
             Apply(route, req);
             db.PatrolRoutes.Add(route);
             await db.SaveChangesAsync();
-            return Results.Ok(route.ToDto(await dir.NamesAsync(route.TenantId)));
+            return Results.Ok(route.ToDto(await dir.NamesAsync(route.TenantId), await dir.TeamNamesAsync()));
         }).RequireAuthorization(Policies.ManageTasks);
 
         routes.MapPut("/{id:guid}", async (Guid id, SavePatrolRouteRequest req, HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
@@ -51,7 +52,7 @@ public static class PatrolEndpoints
             Apply(route, req);
             await RemoveUpcomingRoundsAsync(db, id); // zamanlayıcı yeni ayarlarla yeniden üretir
             await db.SaveChangesAsync();
-            return Results.Ok(route.ToDto(await dir.NamesAsync(route.TenantId)));
+            return Results.Ok(route.ToDto(await dir.NamesAsync(route.TenantId), await dir.TeamNamesAsync()));
         }).RequireAuthorization(Policies.ManageTasks);
 
         // Geçmiş turlar ve basışlar rapor için kalır; yalnızca henüz başlamamış turlar silinir.
@@ -70,7 +71,7 @@ public static class PatrolEndpoints
 
         rounds.MapGet("/", async ([AsParameters] PatrolRoundQueryParams q, HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
         {
-            var query = Scope(db.PatrolRounds.Include(r => r.Visits), ctx.User);
+            var query = await ScopeAsync(db.PatrolRounds.Include(r => r.Visits), db, ctx.User);
             if (q.From is { } f)
             {
                 var from = LocalDayStart(f);
@@ -90,7 +91,7 @@ public static class PatrolEndpoints
         });
 
         rounds.MapGet("/{id:guid}", async (Guid id, HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
-            await Scope(db.PatrolRounds.Include(r => r.Visits), ctx.User).FirstOrDefaultAsync(r => r.Id == id) is { } r
+            await (await ScopeAsync(db.PatrolRounds.Include(r => r.Visits), db, ctx.User)).FirstOrDefaultAsync(r => r.Id == id) is { } r
                 ? Results.Ok(r.ToDto(await dir.NamesAsync(ctx.User.TenantId()))) : Results.NotFound());
 
         rounds.MapPost("/{id:guid}/visits", async (Guid id, PatrolVisitRequest req, HttpContext ctx, WfmDbContext db, UserDirectory dir) =>
@@ -102,15 +103,21 @@ public static class PatrolEndpoints
             // Offline'da basış anı cihazdan gelir; gelecekteki zamanlara izin verilmez.
             var now = DateTime.UtcNow;
             var at = req.ClientTimestamp?.ToUniversalTime() is { } ts && ts < now ? ts : now;
+            var myTeam = await MyTeamAsync(db, uid);
 
             for (var attempt = 0; ; attempt++)
             {
                 var round = await db.PatrolRounds.Include(r => r.Visits).FirstOrDefaultAsync(r => r.Id == id);
                 if (round is null) return Results.NotFound();
-                if (round.AssigneeId != uid) return Results.Json(new ApiError("Bu tur size atanmamış."), statusCode: 403);
+                if (round.AssigneeId != uid && (round.TeamId is null || round.TeamId != myTeam))
+                    return Results.Json(new ApiError("Bu tur size atanmamış."), statusCode: 403);
 
                 // Offline tekrar gönderimi: aynı basış zaten kaydedildiyse başarı dön (idempotent).
                 if (req.ClientId is { } cid && round.Visits.Any(v => v.ClientId == cid))
+                    return Results.Ok(round.ToDto(await dir.NamesAsync(round.TenantId)));
+
+                // Ekip turu: nokta başka bir üye tarafından işaretlenmişse amaç zaten yerine gelmiştir; ilk basış geçerli kalır.
+                if (round.TeamId is not null && round.Visits.Any(v => v.CheckpointId == req.CheckpointId))
                     return Results.Ok(round.ToDto(await dir.NamesAsync(round.TenantId)));
 
                 db.PatrolVisits.Add(round.RecordVisit(req.CheckpointId, uid, req.Latitude, req.Longitude, req.Accuracy, at, req.ClientId));
@@ -119,9 +126,9 @@ public static class PatrolEndpoints
                     await db.SaveChangesAsync();
                     return Results.Ok(round.ToDto(await dir.NamesAsync(round.TenantId)));
                 }
-                catch (DbUpdateConcurrencyException) when (attempt < 3)
+                catch (DbUpdateException) when (attempt < 3)
                 {
-                    // Zamanlayıcı turu aynı anda güncelledi (hatırlatma/kapatma): güncel hâliyle tekrar dene.
+                    // Zamanlayıcı ya da ekipten başka biri turu aynı anda güncelledi: güncel hâliyle tekrar dene.
                     db.ChangeTracker.Clear();
                 }
             }
@@ -134,18 +141,24 @@ public static class PatrolEndpoints
         var now = DateTime.UtcNow;
         var from = now.AddHours(-12);
         var to = now.AddHours(24);
+        var team = await MyTeamAsync(db, userId);
         var list = await db.PatrolRounds.Include(r => r.Visits)
-            .Where(r => r.AssigneeId == userId && r.WindowEnd >= from && r.WindowStart < to)
+            .Where(r => (r.AssigneeId == userId || (team != null && r.TeamId == team)) && r.WindowEnd >= from && r.WindowStart < to)
             .OrderBy(r => r.WindowStart).AsSplitQuery().ToListAsync();
         return list.Select(r => r.ToDto(names)).ToList();
     }
 
-    private static IQueryable<PatrolRound> Scope(IQueryable<PatrolRound> q, ClaimsPrincipal user)
+    /// <summary>Saha çalışanı kendi turlarını ve ekibinin turlarını görür; yöneticiler hepsini.</summary>
+    private static async Task<IQueryable<PatrolRound>> ScopeAsync(IQueryable<PatrolRound> q, WfmDbContext db, ClaimsPrincipal user)
     {
         if (user.HasPolicy(Policies.ViewTracking)) return q;
         var uid = user.UserId();
-        return q.Where(r => r.AssigneeId == uid);
+        var team = await MyTeamAsync(db, uid);
+        return q.Where(r => r.AssigneeId == uid || (team != null && r.TeamId == team));
     }
+
+    private static Task<Guid?> MyTeamAsync(WfmDbContext db, Guid userId) =>
+        db.Users.Where(u => u.Id == userId).Select(u => u.TeamId).FirstOrDefaultAsync();
 
     private static DateTime LocalDayStart(DateOnly day) =>
         TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), PatrolSchedule.Zone);
@@ -162,8 +175,15 @@ public static class PatrolEndpoints
     {
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(req.Name)) errors.Add("Rota adı zorunlu.");
-        if (req.AssigneeId == Guid.Empty || await TaskEndpoints.InvalidAssignee(db, user, req.AssigneeId))
-            errors.Add("Geçerli bir saha çalışanı seçin.");
+        if (req.AssigneeId is not null && req.TeamId is not null)
+            errors.Add("Rota ya bir kişiye ya da bir ekibe atanabilir, ikisine birden değil.");
+        else if (req.TeamId is { } teamId)
+        {
+            if (!await db.Teams.AnyAsync(t => t.Id == teamId)) errors.Add("Ekip bulunamadı.");
+            else if (!await HasActiveWorkerAsync(db, user.TenantId(), teamId)) errors.Add("Bu ekipte aktif saha çalışanı yok.");
+        }
+        else if (req.AssigneeId is null || req.AssigneeId == Guid.Empty || await TaskEndpoints.InvalidAssignee(db, user, req.AssigneeId))
+            errors.Add("Geçerli bir saha çalışanı ya da ekip seçin.");
         if (req.Windows.Count == 0) errors.Add("En az bir zaman aralığı ekleyin.");
         if (req.Windows.Count > MaxWindows) errors.Add($"En fazla {MaxWindows} zaman aralığı eklenebilir.");
         if (req.Windows.Any(w => w.Start == w.End)) errors.Add("Zaman aralığının başlangıcı ve bitişi aynı olamaz.");
@@ -177,6 +197,13 @@ public static class PatrolEndpoints
         if (OverlapsItself(req.Windows)) errors.Add("Zaman aralıkları birbiriyle çakışıyor.");
         return errors;
     }
+
+    private static Task<bool> HasActiveWorkerAsync(WfmDbContext db, Guid tenantId, Guid teamId) =>
+        (from u in db.Users
+         join ur in db.UserRoles on u.Id equals ur.UserId
+         join r in db.Roles on ur.RoleId equals r.Id
+         where u.TenantId == tenantId && u.TeamId == teamId && u.IsActive && r.Name == Roles.FieldWorker
+         select u.Id).AnyAsync();
 
     /// <summary>Aynı gün içindeki pencereler çakışmamalı (gece yarısını aşanlar 24 saat ötelenerek karşılaştırılır).</summary>
     private static bool OverlapsItself(List<PatrolWindow> windows)
@@ -198,6 +225,7 @@ public static class PatrolEndpoints
         r.Name = req.Name.Trim();
         r.Description = req.Description;
         r.AssigneeId = req.AssigneeId;
+        r.TeamId = req.TeamId;
         r.IsActive = req.IsActive;
         r.EnforceOrder = req.EnforceOrder;
         r.Days = req.Days.Distinct().Count() == 7 ? [] : req.Days.Distinct().OrderBy(d => ((int)d + 6) % 7).ToList();
@@ -215,9 +243,10 @@ public static class PatrolEndpoints
         }).ToList();
     }
 
-    private static PatrolRouteDto ToDto(this PatrolRoute r, IReadOnlyDictionary<Guid, string> names) =>
-        new(r.Id, r.Name, r.Description, r.AssigneeId, names.GetValueOrDefault(r.AssigneeId), r.IsActive, r.EnforceOrder,
-            r.Days, r.Windows, r.ReminderMinutesBeforeEnd, r.Checkpoints.OrderBy(c => c.Order).ToList());
+    private static PatrolRouteDto ToDto(this PatrolRoute r, IReadOnlyDictionary<Guid, string> names, IReadOnlyDictionary<Guid, string> teams) =>
+        new(r.Id, r.Name, r.Description, r.AssigneeId, r.AssigneeId is { } a ? names.GetValueOrDefault(a) : null, r.IsActive, r.EnforceOrder,
+            r.Days, r.Windows, r.ReminderMinutesBeforeEnd, r.Checkpoints.OrderBy(c => c.Order).ToList(),
+            r.TeamId, r.TeamId is { } t ? teams.GetValueOrDefault(t) : null);
 
     public static PatrolRoundDto ToDto(this PatrolRound r, IReadOnlyDictionary<Guid, string> names) => new()
     {
@@ -225,7 +254,9 @@ public static class PatrolEndpoints
         RouteId = r.RouteId,
         RouteName = r.RouteName,
         AssigneeId = r.AssigneeId,
-        AssigneeName = names.GetValueOrDefault(r.AssigneeId),
+        AssigneeName = r.AssigneeId is { } a ? names.GetValueOrDefault(a) : null,
+        TeamId = r.TeamId,
+        TeamName = r.TeamName,
         WindowStart = r.WindowStart,
         WindowEnd = r.WindowEnd,
         EnforceOrder = r.EnforceOrder,
@@ -234,7 +265,8 @@ public static class PatrolEndpoints
         Checkpoints = r.Checkpoints.OrderBy(c => c.Order).Select(c =>
         {
             var v = r.Visits.FirstOrDefault(x => x.CheckpointId == c.Id);
-            return new PatrolRoundCheckpointDto(c.Id, c.Order, c.Name, c.Latitude, c.Longitude, c.RadiusMeters, v?.VisitedAt, v?.DistanceMeters);
+            return new PatrolRoundCheckpointDto(c.Id, c.Order, c.Name, c.Latitude, c.Longitude, c.RadiusMeters, v?.VisitedAt, v?.DistanceMeters,
+                VisitedByName: v is null ? null : names.GetValueOrDefault(v.UserId));
         }).ToList()
     };
 }

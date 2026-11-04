@@ -11,6 +11,7 @@ namespace Wfm.Api.Tests;
 /// <summary>Devriye (bekçi turu): pencere içinde kontrol noktalarına uğrayıp tuşa basma.</summary>
 public class PatrolTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
+    private const string Admin = "yonetici@tamir.local";
     private const string Dispatcher = "dispecer@tamir.local";
     private const string Guard = "teknisyen1@tamir.local"; // Burak
     private const string Other = "teknisyen2@tamir.local"; // Selin
@@ -104,6 +105,84 @@ public class PatrolTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Any_team_member_can_work_a_team_round()
+    {
+        var (dispatcher, _, _) = await Setup();
+        var admin = await api.LoginAs(Admin);
+        var team = await admin.CreateTeamAsync(new SaveTeamRequest("Gece vardiyası", null));
+        var (first, firstId) = await NewWorker(admin, "bekci-a@tamir.local", "Bekçi A", team.Id);
+        var (second, _) = await NewWorker(admin, "bekci-b@tamir.local", "Bekçi B", team.Id);
+
+        var request = NewRoute("Ekip turu", firstId, enforceOrder: false);
+        request.AssigneeId = null;
+        request.TeamId = team.Id;
+        var route = await dispatcher.CreatePatrolRouteAsync(request);
+        Assert.Null(route.AssigneeId);
+        Assert.Equal("Gece vardiyası", route.TeamName);
+
+        // Tur iki üyede de görünür, başlangıç bildirimi ikisine de gider.
+        var round = await StartRound(first, route.Id);
+        Assert.True(round.IsTeamRound);
+        Assert.Equal("Gece vardiyası", round.OwnerName);
+        Assert.Contains((await second.SyncAsync()).PatrolRounds, r => r.Id == round.Id);
+        foreach (var member in new[] { first, second })
+            Assert.Contains(await member.GetNotificationsAsync(), n => n.Kind == NotificationKinds.PatrolStarting && n.Body.StartsWith("Ekip turu"));
+
+        // Ekip dışındakiler (ekipsiz çalışan dahil) görmez ve basamaz.
+        var outsider = await api.LoginAs(Other);
+        Assert.DoesNotContain((await outsider.SyncAsync()).PatrolRounds, r => r.Id == round.Id);
+        var forbidden = await Assert.ThrowsAsync<ApiException>(() => outsider.RecordPatrolVisitAsync(round.Id, At(round.Checkpoints[0])));
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.Status);
+
+        // Üyeler farklı noktaları işaretleyebilir; kimin bastığı kayda geçer.
+        await first.RecordPatrolVisitAsync(round.Id, At(round.Checkpoints[0]));
+        var mid = await second.RecordPatrolVisitAsync(round.Id, At(round.Checkpoints[1]));
+        Assert.Equal("Bekçi A", mid.Checkpoints[0].VisitedByName);
+        Assert.Equal("Bekçi B", mid.Checkpoints[1].VisitedByName);
+
+        // Aynı noktaya ikinci üye basarsa hata almaz, ilk basış geçerli kalır.
+        var again = await second.RecordPatrolVisitAsync(round.Id, At(round.Checkpoints[0]));
+        Assert.Equal("Bekçi A", again.Checkpoints[0].VisitedByName);
+        Assert.Equal(2, again.VisitedCount);
+
+        var done = await first.RecordPatrolVisitAsync(round.Id, At(round.Checkpoints[2]));
+        Assert.Equal(PatrolRoundStatus.Completed, done.Status);
+
+        // Rotası olan ekip silinemez.
+        await Assert.ThrowsAsync<ApiException>(() => admin.DeleteTeamAsync(team.Id));
+    }
+
+    [Fact]
+    public async Task Team_route_is_validated()
+    {
+        var (dispatcher, _, guardId) = await Setup();
+        var admin = await api.LoginAs(Admin);
+        var empty = await admin.CreateTeamAsync(new SaveTeamRequest("Boş ekip", null));
+
+        var noWorkers = NewRoute("Üyesiz", guardId, false);
+        noWorkers.AssigneeId = null;
+        noWorkers.TeamId = empty.Id;
+        var bad = await Assert.ThrowsAsync<ApiException>(() => dispatcher.CreatePatrolRouteAsync(noWorkers));
+        Assert.Contains("aktif saha çalışanı yok", bad.Message);
+
+        var both = NewRoute("İkisi birden", guardId, false);
+        both.TeamId = empty.Id;
+        await Assert.ThrowsAsync<ApiException>(() => dispatcher.CreatePatrolRouteAsync(both));
+
+        var neither = NewRoute("Hiçbiri", guardId, false);
+        neither.AssigneeId = null;
+        await Assert.ThrowsAsync<ApiException>(() => dispatcher.CreatePatrolRouteAsync(neither));
+    }
+
+    /// <summary>Telefonlardaki eski sürümler AssigneeId'yi dolu Guid bekler; alan yoksa varsayılana düşer, null ise sync bozulur.</summary>
+    [Fact]
+    public void Team_round_omits_assignee_for_old_mobile_clients()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new PatrolRoundDto { TeamId = Guid.NewGuid() }, WfmJson.Options);
+        Assert.DoesNotContain("\"assigneeId\"", json);
+    }
+
+    [Fact]
     public void Windows_crossing_midnight_end_next_day()
     {
         var route = new PatrolRoute
@@ -125,6 +204,12 @@ public class PatrolTests(ApiFixture api) : IClassFixture<ApiFixture>
         var dispatcher = await api.LoginAs(Dispatcher);
         var guard = await api.LoginAs(Guard);
         return (dispatcher, guard, (await guard.MeAsync()).Id);
+    }
+
+    private async Task<(WfmApiClient client, Guid id)> NewWorker(WfmApiClient admin, string email, string name, Guid teamId)
+    {
+        var user = await admin.CreateUserAsync(new CreateUserRequest(email, "Demo123!", name, null, Domain.Roles.FieldWorker, teamId));
+        return (await api.LoginAs(email), user.Id);
     }
 
     /// <summary>Şu anı içine alan tek pencereli rota (yerel saatle 10 dk önce başlar, 50 dk sonra biter).</summary>

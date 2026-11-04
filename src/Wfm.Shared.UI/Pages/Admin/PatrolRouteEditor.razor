@@ -32,14 +32,32 @@
                     <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Rota</b></MudText>
                     <MudTextField T="string" @bind-Value="_m.Name" Label="Rota adı *" Variant="Variant.Outlined" Placeholder="ör. Depo ve otopark turu" Class="mb-3" />
                     <MudTextField T="string" @bind-Value="_m.Description" Label="Açıklama" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
-                    <MudSelect T="Guid?" Value="@(_m.AssigneeId == Guid.Empty ? null : _m.AssigneeId)" ValueChanged="@(v => _m.AssigneeId = v ?? Guid.Empty)"
-                               ToStringFunc="@(id => _workers.FirstOrDefault(w => w.Id == id)?.FullName ?? "")"
-                               Label="Bekçi / çalışan *" Variant="Variant.Outlined" Class="mb-3">
-                        @foreach (var w in _workers)
-                        {
-                            <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1">Kime atanacak?</MudText>
+                    <MudToggleGroup T="bool" Value="_byTeam" ValueChanged="SetByTeam" Size="Size.Small" Outlined Class="mb-3" aria-label="Atama türü">
+                        <MudToggleItem Value="false">Kişi</MudToggleItem>
+                        <MudToggleItem Value="true">Ekip</MudToggleItem>
+                    </MudToggleGroup>
+                    @if (_byTeam)
+                    {
+                        <MudSelect T="Guid?" @bind-Value="_m.TeamId" Label="Ekip *" Variant="Variant.Outlined" Class="mb-3"
+                                   ToStringFunc="@(id => _teams.FirstOrDefault(t => t.Id == id)?.Name ?? "")"
+                                   HelperText="@TeamHelp" Error="@(_m.TeamId is not null && TeamMembers.Count == 0)">
+                            @foreach (var t in _teams)
+                            {
+                                <MudSelectItem T="Guid?" Value="t.Id">@t.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    else
+                    {
+                        <MudSelect T="Guid?" @bind-Value="_m.AssigneeId" Label="Bekçi / çalışan *" Variant="Variant.Outlined" Class="mb-3"
+                                   ToStringFunc="@(id => _workers.FirstOrDefault(w => w.Id == id)?.FullName ?? "")">
+                            @foreach (var w in _workers)
+                            {
+                                <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
                     <MudSwitch T="bool" @bind-Value="_m.EnforceOrder" Color="Color.Primary"
                                Label="@(_m.EnforceOrder ? "Sıra zorunlu (1 → 2 → 3 …)" : "Sıra serbest (her noktaya uğramak yeterli)")" />
                     <MudSwitch T="bool" @bind-Value="_m.IsActive" Color="Color.Success" Label="@(_m.IsActive ? "Aktif" : "Pasif (tur oluşturulmaz)")" />
@@ -135,6 +153,8 @@
 
     private SavePatrolRouteRequest _m = new();
     private List<UserDto> _workers = [];
+    private List<TeamDto> _teams = [];
+    private bool _byTeam;
     private List<string> _errors = [];
     private LeafletMap? _map;
     private GeoPoint _tenantCenter = new(41.0082, 28.9784);
@@ -145,6 +165,19 @@
     private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(_m);
     private bool Dirty => _loaded && Snapshot() != _snapshot;
 
+    private List<UserDto> TeamMembers => _workers.Where(w => w.IsActive && w.TeamId == _m.TeamId).ToList();
+
+    private string TeamHelp => _m.TeamId is null
+        ? "Ekipteki herhangi bir saha çalışanı turu yapabilir."
+        : TeamMembers.Count == 0 ? "Bu ekipte aktif saha çalışanı yok." : "Turu yapabilecekler: " + string.Join(", ", TeamMembers.Select(w => w.FullName));
+
+    private void SetByTeam(bool byTeam)
+    {
+        _byTeam = byTeam;
+        if (byTeam) _m.AssigneeId = null;
+        else _m.TeamId = null;
+    }
+
     private GeoPoint MapCenter => _m.Checkpoints.Count > 0
         ? new(_m.Checkpoints.Average(c => c.Latitude), _m.Checkpoints.Average(c => c.Longitude))
         : _tenantCenter;
@@ -153,20 +186,23 @@
     {
         var workers = Api.GetUsersAsync(Roles.FieldWorker);
         var tenant = Api.MyTenantAsync();
+        var teams = Api.GetTeamsAsync();
         if (Id is { } id)
         {
             var r = await Api.GetPatrolRouteAsync(id);
             _m = new SavePatrolRouteRequest
             {
-                Name = r.Name, Description = r.Description, AssigneeId = r.AssigneeId, IsActive = r.IsActive, EnforceOrder = r.EnforceOrder,
+                Name = r.Name, Description = r.Description, AssigneeId = r.AssigneeId, TeamId = r.TeamId, IsActive = r.IsActive, EnforceOrder = r.EnforceOrder,
                 Days = r.Days, Windows = r.Windows, ReminderMinutesBeforeEnd = r.ReminderMinutesBeforeEnd, Checkpoints = r.Checkpoints
             };
+            _byTeam = r.TeamId is not null;
         }
         else
         {
             _m.Windows = [new() { Start = new(9, 0), End = new(11, 0) }];
         }
         _workers = (await workers).Where(w => w.IsActive || w.Id == _m.AssigneeId).ToList();
+        _teams = await teams;
         try
         {
             var t = await tenant;
@@ -217,7 +253,7 @@
     /// <summary>Yeni rotada harita kullanıcının bulunduğu yerden açılır; noktalar genelde oradadır.</summary>
     private async Task MapReadyAsync()
     {
-        await DrawAsync();
+        await DrawAsync(fit: true);
         if (_m.Checkpoints.Count == 0) await GoToMeAsync();
     }
 
@@ -242,20 +278,21 @@
         }
     }
 
-    private async Task DrawAsync()
+    private async Task DrawAsync(bool fit = false)
     {
         if (_map is null) return;
         await _map.SetMarkersAsync("checkpoints", _m.Checkpoints.Select((c, i) => new MapMarker(
             $"cp{i}", c.Latitude, c.Longitude, "#1565c0", Label: (i + 1).ToString(), Title: c.Name,
             Popup: $"<b>{i + 1}. {MapMarker.E(c.Name)}</b><br/>Yarıçap: {c.RadiusMeters} m")));
-        await _map.SetPolylineAsync("order", _m.Checkpoints.Select(c => new GeoPoint(c.Latitude, c.Longitude)));
+        await _map.SetPolylineAsync("order", _m.Checkpoints.Select(c => new GeoPoint(c.Latitude, c.Longitude)), fit: fit);
     }
 
     private async Task SaveAsync()
     {
         _errors.Clear();
         if (string.IsNullOrWhiteSpace(_m.Name)) _errors.Add("Rota adı zorunlu.");
-        if (_m.AssigneeId == Guid.Empty) _errors.Add("Bir çalışan seçin.");
+        if (_byTeam && _m.TeamId is null) _errors.Add("Bir ekip seçin.");
+        if (!_byTeam && _m.AssigneeId is null) _errors.Add("Bir çalışan seçin.");
         if (_m.Windows.Count == 0) _errors.Add("En az bir saat aralığı ekleyin.");
         if (_m.Checkpoints.Count == 0) _errors.Add("Haritadan en az bir kontrol noktası ekleyin.");
         if (_m.Checkpoints.Any(c => string.IsNullOrWhiteSpace(c.Name))) _errors.Add("Her noktaya bir ad verin.");

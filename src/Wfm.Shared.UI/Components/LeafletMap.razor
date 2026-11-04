@@ -36,8 +36,9 @@
     public ValueTask UpsertMarkerAsync(string layer, MapMarker marker) =>
         _ready ? Js.Run("upsertMarker", _id, layer, marker) : ValueTask.CompletedTask;
 
-    public ValueTask SetPolylineAsync(string name, IEnumerable<GeoPoint> points, string color = "#1565c0") =>
-        _ready ? Js.Run("setPolyline", _id, name, points.Select(p => new { lat = p.Latitude, lng = p.Longitude }).ToArray(), color) : ValueTask.CompletedTask;
+    /// <param name="fit">Haritayı çizgiye sığdırır; kullanıcı haritada çalışırken (nokta eklerken) false verilmeli.</param>
+    public ValueTask SetPolylineAsync(string name, IEnumerable<GeoPoint> points, string color = "#1565c0", bool fit = true) =>
+        _ready ? Js.Run("setPolyline", _id, name, points.Select(p => new { lat = p.Latitude, lng = p.Longitude }).ToArray(), color, fit) : ValueTask.CompletedTask;
 
     public ValueTask SetPickAsync(double lat, double lng) => _ready ? Js.Run("setPick", _id, lat, lng) : ValueTask.CompletedTask;
     public ValueTask SetViewAsync(double lat, double lng, int zoom) => _ready ? Js.Run("setView", _id, lat, lng, zoom) : ValueTask.CompletedTask;

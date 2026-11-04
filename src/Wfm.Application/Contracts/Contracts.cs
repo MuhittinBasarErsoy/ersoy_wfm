@@ -231,14 +231,17 @@ public record JobDetailDto : JobDto
 public record JobQuery(JobStatus? Status = null, string? Search = null);
 
 // ---------- Devriye (bekçi turları) ----------
-public record PatrolRouteDto(Guid Id, string Name, string? Description, Guid AssigneeId, string? AssigneeName, bool IsActive,
-    bool EnforceOrder, List<DayOfWeek> Days, List<PatrolWindow> Windows, int ReminderMinutesBeforeEnd, List<PatrolCheckpoint> Checkpoints);
+public record PatrolRouteDto(Guid Id, string Name, string? Description, Guid? AssigneeId, string? AssigneeName, bool IsActive,
+    bool EnforceOrder, List<DayOfWeek> Days, List<PatrolWindow> Windows, int ReminderMinutesBeforeEnd, List<PatrolCheckpoint> Checkpoints,
+    Guid? TeamId = null, string? TeamName = null);
 
 public record SavePatrolRouteRequest
 {
     public string Name { get; set; } = "";
     public string? Description { get; set; }
-    public Guid AssigneeId { get; set; }
+    /// <summary>Kişi ya da ekip: ikisinden yalnızca biri dolu olmalı.</summary>
+    public Guid? AssigneeId { get; set; }
+    public Guid? TeamId { get; set; }
     public bool IsActive { get; set; } = true;
     public bool EnforceOrder { get; set; }
     /// <summary>Boş = her gün.</summary>
@@ -254,8 +257,12 @@ public record PatrolRoundDto
     public Guid Id { get; init; }
     public Guid RouteId { get; init; }
     public string RouteName { get; init; } = "";
-    public Guid AssigneeId { get; init; }
+    /// <summary>Ekip turunda boştur; alan hiç yazılmaz ki bu alanı dolu bekleyen eski mobil sürümler bozulmasın.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? AssigneeId { get; init; }
     public string? AssigneeName { get; init; }
+    public Guid? TeamId { get; init; }
+    public string? TeamName { get; init; }
     public DateTime WindowStart { get; init; }
     public DateTime WindowEnd { get; init; }
     public bool EnforceOrder { get; init; }
@@ -263,6 +270,9 @@ public record PatrolRoundDto
     public DateTime? CompletedAt { get; init; }
     public List<PatrolRoundCheckpointDto> Checkpoints { get; init; } = [];
 
+    public bool IsTeamRound => TeamId is not null;
+    /// <summary>Turun sahibi: ekip adı ya da kişi adı.</summary>
+    public string? OwnerName => TeamName ?? AssigneeName;
     public int VisitedCount => Checkpoints.Count(c => c.VisitedAt is not null);
     public bool IsClosed => Status is PatrolRoundStatus.Completed or PatrolRoundStatus.Incomplete or PatrolRoundStatus.Missed;
     /// <summary>Pencere şu an açık ve tur bitmemiş: çalışan nokta işaretleyebilir.</summary>
@@ -272,7 +282,7 @@ public record PatrolRoundDto
 }
 
 public record PatrolRoundCheckpointDto(Guid Id, int Order, string Name, double Latitude, double Longitude, int RadiusMeters,
-    DateTime? VisitedAt = null, double? DistanceMeters = null, bool Pending = false);
+    DateTime? VisitedAt = null, double? DistanceMeters = null, bool Pending = false, string? VisitedByName = null);
 
 public record PatrolVisitRequest(Guid CheckpointId, double Latitude, double Longitude, double? Accuracy,
     DateTime? ClientTimestamp = null, Guid? ClientId = null);

@@ -216,7 +216,7 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         var updated = rounds[index] with
         {
             Checkpoints = rounds[index].Checkpoints.Select(c => c.Id == request.CheckpointId
-                ? c with { VisitedAt = request.ClientTimestamp, Pending = true } : c).ToList()
+                ? c with { VisitedAt = request.ClientTimestamp, Pending = true, VisitedByName = _session.Current?.User.FullName } : c).ToList()
         };
         if (updated.Checkpoints.All(c => c.VisitedAt is not null))
             updated = updated with { Status = PatrolRoundStatus.Completed, CompletedAt = request.ClientTimestamp };

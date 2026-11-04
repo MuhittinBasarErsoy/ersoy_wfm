@@ -320,7 +320,7 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AssigneeId")
+                    b.Property<Guid?>("AssigneeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Checkpoints")
@@ -359,6 +359,13 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("TeamId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TeamName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -380,6 +387,8 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.HasIndex("Status", "WindowEnd");
 
+                    b.HasIndex("TeamId", "WindowEnd");
+
                     b.HasIndex("TenantId", "WindowStart");
 
                     b.ToTable("PatrolRounds");
@@ -390,7 +399,7 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AssigneeId")
+                    b.Property<Guid?>("AssigneeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Checkpoints")
@@ -423,6 +432,9 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.Property<int>("ReminderMinutesBeforeEnd")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("TeamId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
