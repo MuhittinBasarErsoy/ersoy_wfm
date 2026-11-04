@@ -17,6 +17,10 @@
             }
         </Badges>
         <Actions>
+            @if (_saved is { CurrentVersionId: not null })
+            {
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.BarChart" Href="@($"/surveys/{_saved.Id}/results")">Sonuçlar</MudButton>
+            }
             @if (_saved is { CurrentVersionId: null })
             {
                 <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteAsync" Disabled="_busy">Sil</MudButton>

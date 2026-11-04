@@ -146,7 +146,13 @@ girilirse ankete yazılan onay metni onaylatılır.
 - Düzenleme taslağı değiştirir, **Yayımla** değişmez bir sürüm (`SurveyVersion`) oluşturur. Soru kimlikleri sürümler arasında korunur.
 - Yayımlanmış anket silinmez, arşivlenir. Hiç yayımlanmamış taslak silinebilir.
 - Kurallar `SurveyRules` içinde; API ve istemci aynısını kullanır. Doldurma sihirbazı `SurveyRunner` bileşenidir, düzenleyicideki önizleme de bunu kullanır.
-- API: `/api/surveys`, `POST /api/surveys/{id}/publish`, `POST /api/surveys/{id}/archive`.
+- **Görev olarak:** Görev formunda anket ve hedef sayı seçilir (görev tipi önerebilir). Görev o anki sürüme bağlanır. Çalışan görev yerindeyken
+  (masa başı görevde kabulden sonra) `/field/tasks/{id}/survey` ekranında doldurur; hedef dolmadan görev tamamlanamaz. Mobilde internetsiz
+  doldurulur, yanıt kuyruğa alınır (`survey-response`), fotoğraflar yanıttan önce gider.
+- **Sonuçlar:** `/surveys/{id}/results`: soru bazında dağılım, ortalama, NPS, tek tek yanıtlar ve Excel. Ad ve telefonu yalnızca görev yönetim
+  yetkisi olanlar görür. Yanıt, kişisel veri silme talepleri için fotoğraflarıyla birlikte kalıcı olarak silinebilir.
+- API: `/api/surveys`, `POST /api/surveys/{id}/publish`, `POST /api/surveys/{id}/archive`, `POST /api/tasks/{id}/survey-responses`,
+  `GET /api/surveys/{id}/results`, `GET /api/surveys/{id}/responses`.
 
 ## Konum takibi ve bildirimler
 

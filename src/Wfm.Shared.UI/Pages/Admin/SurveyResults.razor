@@ -1,0 +1,267 @@
+@page "/surveys/{Id:guid}/results"
+@inject WfmApiClient Api
+@inject WfmJs Js
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject UserContext Me
+
+<RequirePolicy Policy="@Policies.ViewReports">
+    <PageHeader Title="@(_survey?.Title ?? "Anket sonuçları")" BackHref="/surveys" BackLabel="Anketlere dön" Subtitle="@(TaskId is null ? "Anket sonuçları" : "Bu görevin yanıtları")">
+        <Actions>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Yenile</MudButton>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.TableView" OnClick="ExportAsync" Disabled="@(_responses is not { Count: > 0 })">Excel</MudButton>
+        </Actions>
+    </PageHeader>
+
+    <MudPaper Elevation="1" Class="pa-3 mb-3 d-flex gap-3 flex-wrap align-center">
+        <MudDateRangePicker @bind-DateRange="_range" @bind-DateRange:after="LoadAsync" Label="Tarih aralığı" Variant="Variant.Outlined" Margin="Margin.Dense"
+                            DateFormat="dd.MM.yyyy" Culture="Ui.Tr" Style="min-width:240px;max-width:280px" AutoClose Clearable />
+        <MudSelect T="Guid?" @bind-Value="_userId" @bind-Value:after="LoadAsync" Label="Çalışan" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Style="min-width:200px;max-width:260px"
+                   ToStringFunc="@(id => _workers.FirstOrDefault(w => w.Id == id)?.FullName ?? "")">
+            @foreach (var w in _workers)
+            {
+                <MudSelectItem T="Guid?" Value="w.Id">@w.FullName</MudSelectItem>
+            }
+        </MudSelect>
+        @if (TaskId is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" OnClose="@(_ => ClearTaskAsync())">Yalnızca bu görev</MudChip>
+        }
+    </MudPaper>
+
+    @if (_results is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else if (_results.TotalResponses == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Quiz" Title="Bu süzgeçle yanıt yok" Text="Çalışanlar anketi sahada doldurdukça sonuçlar burada görünür." />
+    }
+    else
+    {
+        <MudGrid Spacing="3" Class="mb-3">
+            <MudItem xs="6" md="4"><KpiCard Label="Yanıt" Value="@_results.TotalResponses.ToString()" Icon="@Icons.Material.Filled.Quiz" Color="#2e7d32" /></MudItem>
+            <MudItem xs="6" md="4"><KpiCard Label="Görev" Value="@_results.TaskCount.ToString()" Icon="@Icons.Material.Filled.Assignment" /></MudItem>
+            <MudItem xs="6" md="4"><KpiCard Label="Çalışan" Value="@_results.WorkerCount.ToString()" Icon="@Icons.Material.Filled.People" /></MudItem>
+        </MudGrid>
+
+        <MudTabs Elevation="0" ApplyEffectsToContainer TabPanelsClass="pt-3">
+            <MudTabPanel Text="Özet" Icon="@Icons.Material.Filled.BarChart">
+                @foreach (var q in _results.Questions)
+                {
+                    var total = Math.Max(1, q.Answered);
+                    <MudPaper Elevation="1" Class="pa-4 mb-3">
+                        <div class="d-flex align-start gap-2 flex-wrap">
+                            <MudText Typo="Typo.subtitle1" Style="flex:1;min-width:200px"><b>@q.Text</b></MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@SurveyUi.QuestionType(q.Type) · @q.Answered cevap</MudText>
+                        </div>
+                        @if (q.Average is { } avg)
+                        {
+                            <MudText Typo="Typo.body2" Class="mt-1">
+                                Ortalama: <b>@avg.ToString("0.##", Ui.Tr)</b>
+                                @if (q.NpsScore is { } nps)
+                                {
+                                    <span> · NPS: <b>@nps.ToString("+0;-0;0")</b></span>
+                                }
+                            </MudText>
+                        }
+                        @if (q.Counts.Count > 0)
+                        {
+                            <div class="mt-2">
+                                @foreach (var c in q.Counts)
+                                {
+                                    <div class="wfm-survey-bar">
+                                        <span class="wfm-survey-bar-label" title="@c.Label">@c.Label</span>
+                                        <span class="wfm-survey-bar-track"><span style="width:@((c.Count * 100.0 / total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                                        <span class="wfm-survey-bar-value">@c.Count (%@Math.Round(c.Count * 100.0 / total))</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (q.TextAnswers.Count > 0)
+                        {
+                            <ul class="mt-2 pl-4">
+                                @foreach (var text in q.TextAnswers)
+                                {
+                                    <li><MudText Typo="Typo.body2" Style="white-space:pre-wrap">@FormatText(q.Type, text)</MudText></li>
+                                }
+                            </ul>
+                            @if (q.Answered > q.TextAnswers.Count)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Son @q.TextAnswers.Count cevap gösteriliyor; tamamı "Yanıtlar" sekmesinde ve Excel'de.</MudText>
+                            }
+                        }
+                        @if (q.Type is SurveyQuestionType.Photo or SurveyQuestionType.Location)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">Tek tek görmek için "Yanıtlar" sekmesine bakın.</MudText>
+                        }
+                    </MudPaper>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="@($"Yanıtlar ({_responses?.Count ?? 0})")" Icon="@Icons.Material.Filled.ListAlt">
+                @foreach (var r in _responses ?? [])
+                {
+                    var open = _open.Contains(r.Id);
+                    <MudPaper Elevation="1" Class="pa-3 mb-2">
+                        <div class="d-flex align-center gap-2 flex-wrap wfm-clickable" role="button" tabindex="0" aria-expanded="@(open ? "true" : "false")"
+                             @onclick="@(() => Toggle(r.Id))" @onkeydown="@(e => { if (e.Key is "Enter" or " ") Toggle(r.Id); })">
+                            <MudIcon Icon="@(open ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" aria-hidden="true" />
+                            <MudText Typo="Typo.body2" Style="flex:1;min-width:200px">
+                                <b>@Ui.Local(r.SubmittedAt)</b> · @(r.UserName ?? "-") · @(r.TaskTitle ?? "-")
+                                @if (r.RespondentName is not null)
+                                {
+                                    <span> · Kişi: @r.RespondentName</span>
+                                }
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Sürüm @r.VersionNo</MudText>
+                        </div>
+                        @if (open)
+                        {
+                            <MudDivider Class="my-2" />
+                            @if (r.RespondentName is not null || r.RespondentPhone is not null)
+                            {
+                                <MudText Typo="Typo.body2" Class="mb-2">Cevaplayan: @r.RespondentName@(r.RespondentPhone is null ? "" : " · " + r.RespondentPhone)</MudText>
+                            }
+                            @foreach (var a in r.Answers)
+                            {
+                                <div class="mb-2">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@QuestionText(a.QuestionId)</MudText>
+                                    @switch (QuestionType(a.QuestionId))
+                                    {
+                                        case SurveyQuestionType.Photo:
+                                            @if (a.PhotoUrl is { } url)
+                                            {
+                                                <div><a href="@Api.AbsoluteUrl(url)" target="_blank" rel="noopener"><img src="@Api.AbsoluteUrl(url)" alt="@QuestionText(a.QuestionId)" style="max-height:140px;max-width:100%;border-radius:6px" /></a></div>
+                                            }
+                                            else
+                                            {
+                                                <MudText Typo="Typo.body2" Color="Color.Secondary">Fotoğraf henüz yüklenmedi.</MudText>
+                                            }
+                                            break;
+                                        case SurveyQuestionType.Location:
+                                            <div><a href="@($"https://www.google.com/maps?q={a.Value}")" target="_blank" rel="noopener">@a.Value?.Replace(",", ", ")</a></div>
+                                            break;
+                                        default:
+                                            <MudText Typo="Typo.body2" Style="white-space:pre-wrap">@AnswerText(a)</MudText>
+                                            break;
+                                    }
+                                </div>
+                            }
+                            <div class="d-flex align-center flex-wrap gap-2 mt-2">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="flex:1;min-width:200px">
+                                    Süre: @Ui.Duration(r.SubmittedAt - r.StartedAt)@(r.Latitude is null ? "" : " · Konum: " + Ui.Coord(r.Latitude, r.Longitude))
+                                </MudText>
+                                @if (Me.Can(Policies.ManageTasks))
+                                {
+                                    <MudButton Size="Size.Small" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="@(() => DeleteAsync(r))">Yanıtı sil</MudButton>
+                                }
+                            </div>
+                        }
+                    </MudPaper>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    }
+</RequirePolicy>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [SupplyParameterFromQuery(Name = "task")] public Guid? TaskId { get; set; }
+
+    private SurveyDto? _survey;
+    private SurveyResultsDto? _results;
+    private List<SurveyResponseDto>? _responses;
+    private List<UserDto> _workers = [];
+    private DateRange? _range;
+    private Guid? _userId;
+    private readonly HashSet<Guid> _open = [];
+
+    private SurveyResultQuery Query => new(
+        _range?.Start is { } s ? DateOnly.FromDateTime(s) : null,
+        _range?.End is { } e ? DateOnly.FromDateTime(e) : null,
+        TaskId, _userId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var workers = Api.GetUsersAsync(Roles.FieldWorker);
+            _survey = await Api.GetSurveyAsync(Id);
+            _workers = await workers;
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var results = Api.GetSurveyResultsAsync(Id, Query);
+            _responses = await Api.GetSurveyResponsesAsync(Id, Query);
+            _results = await results;
+        }
+        catch (ApiException ex)
+        {
+            _results = new SurveyResultsDto(0, 0, 0, []);
+            _responses = [];
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ClearTaskAsync()
+    {
+        TaskId = null;
+        await LoadAsync();
+    }
+
+    private void Toggle(Guid id)
+    {
+        if (!_open.Remove(id)) _open.Add(id);
+    }
+
+    private SurveyQuestionResultDto? Question(Guid id) => _results?.Questions.FirstOrDefault(q => q.QuestionId == id);
+    private string QuestionText(Guid id) => Question(id)?.Text ?? "Soru";
+    private SurveyQuestionType? QuestionType(Guid id) => Question(id)?.Type;
+
+    private string AnswerText(SurveyResponseAnswerDto a) =>
+        a.Values.Count > 0 ? string.Join(", ", a.Values) : FormatText(QuestionType(a.QuestionId), a.Value ?? "");
+
+    private static string FormatText(SurveyQuestionType? type, string value) =>
+        type == SurveyQuestionType.Date && DateOnly.TryParseExact(value, "yyyy-MM-dd", out var d) ? d.ToString("dd.MM.yyyy") : value;
+
+    private async Task DeleteAsync(SurveyResponseDto r)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Yanıt silinsin mi?", "Yanıt, kişi bilgisi ve fotoğraflarıyla birlikte kalıcı olarak silinir; görevin anket sayısı bir azalır. Bu işlem geri alınamaz.",
+                "Sil", cancelText: "Vazgeç") != true) return;
+        try
+        {
+            await Api.DeleteSurveyResponseAsync(Id, r.Id);
+            Snackbar.Add("Yanıt silindi.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (ApiException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_results is null || _responses is null) return;
+        var questions = _results.Questions;
+        var header = new List<string> { "Tarih", "Görev", "Çalışan", "Sürüm", "Kişi", "Telefon", "Enlem", "Boylam" };
+        header.AddRange(questions.Select(q => q.Text));
+        var rows = _responses.OrderBy(r => r.SubmittedAt).Select(r =>
+        {
+            var row = new List<object?>
+            {
+                Ui.Local(r.SubmittedAt), r.TaskTitle, r.UserName, r.VersionNo, r.RespondentName, r.RespondentPhone, r.Latitude, r.Longitude
+            };
+            row.AddRange(questions.Select(q => r.Answers.FirstOrDefault(a => a.QuestionId == q.QuestionId) is { } a
+                ? (object?)(q.Type == SurveyQuestionType.Photo ? "Fotoğraf var" : AnswerText(a)) : null));
+            return (IReadOnlyList<object?>)row;
+        });
+        var bytes = Xlsx.Build("Anket", header, rows);
+        await Js.Run("downloadBytes", $"anket-{DateTime.Now:yyyyMMdd}.xlsx", Convert.ToBase64String(bytes),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+}

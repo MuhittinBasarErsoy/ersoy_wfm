@@ -116,6 +116,11 @@
 /* ---------- Anket ---------- */
 .wfm-survey-scale { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 6px; }
 .wfm-survey-scale .mud-button-root { min-width: 0; padding-left: 0; padding-right: 0; }
+.wfm-survey-bar { display: grid; grid-template-columns: minmax(70px, 30%) 1fr 72px; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 13px; }
+.wfm-survey-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wfm-survey-bar-track { height: 12px; border-radius: 6px; background: var(--mud-palette-action-default-hover); overflow: hidden; }
+.wfm-survey-bar-track > span { display: block; height: 100%; background: var(--mud-palette-primary); border-radius: 6px; }
+.wfm-survey-bar-value { text-align: right; white-space: nowrap; color: var(--mud-palette-text-secondary); }
 
 /* ---------- KPI ---------- */
 .wfm-kpi { padding: 16px; height: 100%; display: block; }

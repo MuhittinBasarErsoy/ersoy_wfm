@@ -52,12 +52,16 @@
                                 <MudText Typo="Typo.caption" Color="Color.Warning" Class="d-block">Yayımlanmamış değişiklik var</MudText>
                             }
                         </MudCardContent>
-                        @if (Me.Can(Policies.ManageTasks))
-                        {
-                            <MudCardActions>
+                        <MudCardActions>
+                            @if (s.CurrentVersionId is not null && Me.Can(Policies.ViewReports))
+                            {
+                                <MudButton StartIcon="@Icons.Material.Filled.BarChart" Href="@($"/surveys/{s.Id}/results")">Sonuçlar</MudButton>
+                            }
+                            @if (Me.Can(Policies.ManageTasks))
+                            {
                                 <MudButton StartIcon="@Icons.Material.Filled.Edit" Href="@($"/surveys/{s.Id}")">Düzenle</MudButton>
-                            </MudCardActions>
-                        }
+                            }
+                        </MudCardActions>
                     </MudCard>
                 </MudItem>
             }

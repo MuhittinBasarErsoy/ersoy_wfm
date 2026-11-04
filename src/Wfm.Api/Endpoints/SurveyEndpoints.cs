@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wfm.Api.Services;
@@ -11,6 +12,8 @@ using Wfm.Infrastructure.Data;
 namespace Wfm.Api.Endpoints;
 
 /// <summary>Anket tanımları ve yayımlama. Düzenleme taslağı değiştirir; yayımlanan sürümler değişmez.</summary>
+public record SurveyResultParams(DateOnly? From, DateOnly? To, Guid? TaskId, Guid? UserId);
+
 public static class SurveyEndpoints
 {
     public static void MapSurveyEndpoints(this IEndpointRouteBuilder app)
@@ -94,6 +97,68 @@ public static class SurveyEndpoints
             return Results.Ok(ToDto(s));
         }).RequireAuthorization(Policies.ManageTasks);
 
+        // ---------- Sonuçlar ----------
+        g.MapGet("/{id:guid}/results", async (Guid id, [AsParameters] SurveyResultParams q, WfmDbContext db) =>
+        {
+            var s = await Load(db, id);
+            if (s is null) return Results.NotFound();
+            var responses = await Filter(db, id, q).OrderByDescending(r => r.SubmittedAt).Take(MaxResponses).ToListAsync();
+            return Results.Ok(new SurveyResultsDto(responses.Count, responses.Select(r => r.WorkTaskId).Distinct().Count(),
+                responses.Select(r => r.UserId).Distinct().Count(), Summarize(s, responses)));
+        }).RequireAuthorization(Policies.ViewReports);
+
+        g.MapGet("/{id:guid}/responses", async (Guid id, [AsParameters] SurveyResultParams q, HttpContext ctx, WfmDbContext db, UserDirectory dir, FileUrlSigner signer) =>
+        {
+            var s = await Load(db, id);
+            if (s is null) return Results.NotFound();
+            var responses = await Filter(db, id, q).OrderByDescending(r => r.SubmittedAt).Take(MaxResponses).ToListAsync();
+            var taskIds = responses.Select(r => r.WorkTaskId).Distinct().ToList();
+            var titles = await db.Tasks.Where(t => taskIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Title);
+            var photos = (await db.Attachments.Where(a => taskIds.Contains(a.WorkTaskId) && a.Kind == AttachmentKind.SurveyPhoto && a.ClientId != null)
+                    .Select(a => new { a.Id, a.ClientId }).ToListAsync())
+                .ToDictionary(a => a.ClientId!.Value, a => a.Id);
+            var names = await dir.NamesAsync(ctx.User.TenantId());
+            var versions = s.Versions.ToDictionary(v => v.Id, v => v.VersionNo);
+            var canSeePeople = ctx.User.HasPolicy(Policies.ManageTasks);
+            return Results.Ok(responses.Select(r => new SurveyResponseDto
+            {
+                Id = r.Id, WorkTaskId = r.WorkTaskId, TaskTitle = titles.GetValueOrDefault(r.WorkTaskId), UserName = names.GetValueOrDefault(r.UserId),
+                VersionNo = versions.GetValueOrDefault(r.SurveyVersionId), StartedAt = r.StartedAt, SubmittedAt = r.SubmittedAt,
+                Latitude = r.Latitude, Longitude = r.Longitude,
+                RespondentName = canSeePeople ? r.RespondentName : null,
+                RespondentPhone = canSeePeople ? r.RespondentPhone : null,
+                Answers = r.Answers.Select(a => new SurveyResponseAnswerDto(a.QuestionId, a.Value, a.Values,
+                    Guid.TryParse(a.Value, out var photo) && photos.TryGetValue(photo, out var attachment) ? signer.CreateUrl(attachment) : null)).ToList()
+            }).ToList());
+        }).RequireAuthorization(Policies.ViewReports);
+
+        // Kişisel veri silme talepleri için: yanıt, fotoğraflarıyla birlikte kalıcı olarak silinir ve görevin sayacı düşer.
+        g.MapDelete("/{id:guid}/responses/{responseId:guid}", async (Guid id, Guid responseId, WfmDbContext db, IFileStorage files) =>
+        {
+            for (var attempt = 0; ; attempt++)
+            {
+                var r = await db.SurveyResponses.FirstOrDefaultAsync(x => x.Id == responseId && x.SurveyId == id);
+                if (r is null) return Results.NotFound();
+                var photoIds = r.Answers.Select(a => Guid.TryParse(a.Value, out var p) ? p : Guid.Empty).Where(p => p != Guid.Empty).ToList();
+                var photos = await db.Attachments.Where(a => a.WorkTaskId == r.WorkTaskId && a.Kind == AttachmentKind.SurveyPhoto
+                                                             && a.ClientId != null && photoIds.Contains(a.ClientId.Value)).ToListAsync();
+                var task = await db.Tasks.FirstAsync(t => t.Id == r.WorkTaskId);
+                task.SurveyResponseCount = Math.Max(0, task.SurveyResponseCount - 1);
+                db.Attachments.RemoveRange(photos);
+                db.SurveyResponses.Remove(r);
+                try
+                {
+                    await db.SaveChangesAsync();
+                    foreach (var p in photos) await files.DeleteAsync(p.StoragePath);
+                    return Results.NoContent();
+                }
+                catch (DbUpdateConcurrencyException) when (attempt < 3)
+                {
+                    db.ChangeTracker.Clear();
+                }
+            }
+        }).RequireAuthorization(Policies.ManageTasks);
+
         // ---------- Sahadan yanıt ----------
         app.MapPost("/api/tasks/{id:guid}/survey-responses", async (Guid id, SubmitSurveyResponseRequest req, HttpContext ctx, WfmDbContext db) =>
         {
@@ -152,6 +217,65 @@ public static class SurveyEndpoints
                 }
             }
         }).RequireAuthorization(Policies.FieldWork);
+    }
+
+    private const int MaxResponses = 20_000;
+    private const int MaxTextAnswers = 50;
+
+    private static IQueryable<SurveyResponse> Filter(WfmDbContext db, Guid surveyId, SurveyResultParams q)
+    {
+        var query = db.SurveyResponses.Where(r => r.SurveyId == surveyId);
+        if (q.From is { } f)
+        {
+            var from = LocalDayStart(f);
+            query = query.Where(r => r.SubmittedAt >= from);
+        }
+        if (q.To is { } t)
+        {
+            var to = LocalDayStart(t.AddDays(1));
+            query = query.Where(r => r.SubmittedAt < to);
+        }
+        if (q.TaskId is { } task) query = query.Where(r => r.WorkTaskId == task);
+        if (q.UserId is { } user) query = query.Where(r => r.UserId == user);
+        return query;
+    }
+
+    private static DateTime LocalDayStart(DateOnly day) =>
+        TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), PatrolSchedule.Zone);
+
+    /// <summary>Güncel sürümün soruları sırayla; eski sürümlerde kalmış sorular sonda. Sürümler soru kimliğiyle birleşir.</summary>
+    private static List<SurveyQuestionResultDto> Summarize(Survey s, List<SurveyResponse> responses)
+    {
+        var answers = responses.SelectMany(r => r.Answers).GroupBy(a => a.QuestionId).ToDictionary(g => g.Key, g => g.ToList());
+        var questions = s.Versions.OrderByDescending(v => v.Id == s.CurrentVersionId).ThenByDescending(v => v.VersionNo)
+            .SelectMany(v => v.Questions.OrderBy(q => q.Order)).DistinctBy(q => q.Id);
+        return questions.Select(q => Summarize(q, answers.GetValueOrDefault(q.Id) ?? [])).ToList();
+    }
+
+    private static SurveyQuestionResultDto Summarize(SurveyQuestion q, List<SurveyAnswer> answers)
+    {
+        var values = answers.SelectMany(a => a.Values.Count > 0 ? a.Values : a.Value is { } v ? [v] : new List<string>()).ToList();
+        var numbers = q.Type is SurveyQuestionType.Rating5 or SurveyQuestionType.Nps10 or SurveyQuestionType.Number
+            ? values.Select(v => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : (double?)null).OfType<double>().ToList()
+            : [];
+
+        var counts = new List<SurveyOptionCountDto>();
+        if (SurveyRules.CanBeCondition(q.Type))
+        {
+            // Sıfır alan seçenekler de görünür; eski sürümden kalan seçenekler sona eklenir.
+            var labels = SurveyRules.ConditionValues(q).Concat(values).Distinct();
+            counts = labels.Select(l => new SurveyOptionCountDto(l, values.Count(v => v == l))).ToList();
+        }
+
+        int? nps = null;
+        if (q.Type == SurveyQuestionType.Nps10 && numbers.Count > 0)
+            nps = (int)Math.Round((numbers.Count(n => n >= 9) - numbers.Count(n => n <= 6)) * 100.0 / numbers.Count);
+
+        var texts = q.Type is SurveyQuestionType.ShortText or SurveyQuestionType.LongText or SurveyQuestionType.Date
+            ? values.Take(MaxTextAnswers).ToList() : [];
+
+        return new SurveyQuestionResultDto(q.Id, q.Text, q.Type, answers.Count, counts,
+            numbers.Count > 0 ? Math.Round(numbers.Average(), 2) : null, nps, texts);
     }
 
     private static string? Clip(string? text, int max)
