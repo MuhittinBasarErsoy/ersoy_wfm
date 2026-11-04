@@ -6,7 +6,7 @@ function dotIcon(color, label, pulse) {
     return L.divIcon({ html, className: 'wfm-pin-wrap', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
 }
 
-export function createMap(elementId, lat, lng, zoom, dotnetRef, clickable) {
+export function createMap(elementId, lat, lng, zoom, dotnetRef, clickable, addressSearch = true) {
     const el = document.getElementById(elementId);
     if (!el || typeof L === 'undefined') return false;
     if (maps.has(elementId)) disposeMap(elementId);
@@ -22,9 +22,111 @@ export function createMap(elementId, lat, lng, zoom, dotnetRef, clickable) {
         map.on('click', e => dotnetRef.invokeMethodAsync('OnMapClick', e.latlng.lat, e.latlng.lng));
     }
     maps.set(elementId, state);
+    if (addressSearch) addSearchControl(elementId, state);
     // Konteyner boyutu sonradan oturursa (sekme, dialog) haritayı düzelt.
     new ResizeObserver(() => map.invalidateSize()).observe(el);
     return true;
+}
+
+// ---------- Haritada adres arama ----------
+const searchIcon = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>';
+
+/**
+ * Arama Enter ya da büyüteçle başlar: Nominatim kuralları yazarken otomatik tamamlamaya izin vermez.
+ * Bulunan yerin işareti tıklamayı engellemez; nokta seçilen haritalarda tam üstüne tıklanabilir.
+ */
+function addSearchControl(elementId, state) {
+    const { map } = state;
+    let found = null;
+    let requestNo = 0;
+
+    const control = L.control({ position: 'topleft' });
+    control.onAdd = () => {
+        const box = L.DomUtil.create('div', 'leaflet-bar wfm-map-search');
+        const toggle = L.DomUtil.create('button', 'wfm-map-search-btn', box);
+        toggle.type = 'button';
+        toggle.innerHTML = searchIcon;
+        toggle.title = toggle.ariaLabel = 'Adres ara';
+        const input = L.DomUtil.create('input', 'wfm-map-search-input', box);
+        input.type = 'search';
+        input.placeholder = 'Adres ara…';
+        input.ariaLabel = 'Adres ara';
+        input.autocomplete = 'off';
+        const list = L.DomUtil.create('div', 'wfm-map-search-list', box);
+        list.setAttribute('role', 'list');
+
+        const setOpen = open => {
+            box.classList.toggle('open', open);
+            if (!open) { list.replaceChildren(); return; }
+            input.style.width = `${Math.max(120, Math.min(260, map.getSize().x - 76))}px`;
+            input.focus();
+        };
+        const message = text => {
+            const row = L.DomUtil.create('div', 'wfm-map-search-msg');
+            row.textContent = text;
+            list.replaceChildren(row);
+        };
+        const show = r => {
+            found?.remove();
+            found = L.marker([r.latitude, r.longitude], { icon: dotIcon('#d81b60'), interactive: false, keyboard: false })
+                .bindTooltip(r.address.split(',')[0], { permanent: true, direction: 'top', offset: [0, -14] })
+                .addTo(map);
+            if (r.bounds) map.fitBounds(r.bounds, { maxZoom: 17 });
+            else map.setView([r.latitude, r.longitude], 17);
+            map.attributionControl.addAttribution('Adres: &copy; OpenStreetMap');
+            list.replaceChildren();
+        };
+        const search = async () => {
+            const query = input.value.trim();
+            if (query.length < 3) { message('En az 3 harf yazın.'); return; }
+            const no = ++requestNo;
+            message('Aranıyor…');
+            let results = null;
+            try { results = await searchAddress(query, map.getBounds()); } catch { /* ağ hatası: aşağıda bildirilir */ }
+            if (no !== requestNo || !maps.has(elementId)) return;
+            if (!results) { message('Arama yapılamadı. İnternet bağlantınızı kontrol edin.'); return; }
+            if (results.length === 0) { message('Sonuç bulunamadı.'); return; }
+            list.replaceChildren(...results.map(r => {
+                const row = L.DomUtil.create('button', 'wfm-map-search-row');
+                row.type = 'button';
+                row.textContent = r.address;
+                row.addEventListener('click', e => {
+                    // Satır listeden silineceği için Leaflet tıklamanın kutudan geldiğini anlayamaz ve harita tıklaması sayar.
+                    e.stopPropagation();
+                    show(r);
+                });
+                return row;
+            }));
+        };
+
+        toggle.addEventListener('click', () => {
+            if (!box.classList.contains('open')) setOpen(true);
+            else if (input.value.trim()) search();
+            else setOpen(false);
+        });
+        input.addEventListener('keydown', e => {
+            // Tuşlar haritaya ve dışarıdaki diyaloga gitmesin (Esc diyaloğu kapatır, oklar haritayı kaydırır).
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); search(); }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                requestNo++;
+                input.value = '';
+                found?.remove();
+                found = null;
+                setOpen(false);
+            }
+        });
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.disableScrollPropagation(box);
+        // Geniş haritada açık başlar; dar haritada (telefon) simge olarak kalıp haritayı kapatmaz.
+        if (map.getSize().x >= 480) {
+            box.classList.add('open');
+            input.style.width = '260px';
+        }
+        return box;
+    };
+    control.addTo(map);
 }
 
 // ---------- Harita görünümü (normal / uydu) ----------
@@ -141,8 +243,10 @@ export function disposeMap(elementId) {
 }
 
 // ---------- Adres arama (OpenStreetMap Nominatim) ----------
-export async function searchAddress(query) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=tr&q=${encodeURIComponent(query)}`;
+/** @param near Verilirse (Leaflet sınırları) bu bölgedeki sonuçlar öne alınır; dışındakiler de gelir. */
+export async function searchAddress(query, near) {
+    const viewbox = near ? `&viewbox=${near.getWest()},${near.getNorth()},${near.getEast()},${near.getSouth()}` : '';
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=tr${viewbox}&q=${encodeURIComponent(query)}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return [];
     // Aynı adlı kayıtlar (ör. bir sokağın iki parçası) tekilleştirilir: öneri listesi metne göre anahtarlanır,
@@ -150,7 +254,11 @@ export async function searchAddress(query) {
     const seen = new Set();
     return (await res.json())
         .filter(r => !seen.has(r.display_name) && seen.add(r.display_name))
-        .map(r => ({ address: r.display_name, latitude: parseFloat(r.lat), longitude: parseFloat(r.lon) }));
+        .map(r => ({
+            address: r.display_name, latitude: parseFloat(r.lat), longitude: parseFloat(r.lon),
+            // Nominatim sırası: güney, kuzey, batı, doğu. Şehir gibi geniş sonuçlarda harita alanın tamamına sığdırılır.
+            bounds: r.boundingbox && [[+r.boundingbox[0], +r.boundingbox[2]], [+r.boundingbox[1], +r.boundingbox[3]]]
+        }));
 }
 
 export async function reverseGeocode(lat, lng) {
