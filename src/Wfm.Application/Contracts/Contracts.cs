@@ -287,6 +287,36 @@ public record SubmitSurveyResponseRequest
 
 public record SurveyResponseResultDto(Guid Id, int ResponseCount, int TargetCount);
 
+public record SurveyResultQuery(DateOnly? From = null, DateOnly? To = null, Guid? TaskId = null, Guid? UserId = null);
+
+public record SurveyResultsDto(int TotalResponses, int TaskCount, int WorkerCount, List<SurveyQuestionResultDto> Questions);
+
+/// <summary>Bir sorunun özeti. Soru kimliği sürümler arasında korunduğu için tüm sürümlerin cevapları birleşir.</summary>
+public record SurveyQuestionResultDto(Guid QuestionId, string Text, SurveyQuestionType Type, int Answered,
+    List<SurveyOptionCountDto> Counts, double? Average, int? NpsScore, List<string> TextAnswers);
+
+public record SurveyOptionCountDto(string Label, int Count);
+
+public record SurveyResponseDto
+{
+    public Guid Id { get; init; }
+    public Guid WorkTaskId { get; init; }
+    public string? TaskTitle { get; init; }
+    public string? UserName { get; init; }
+    public int VersionNo { get; init; }
+    public DateTime StartedAt { get; init; }
+    public DateTime SubmittedAt { get; init; }
+    public double? Latitude { get; init; }
+    public double? Longitude { get; init; }
+    /// <summary>Kişi bilgisi yalnızca görev yönetim yetkisi olanlara döner.</summary>
+    public string? RespondentName { get; init; }
+    public string? RespondentPhone { get; init; }
+    public List<SurveyResponseAnswerDto> Answers { get; init; } = [];
+}
+
+/// <param name="PhotoUrl">Fotoğraf cevabının imzalı adresi; dosya henüz yüklenmediyse boş.</param>
+public record SurveyResponseAnswerDto(Guid QuestionId, string? Value, List<string> Values, string? PhotoUrl = null);
+
 // ---------- Devriye (bekçi turları) ----------
 public record PatrolRouteDto(Guid Id, string Name, string? Description, Guid? AssigneeId, string? AssigneeName, bool IsActive,
     bool EnforceOrder, List<DayOfWeek> Days, List<PatrolWindow> Windows, int ReminderMinutesBeforeEnd, List<PatrolCheckpoint> Checkpoints,

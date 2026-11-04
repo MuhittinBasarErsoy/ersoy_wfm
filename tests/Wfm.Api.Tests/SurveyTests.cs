@@ -254,6 +254,113 @@ public class SurveyTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Empty((await dispatcher.GetTaskAsync(task.Id)).Attachments);
     }
 
+    // ---------- Sonuçlar ----------
+
+    [Fact]
+    public async Task Results_summarize_across_versions_and_hide_people_from_viewers()
+    {
+        var (dispatcher, worker, workerId, paper) = await FieldSetup();
+        var rating = new SurveyQuestion { Type = SurveyQuestionType.Nps10, Text = "Tavsiye", Order = 1, Required = true };
+        var choice = new SurveyQuestion { Type = SurveyQuestionType.MultiChoice, Text = "Hizmetler", Order = 2, Options = ["A", "B", "C"], Required = true };
+        var free = new SurveyQuestion { Type = SurveyQuestionType.LongText, Text = "Not", Order = 3 };
+        var req = Request("Raporlu", rating, choice, free);
+        req.RespondentMode = SurveyRespondentMode.Optional;
+        req.ConsentText = Survey.DefaultConsentText;
+        var survey = await dispatcher.PublishSurveyAsync((await dispatcher.CreateSurveyAsync(req)).Id);
+
+        var task = await NewTask(dispatcher, paper, workerId, survey.Id, target: 3);
+        await worker.ChangeStatusAsync(task.Id, new() { Status = WorkTaskStatus.Accepted });
+        var qs = (await worker.GetTaskAsync(task.Id)).Survey!.Questions;
+        var (q1, q2, q3) = (qs[0], qs[1], qs[2]);
+
+        SubmitSurveyResponseRequest Fill(string score, string[] picks, string? note = null)
+        {
+            var r = Response(A(q1, score), new SurveyAnswer { QuestionId = q2.Id, Values = [.. picks] });
+            if (note is not null) r.Answers.Add(A(q3, note));
+            return r;
+        }
+
+        var withPerson = Fill("10", ["A", "B"], "Çok iyi");
+        withPerson.RespondentName = "Ayşe Kişi";
+        withPerson.RespondentPhone = "5551112233";
+        withPerson.ConsentGiven = true;
+        await worker.SubmitSurveyResponseAsync(task.Id, withPerson);
+        await worker.SubmitSurveyResponseAsync(task.Id, Fill("9", ["A"]));
+        var last = Fill("3", ["C"]);
+        await worker.SubmitSurveyResponseAsync(task.Id, last);
+
+        // Yeni sürüm: yeni soru eklenir, eski cevaplar aynı soru kimliğiyle birleşir.
+        var edited = await dispatcher.GetSurveyAsync(survey.Id);
+        var extra = new SurveyQuestion { Type = SurveyQuestionType.YesNo, Text = "Yeni soru", Order = 4 };
+        var update = Request("Raporlu", [.. edited.Questions, extra]);
+        update.RespondentMode = edited.RespondentMode;
+        update.ConsentText = edited.ConsentText;
+        await dispatcher.UpdateSurveyAsync(survey.Id, update);
+        await dispatcher.PublishSurveyAsync(survey.Id);
+
+        var results = await dispatcher.GetSurveyResultsAsync(survey.Id, new SurveyResultQuery(TaskId: task.Id));
+        Assert.Equal(3, results.TotalResponses);
+        Assert.Equal(1, results.TaskCount);
+        Assert.Equal(1, results.WorkerCount);
+        var nps = results.Questions.Single(q => q.QuestionId == q1.Id);
+        Assert.Equal(33, nps.NpsScore); // 2 destekçi, 1 kötüleyen, 3 yanıt
+        Assert.Equal(7.33, nps.Average);
+        var multi = results.Questions.Single(q => q.QuestionId == q2.Id);
+        Assert.Equal(3, multi.Answered);
+        Assert.Equal([2, 1, 1], multi.Counts.Select(c => c.Count));
+        Assert.Equal(["Çok iyi"], results.Questions.Single(q => q.QuestionId == q3.Id).TextAnswers);
+        Assert.Equal(0, results.Questions.Single(q => q.Text == "Yeni soru").Answered);
+
+        // Ad ve telefonu yalnızca görev yöneticileri görür.
+        var managerView = await dispatcher.GetSurveyResponsesAsync(survey.Id, new SurveyResultQuery(TaskId: task.Id));
+        Assert.Contains(managerView, r => r.RespondentName == "Ayşe Kişi" && r.RespondentPhone == "5551112233");
+        var admin = await api.LoginAs("yonetici@tamir.local");
+        await admin.CreateUserAsync(new CreateUserRequest("izleyici@tamir.local", "Demo123!", "İzleyici", null, Wfm.Domain.Roles.Viewer, null));
+        var viewer = await api.LoginAs("izleyici@tamir.local");
+        var viewerView = await viewer.GetSurveyResponsesAsync(survey.Id, new SurveyResultQuery(TaskId: task.Id));
+        Assert.Equal(3, viewerView.Count);
+        Assert.All(viewerView, r => { Assert.Null(r.RespondentName); Assert.Null(r.RespondentPhone); });
+        var viewerDelete = await Assert.ThrowsAsync<ApiException>(() => viewer.DeleteSurveyResponseAsync(survey.Id, managerView[0].Id));
+        Assert.Equal(HttpStatusCode.Forbidden, viewerDelete.Status);
+
+        // Çalışan raporu göremez; başka şirket de.
+        await Assert.ThrowsAsync<ApiException>(() => worker.GetSurveyResultsAsync(survey.Id, new SurveyResultQuery()));
+        var other = await api.LoginAs(OtherTenant);
+        var hidden = await Assert.ThrowsAsync<ApiException>(() => other.GetSurveyResponsesAsync(survey.Id, new SurveyResultQuery()));
+        Assert.Equal(HttpStatusCode.NotFound, hidden.Status);
+
+        // Silme: yanıt gider, görevin sayacı düşer.
+        var personResponse = managerView.Single(r => r.RespondentName == "Ayşe Kişi");
+        await dispatcher.DeleteSurveyResponseAsync(survey.Id, personResponse.Id);
+        Assert.Equal(2, (await dispatcher.GetTaskAsync(task.Id)).SurveyResponseCount);
+        Assert.Equal(2, (await dispatcher.GetSurveyResultsAsync(survey.Id, new SurveyResultQuery(TaskId: task.Id))).TotalResponses);
+    }
+
+    [Fact]
+    public async Task Deleting_a_response_removes_its_photo()
+    {
+        var (dispatcher, worker, workerId, paper) = await FieldSetup();
+        var survey = await Published(dispatcher, "Foto silme", SurveyRespondentMode.None,
+            new SurveyQuestion { Type = SurveyQuestionType.Photo, Text = "Raf", Order = 1, Required = true });
+        var task = await NewTask(dispatcher, paper, workerId, survey.Id);
+        await worker.ChangeStatusAsync(task.Id, new() { Status = WorkTaskStatus.Accepted });
+        var q = (await worker.GetTaskAsync(task.Id)).Survey!.Questions[0];
+
+        var photoId = Guid.NewGuid();
+        using var ms = new MemoryStream([0xFF, 0xD8, 0xFF, 0xD9]);
+        await worker.UploadAttachmentAsync(task.Id, ms, "raf.jpg", "image/jpeg", AttachmentKind.SurveyPhoto, null, null, DateTime.UtcNow, photoId);
+        await worker.SubmitSurveyResponseAsync(task.Id, Response(A(q, photoId.ToString())));
+
+        var response = Assert.Single(await dispatcher.GetSurveyResponsesAsync(survey.Id, new SurveyResultQuery(TaskId: task.Id)));
+        var url = Assert.Single(response.Answers).PhotoUrl;
+        Assert.NotNull(url);
+        var http = api.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await http.GetAsync(url)).StatusCode);
+
+        await dispatcher.DeleteSurveyResponseAsync(survey.Id, response.Id);
+        Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync(url)).StatusCode);
+    }
+
     [Fact]
     public void Definition_rules_catch_broken_conditions()
     {

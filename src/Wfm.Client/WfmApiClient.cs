@@ -141,6 +141,20 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task DeleteSurveyAsync(Guid id) => Send(HttpMethod.Delete, $"/api/surveys/{id}", null);
     public Task<SurveyDto> PublishSurveyAsync(Guid id) => Post<SurveyDto>($"/api/surveys/{id}/publish", null);
     public Task<SurveyDto> ArchiveSurveyAsync(Guid id) => Post<SurveyDto>($"/api/surveys/{id}/archive", null);
+    public Task<SurveyResultsDto> GetSurveyResultsAsync(Guid id, SurveyResultQuery q) => Get<SurveyResultsDto>($"/api/surveys/{id}/results{SurveyQueryString(q)}");
+    public Task<List<SurveyResponseDto>> GetSurveyResponsesAsync(Guid id, SurveyResultQuery q) => Get<List<SurveyResponseDto>>($"/api/surveys/{id}/responses{SurveyQueryString(q)}");
+    public Task DeleteSurveyResponseAsync(Guid id, Guid responseId) => Send(HttpMethod.Delete, $"/api/surveys/{id}/responses/{responseId}", null);
+
+    private static string SurveyQueryString(SurveyResultQuery q)
+    {
+        var qs = new List<string>();
+        if (q.From is { } f) qs.Add($"from={f:yyyy-MM-dd}");
+        if (q.To is { } t) qs.Add($"to={t:yyyy-MM-dd}");
+        if (q.TaskId is { } task) qs.Add($"taskId={task}");
+        if (q.UserId is { } user) qs.Add($"userId={user}");
+        return qs.Count > 0 ? "?" + string.Join('&', qs) : "";
+    }
+
     public Task<SurveyResponseResultDto> SubmitSurveyResponseAsync(Guid taskId, SubmitSurveyResponseRequest req) =>
         Post<SurveyResponseResultDto>($"/api/tasks/{taskId}/survey-responses", req);
 

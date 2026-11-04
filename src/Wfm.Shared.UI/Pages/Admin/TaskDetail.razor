@@ -175,6 +175,21 @@ else
                 </MudPaper>
             }
 
+            @if (t.Survey is { } survey)
+            {
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <div class="d-flex align-center gap-2 mb-2 flex-wrap">
+                        <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="Color.Primary" aria-hidden="true" />
+                        <MudText Typo="Typo.subtitle1" Style="flex:1;min-width:160px"><b>@survey.Title</b> · @t.SurveyResponseCount / @t.SurveyTargetCount anket</MudText>
+                        @if (Me.Can(Policies.ViewReports))
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.BarChart" Href="@($"/surveys/{survey.SurveyId}/results?task={t.Id}")">Yanıtlar</MudButton>
+                        }
+                    </div>
+                    <MudProgressLinear Value="@(Math.Min(100, t.SurveyResponseCount * 100.0 / Math.Max(1, t.SurveyTargetCount)))" Color="Color.Success" Rounded aria-label="Anket ilerlemesi" />
+                </MudPaper>
+            }
+
             <MudPaper Elevation="1" Class="pa-4 mb-3">
                 <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Fotoğraflar ve imza</b></MudText>
                 <AttachmentGallery Attachments="t.Attachments" Empty="Henüz kanıt yüklenmedi." />
