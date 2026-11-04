@@ -77,7 +77,7 @@
 
             <MudPaper Elevation="1" Class="pa-2 mt-3">
                 <div style="height:320px">
-                    <LeafletMap @ref="_map" Height="100%" Latitude="d.Latitude" Longitude="d.Longitude" Zoom="14" OnReady="DrawAsync" />
+                    <LeafletMap @ref="_map" Height="100%" Latitude="d.Latitude" Longitude="d.Longitude" Zoom="14" OnReady="DrawAsync" AddressSearch="false" />
                 </div>
                 @if (d.WorkerLatitude is not null)
                 {
