@@ -28,6 +28,8 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
     public DbSet<Job> Jobs => Set<Job>();
     public DbSet<JobTemplate> JobTemplates => Set<JobTemplate>();
+    public DbSet<Survey> Surveys => Set<Survey>();
+    public DbSet<SurveyVersion> SurveyVersions => Set<SurveyVersion>();
     public DbSet<PatrolRoute> PatrolRoutes => Set<PatrolRoute>();
     public DbSet<PatrolRound> PatrolRounds => Set<PatrolRound>();
     public DbSet<PatrolVisit> PatrolVisits => Set<PatrolVisit>();
@@ -113,6 +115,20 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         {
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Steps).HasConversion(JsonConverter<List<JobTemplateStep>>(), JsonComparer<List<JobTemplateStep>>());
+        });
+
+        b.Entity<Survey>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.Questions).HasConversion(JsonConverter<List<SurveyQuestion>>(), JsonComparer<List<SurveyQuestion>>());
+            e.HasMany(x => x.Versions).WithOne().HasForeignKey(x => x.SurveyId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.TenantId, x.Status });
+        });
+
+        b.Entity<SurveyVersion>(e =>
+        {
+            e.Property(x => x.Questions).HasConversion(JsonConverter<List<SurveyQuestion>>(), JsonComparer<List<SurveyQuestion>>());
+            e.HasIndex(x => new { x.SurveyId, x.VersionNo }).IsUnique();
         });
 
         b.Entity<PatrolRoute>(e =>

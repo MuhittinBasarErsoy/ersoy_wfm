@@ -132,6 +132,16 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<JobDetailDto> SkipJobStepAsync(Guid id, Guid taskId) => Post<JobDetailDto>($"/api/jobs/{id}/steps/{taskId}/skip", null);
     public Task<JobDetailDto> CancelJobAsync(Guid id) => Post<JobDetailDto>($"/api/jobs/{id}/cancel", null);
 
+    // ---------- Anketler ----------
+    public Task<List<SurveyDto>> GetSurveysAsync(SurveyStatus? status = null) =>
+        Get<List<SurveyDto>>("/api/surveys" + (status is { } s ? $"?status={s}" : ""));
+    public Task<SurveyDto> GetSurveyAsync(Guid id) => Get<SurveyDto>($"/api/surveys/{id}");
+    public Task<SurveyDto> CreateSurveyAsync(SaveSurveyRequest req) => Post<SurveyDto>("/api/surveys", req);
+    public Task<SurveyDto> UpdateSurveyAsync(Guid id, SaveSurveyRequest req) => Put<SurveyDto>($"/api/surveys/{id}", req);
+    public Task DeleteSurveyAsync(Guid id) => Send(HttpMethod.Delete, $"/api/surveys/{id}", null);
+    public Task<SurveyDto> PublishSurveyAsync(Guid id) => Post<SurveyDto>($"/api/surveys/{id}/publish", null);
+    public Task<SurveyDto> ArchiveSurveyAsync(Guid id) => Post<SurveyDto>($"/api/surveys/{id}/archive", null);
+
     // ---------- Devriye ----------
     public Task<List<PatrolRouteDto>> GetPatrolRoutesAsync() => Get<List<PatrolRouteDto>>("/api/patrol-routes");
     public Task<PatrolRouteDto> GetPatrolRouteAsync(Guid id) => Get<PatrolRouteDto>($"/api/patrol-routes/{id}");

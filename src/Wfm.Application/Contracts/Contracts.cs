@@ -230,6 +230,34 @@ public record JobDetailDto : JobDto
 
 public record JobQuery(JobStatus? Status = null, string? Search = null);
 
+// ---------- Anketler ----------
+public record SurveyDto
+{
+    public Guid Id { get; init; }
+    public string Title { get; init; } = "";
+    public string? Description { get; init; }
+    public SurveyStatus Status { get; init; }
+    public SurveyRespondentMode RespondentMode { get; init; }
+    public string? ConsentText { get; init; }
+    /// <summary>Düzenlenen taslak.</summary>
+    public List<SurveyQuestion> Questions { get; init; } = [];
+    public Guid? CurrentVersionId { get; init; }
+    public int? CurrentVersionNo { get; init; }
+    public DateTime? PublishedAt { get; init; }
+    /// <summary>Taslakta yayımlanmamış değişiklik var.</summary>
+    public bool HasUnpublishedChanges { get; init; }
+    public DateTime UpdatedAt { get; init; }
+}
+
+public record SaveSurveyRequest
+{
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public SurveyRespondentMode RespondentMode { get; set; } = SurveyRespondentMode.None;
+    public string? ConsentText { get; set; }
+    public List<SurveyQuestion> Questions { get; set; } = [];
+}
+
 // ---------- Devriye (bekçi turları) ----------
 public record PatrolRouteDto(Guid Id, string Name, string? Description, Guid? AssigneeId, string? AssigneeName, bool IsActive,
     bool EnforceOrder, List<DayOfWeek> Days, List<PatrolWindow> Windows, int ReminderMinutesBeforeEnd, List<PatrolCheckpoint> Checkpoints,

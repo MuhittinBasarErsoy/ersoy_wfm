@@ -569,6 +569,98 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.ToTable("SavedFilters");
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.Survey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConsentText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CurrentVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Questions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RespondentMode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("Surveys");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.SurveyVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConsentText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("PublishedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Questions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RespondentMode")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SurveyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SurveyId", "VersionNo")
+                        .IsUnique();
+
+                    b.ToTable("SurveyVersions");
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.TaskAttachment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1171,6 +1263,15 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.SurveyVersion", b =>
+                {
+                    b.HasOne("Wfm.Domain.Entities.Survey", null)
+                        .WithMany("Versions")
+                        .HasForeignKey("SurveyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.TaskAttachment", b =>
                 {
                     b.HasOne("Wfm.Domain.Entities.WorkTask", null)
@@ -1222,6 +1323,11 @@ namespace Wfm.Infrastructure.Data.Migrations
             modelBuilder.Entity("Wfm.Domain.Entities.PatrolRound", b =>
                 {
                     b.Navigation("Visits");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.Survey", b =>
+                {
+                    b.Navigation("Versions");
                 });
 
             modelBuilder.Entity("Wfm.Domain.Entities.WorkTask", b =>

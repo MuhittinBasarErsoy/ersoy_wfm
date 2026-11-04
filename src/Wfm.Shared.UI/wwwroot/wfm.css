@@ -113,6 +113,10 @@
 }
 .wfm-type-icon .material-icons { font-size: 20px; }
 
+/* ---------- Anket ---------- */
+.wfm-survey-scale { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 6px; }
+.wfm-survey-scale .mud-button-root { min-width: 0; padding-left: 0; padding-right: 0; }
+
 /* ---------- KPI ---------- */
 .wfm-kpi { padding: 16px; height: 100%; display: block; }
 .wfm-kpi .wfm-kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.1; }

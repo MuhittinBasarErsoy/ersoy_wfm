@@ -59,3 +59,36 @@ public enum PatrolRoundStatus
     /// <summary>Pencere bitti, hiçbir noktaya uğranmadı.</summary>
     Missed = 4
 }
+
+public enum SurveyStatus
+{
+    Draft = 0,
+    Published = 1,
+    /// <summary>Yeni görevlere bağlanamaz; açık görevler kendi sürümleriyle devam eder.</summary>
+    Archived = 2
+}
+
+public enum SurveyRespondentMode
+{
+    /// <summary>Cevaplayan kişi bilgisi tutulmaz.</summary>
+    None = 0,
+    Optional = 1,
+    Required = 2
+}
+
+public enum SurveyQuestionType
+{
+    SingleChoice = 0,
+    MultiChoice = 1,
+    YesNo = 2,
+    ShortText = 3,
+    LongText = 4,
+    Number = 5,
+    Date = 6,
+    /// <summary>1–5 puan.</summary>
+    Rating5 = 7,
+    /// <summary>0–10 tavsiye puanı.</summary>
+    Nps10 = 8,
+    Photo = 9,
+    Location = 10
+}
