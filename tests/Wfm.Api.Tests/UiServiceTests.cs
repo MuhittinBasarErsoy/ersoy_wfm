@@ -90,6 +90,7 @@ public class UiServiceTests
         public Task RemoveAttachmentAsync(Guid taskId, Guid attachmentId) => Task.CompletedTask;
         public Task<IReadOnlyList<PatrolRoundDto>> GetPatrolRoundsAsync() => Task.FromResult<IReadOnlyList<PatrolRoundDto>>([]);
         public Task<PatrolRoundDto?> RecordPatrolVisitAsync(Guid roundId, PatrolVisitRequest request) => Task.FromResult<PatrolRoundDto?>(null);
+        public Task SubmitSurveyResponseAsync(Guid taskId, SubmitSurveyResponseRequest request, IReadOnlyDictionary<Guid, CapturedFile> photos) => Task.CompletedTask;
         public Task<ShiftDto?> GetShiftAsync() => Task.FromResult<ShiftDto?>(null);
         public Task<ShiftDto?> SetShiftAsync(bool onShift) => Task.FromResult<ShiftDto?>(null);
         public Task OnServerTaskChangedAsync(WorkTaskDto task) => Task.CompletedTask;

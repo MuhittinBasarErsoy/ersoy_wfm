@@ -1,0 +1,108 @@
+@page "/field/tasks/{Id:guid}/survey"
+@inject IFieldService Field
+@inject IGeolocationService Geo
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeaveAsync" />
+
+<AppTitle Title="@(_task?.Survey?.Title ?? "Anket")" />
+
+<SyncBanner />
+
+@if (!_loaded)
+{
+    <MudProgressLinear Indeterminate />
+}
+else if (_task?.Survey is not { } survey)
+{
+    <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Anket bulunamadı" Text="Görev size atanmış değil ya da görevde anket yok.">
+        <MudButton Href="/field" Variant="Variant.Outlined">Görevlerime dön</MudButton>
+    </EmptyState>
+}
+else
+{
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">@_task.Title · @_task.SurveyResponseCount / @_task.SurveyTargetCount anket</MudText>
+    @if (!CanFill)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">Anketi doldurmak için önce görev ekranından göreve başlayın.</MudAlert>
+        <MudButton Href="@TaskHref" Variant="Variant.Outlined">Göreve dön</MudButton>
+    }
+    else if (_done)
+    {
+        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column gap-3">
+            <MudAlert Severity="@(Field.IsOnline ? Severity.Success : Severity.Info)">
+                @(Field.IsOnline ? "Anket kaydedildi." : "Anket telefona kaydedildi; bağlantı gelince gönderilecek.")
+                @(_task.SurveyResponseCount >= _task.SurveyTargetCount ? " Hedefe ulaşıldı, görevi tamamlayabilirsiniz." : $" Kalan: {_task.SurveyTargetCount - _task.SurveyResponseCount}.")
+            </MudAlert>
+            <MudButton Variant="@(_task.SurveyResponseCount < _task.SurveyTargetCount ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.EditNote" OnClick="@(() => _done = false)">Yeni anket</MudButton>
+            <MudButton Variant="@(_task.SurveyResponseCount < _task.SurveyTargetCount ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" Size="Size.Large" Href="@TaskHref">Göreve dön</MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Elevation="1" Class="pa-4">
+            <SurveyRunner @ref="_runner" Questions="survey.Questions" Mode="survey.RespondentMode" ConsentText="@survey.ConsentText" Busy="_busy" OnSubmit="SubmitAsync" />
+        </MudPaper>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private WorkTaskDetailDto? _task;
+    private SurveyRunner? _runner;
+    private bool _loaded, _busy, _done;
+
+    private string TaskHref => $"/field/tasks/{Id}";
+
+    /// <summary>Sunucudaki <c>AcceptsSurveyResponses</c> kuralının aynısı.</summary>
+    private bool CanFill => _task is not null &&
+        (_task.Status == WorkTaskStatus.OnSite || (_task.Status == WorkTaskStatus.Accepted && _task.TaskType is { RequiresVisit: false }));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _task = await Field.GetTaskAsync(Id);
+        _loaded = true;
+    }
+
+    private async Task SubmitAsync(SurveySubmission s)
+    {
+        _busy = true;
+        try
+        {
+            var location = await Geo.GetCurrentAsync();
+            await Field.SubmitSurveyResponseAsync(Id, new SubmitSurveyResponseRequest
+            {
+                ClientId = Guid.NewGuid(),
+                Answers = s.Answers,
+                RespondentName = s.RespondentName,
+                RespondentPhone = s.RespondentPhone,
+                ConsentGiven = s.ConsentGiven,
+                Latitude = location?.Latitude,
+                Longitude = location?.Longitude,
+                StartedAt = s.StartedAt,
+                SubmittedAt = DateTime.UtcNow
+            }, s.Photos);
+            _task = await Field.GetTaskAsync(Id);
+            _done = true;
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext ctx)
+    {
+        if (_done || _runner?.HasInput != true) return;
+        if (await Dialogs.ShowMessageBoxAsync("Anket bitmedi", "Çıkarsanız girdiğiniz cevaplar kaybolacak.", "Çık", cancelText: "Ankete dön") != true)
+            ctx.PreventNavigation();
+    }
+}

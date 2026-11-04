@@ -141,6 +141,8 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task DeleteSurveyAsync(Guid id) => Send(HttpMethod.Delete, $"/api/surveys/{id}", null);
     public Task<SurveyDto> PublishSurveyAsync(Guid id) => Post<SurveyDto>($"/api/surveys/{id}/publish", null);
     public Task<SurveyDto> ArchiveSurveyAsync(Guid id) => Post<SurveyDto>($"/api/surveys/{id}/archive", null);
+    public Task<SurveyResponseResultDto> SubmitSurveyResponseAsync(Guid taskId, SubmitSurveyResponseRequest req) =>
+        Post<SurveyResponseResultDto>($"/api/tasks/{taskId}/survey-responses", req);
 
     // ---------- Devriye ----------
     public Task<List<PatrolRouteDto>> GetPatrolRoutesAsync() => Get<List<PatrolRouteDto>>("/api/patrol-routes");

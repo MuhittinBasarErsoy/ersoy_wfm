@@ -25,7 +25,9 @@ public enum AttachmentKind
 {
     Photo = 0,
     Signature = 1,
-    Document = 2
+    Document = 2,
+    /// <summary>Anket sorusunun cevabı. Görevin ek listesinde görünmez, kanıt fotoğrafı sayılmaz.</summary>
+    SurveyPhoto = 3
 }
 
 public enum FieldType

@@ -8,6 +8,17 @@ public class WorkTask : TenantEntity
     public Guid TaskTypeId { get; set; }
     public TaskType? TaskType { get; set; }
 
+    /// <summary>Görevde yapılacak anket; doluysa <see cref="SurveyTargetCount"/> yanıt toplanmadan görev tamamlanamaz.</summary>
+    public Guid? SurveyId { get; set; }
+    public Guid? SurveyVersionId { get; set; }
+    public SurveyVersion? SurveyVersion { get; set; }
+    public int SurveyTargetCount { get; set; }
+    public int SurveyResponseCount { get; set; }
+
+    /// <summary>Anket şu an doldurulabilir mi: çalışan görev yerindeyken, masa başı görevde kabulden sonra.</summary>
+    public bool AcceptsSurveyResponses =>
+        Status == WorkTaskStatus.OnSite || (Status == WorkTaskStatus.Accepted && TaskType is { RequiresVisit: false });
+
     public string Title { get; set; } = "";
     public string? Description { get; set; }
     public TaskPriority Priority { get; set; } = TaskPriority.Normal;

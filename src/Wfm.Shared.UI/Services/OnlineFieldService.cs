@@ -89,6 +89,18 @@ public class OnlineFieldService(WfmApiClient api) : IFieldService
         return round;
     }
 
+    public async Task SubmitSurveyResponseAsync(Guid taskId, SubmitSurveyResponseRequest request, IReadOnlyDictionary<Guid, CapturedFile> photos)
+    {
+        foreach (var (clientId, file) in photos)
+        {
+            using var ms = new MemoryStream(file.Data);
+            await api.UploadAttachmentAsync(taskId, ms, file.FileName, file.ContentType, AttachmentKind.SurveyPhoto,
+                request.Latitude, request.Longitude, request.SubmittedAt, clientId);
+        }
+        await api.SubmitSurveyResponseAsync(taskId, request);
+        await SyncAsync();
+    }
+
     public Task<ShiftDto?> GetShiftAsync() => api.GetShiftAsync();
 
     public async Task<ShiftDto?> SetShiftAsync(bool onShift) => onShift ? await api.StartShiftAsync() : await api.EndShiftAsync();

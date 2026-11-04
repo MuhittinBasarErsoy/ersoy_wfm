@@ -143,6 +143,24 @@ else
                 }
             </ul>
 
+            @if (t.Survey is { } survey)
+            {
+                <MudPaper Outlined Class="pa-3 mb-3">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="Color.Primary" aria-hidden="true" />
+                        <div style="flex:1;min-width:0">
+                            <MudText Typo="Typo.subtitle2"><b>@survey.Title</b></MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@t.SurveyResponseCount / @t.SurveyTargetCount anket</MudText>
+                        </div>
+                    </div>
+                    <MudProgressLinear Value="@(Math.Min(100, t.SurveyResponseCount * 100.0 / Math.Max(1, t.SurveyTargetCount)))" Color="Color.Success" Rounded Class="my-2" aria-label="Anket ilerlemesi" />
+                    <MudButton Variant="@(t.SurveyResponseCount < t.SurveyTargetCount ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" Size="Size.Large" FullWidth
+                               StartIcon="@Icons.Material.Filled.EditNote" Href="@($"/field/tasks/{t.Id}/survey")">
+                        @(t.SurveyResponseCount == 0 ? "Anketi doldur" : "Yeni anket doldur")
+                    </MudButton>
+                </MudPaper>
+            }
+
             @if (ct.Fields.Any(f => f.FilledOnCompletion))
             {
                 <DynamicFieldForm Fields="ct.Fields.Where(f => f.FilledOnCompletion)" Values="_completionValues" ValuesChanged="StateHasChanged" ShowErrors="_tried" />
@@ -183,6 +201,10 @@ else
     {
         <MudPaper Elevation="1" Class="pa-3 mb-3">
             <MudText Typo="Typo.subtitle1" Class="mb-2"><b>@(t.Status == WorkTaskStatus.Completed ? "Teslim kanıtı" : "Yapılamadı")</b> · @Ui.Local(t.CompletedAt)</MudText>
+            @if (t.Survey is { } doneSurvey)
+            {
+                <MudText Typo="Typo.body2" Class="mb-2">@doneSurvey.Title: @t.SurveyResponseCount / @t.SurveyTargetCount anket</MudText>
+            }
             @if (done.Fields.Any(f => f.FilledOnCompletion))
             {
                 <DynamicFieldForm Fields="done.Fields.Where(f => f.FilledOnCompletion)" Values="t.CustomFieldValues" ReadOnly />
@@ -278,6 +300,8 @@ else
             var list = new List<CheckItem>();
             if (Type is null) return list;
             var c = Type.Completion;
+            if (_task?.Survey is not null)
+                list.Add(new($"Anket: {_task.SurveyResponseCount} / {_task.SurveyTargetCount}", _task.SurveyResponseCount >= _task.SurveyTargetCount));
             foreach (var f in Type.Fields.Where(f => f.FilledOnCompletion && f.Required).OrderBy(f => f.Order))
                 list.Add(new($"{f.Label}", f.Type == FieldType.Checkbox ? _completionValues.GetValueOrDefault(f.Key) == "true" : !string.IsNullOrWhiteSpace(_completionValues.GetValueOrDefault(f.Key))));
             if (MinPhotos > 0) list.Add(new($"Fotoğraf: {PhotoCount} / {MinPhotos}", PhotoCount >= MinPhotos));

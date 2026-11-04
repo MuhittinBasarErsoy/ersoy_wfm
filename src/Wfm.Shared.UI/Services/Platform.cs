@@ -78,6 +78,9 @@ public interface IFieldService
     /// <summary>Kontrol noktasına basışı gönderir (mobilde çevrimdışıysa kuyruğa alır) ve turun güncel hâlini döner.</summary>
     Task<PatrolRoundDto?> RecordPatrolVisitAsync(Guid roundId, PatrolVisitRequest request);
 
+    /// <summary>Doldurulan anketi gönderir (mobilde çevrimdışıysa fotoğraflarıyla kuyruğa alır).</summary>
+    Task SubmitSurveyResponseAsync(Guid taskId, SubmitSurveyResponseRequest request, IReadOnlyDictionary<Guid, CapturedFile> photos);
+
     Task<ShiftDto?> GetShiftAsync();
     Task<ShiftDto?> SetShiftAsync(bool onShift);
 

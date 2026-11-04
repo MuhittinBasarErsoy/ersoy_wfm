@@ -30,6 +30,7 @@ public class SurveyVersion : TenantEntity
 {
     public Guid SurveyId { get; set; }
     public int VersionNo { get; set; }
+    public string Title { get; set; } = "";
     public List<SurveyQuestion> Questions { get; set; } = [];
     public SurveyRespondentMode RespondentMode { get; set; }
     public string? ConsentText { get; set; }
@@ -57,6 +58,27 @@ public class SurveyCondition
 {
     public Guid QuestionId { get; set; }
     public string Value { get; set; } = "";
+}
+
+/// <summary>Sahada doldurulan bir anket. Sürüme bağlıdır; anket sonradan değişse de cevaplar anlamını korur.</summary>
+public class SurveyResponse : TenantEntity
+{
+    public Guid SurveyId { get; set; }
+    public Guid SurveyVersionId { get; set; }
+    public Guid WorkTaskId { get; set; }
+    /// <summary>Anketi yapan çalışan.</summary>
+    public Guid UserId { get; set; }
+    public DateTime StartedAt { get; set; }
+    /// <summary>Cihazda gönderildiği an (internetsiz yanıtlarda sunucuya sonra gelir).</summary>
+    public DateTime SubmittedAt { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? RespondentName { get; set; }
+    public string? RespondentPhone { get; set; }
+    public bool ConsentGiven { get; set; }
+    public List<SurveyAnswer> Answers { get; set; } = [];
+    /// <summary>Tekrar gönderimlerde çift kaydı önlemek için istemcinin ürettiği kimlik.</summary>
+    public Guid ClientId { get; set; }
 }
 
 /// <summary>
