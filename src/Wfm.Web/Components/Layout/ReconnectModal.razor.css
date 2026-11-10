@@ -20,8 +20,17 @@
 }
 
 
+/* Yeniden denemelerde ilk mesaj gizlenir; aynı anda tek mesaj görünsün. */
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-first-attempt-visible,
+#components-reconnect-modal.components-reconnect-failed .components-reconnect-first-attempt-visible {
+    display: none;
+}
+
+/* Renkler uygulama temasından gelir (koyu tema dahil). */
 #components-reconnect-modal {
-    background-color: white;
+    background-color: var(--mud-palette-surface, white);
+    color: var(--mud-palette-text-primary, #222);
+    font-family: Roboto, Helvetica, Arial, sans-serif;
     width: 20rem;
     margin: 20vh auto;
     padding: 2rem;
@@ -90,18 +99,17 @@
 
 #components-reconnect-modal button {
     border: 0;
-    background-color: #6b9ed2;
-    color: white;
-    padding: 4px 24px;
+    background-color: var(--mud-palette-primary, #1976d2);
+    color: var(--mud-palette-primary-text, white);
+    padding: 8px 24px;
     border-radius: 4px;
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
 }
 
     #components-reconnect-modal button:hover {
-        background-color: #3b6ea2;
-    }
-
-    #components-reconnect-modal button:active {
-        background-color: #6b9ed2;
+        filter: brightness(.9);
     }
 
 .components-rejoining-animation {
@@ -112,7 +120,7 @@
 
     .components-rejoining-animation div {
         position: absolute;
-        border: 3px solid #0087ff;
+        border: 3px solid var(--mud-palette-primary, #1976d2);
         opacity: 1;
         border-radius: 50%;
         animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;

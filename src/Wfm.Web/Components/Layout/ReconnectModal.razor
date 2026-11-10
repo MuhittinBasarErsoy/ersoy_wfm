@@ -1,31 +1,32 @@
 ﻿<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 
-<dialog id="components-reconnect-modal" data-nosnippet>
+@* Sunucu bağlantısı koptuğunda gösterilir. Oturum geri gelemezse sayfa kendiliğinden yenilenir (ReconnectModal.razor.js). *@
+<dialog id="components-reconnect-modal" data-nosnippet aria-live="polite">
     <div class="components-reconnect-container">
         <div class="components-rejoining-animation" aria-hidden="true">
             <div></div>
             <div></div>
         </div>
         <p class="components-reconnect-first-attempt-visible">
-            Rejoining the server...
+            Bağlantı koptu, yeniden bağlanılıyor…
         </p>
         <p class="components-reconnect-repeated-attempt-visible">
-            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
+            Sunucuya ulaşılamıyor. <span id="components-seconds-to-next-attempt"></span> saniye içinde yeniden denenecek.
         </p>
         <p class="components-reconnect-failed-visible">
-            Failed to rejoin.<br />Please retry or reload the page.
+            Sunucuya ulaşılamıyor. Bağlantı gelince kendiliğinden devam edilecek.
         </p>
         <button id="components-reconnect-button" class="components-reconnect-failed-visible">
-            Retry
+            Şimdi dene
         </button>
         <p class="components-pause-visible">
-            The session has been paused by the server.
+            Oturum kaldığı yerden sürdürülüyor…
         </p>
         <p class="components-resume-failed-visible">
-            Failed to resume the session.<br />Please retry or reload the page.
+            Oturum sürdürülemedi, sayfa yenileniyor…
         </p>
-        <button id="components-resume-button" class="components-pause-visible components-resume-failed-visible">
-            Resume
+        <button id="components-resume-button" class="components-resume-failed-visible">
+            Sayfayı yenile
         </button>
     </div>
 </dialog>

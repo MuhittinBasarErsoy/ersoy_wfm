@@ -1,63 +1,74 @@
-// Set up event handlers
+// Bağlantı kutusu: kullanıcıdan düğmeye basmasını beklemeden kendiliğinden toparlanır.
+// - Sunucuya ulaşılamıyorsa (ör. güncelleme sırasında) birkaç saniyede bir yeniden dener.
+// - Sunucu oturumu artık tanımıyorsa sayfayı yeniler.
+const RetryIntervalMs = 5000;
+
 const reconnectModal = document.getElementById("components-reconnect-modal");
 reconnectModal.addEventListener("components-reconnect-state-changed", handleReconnectStateChanged);
 
-const retryButton = document.getElementById("components-reconnect-button");
-retryButton.addEventListener("click", retry);
+document.getElementById("components-reconnect-button").addEventListener("click", retry);
+document.getElementById("components-resume-button").addEventListener("click", () => location.reload());
 
-const resumeButton = document.getElementById("components-resume-button");
-resumeButton.addEventListener("click", resume);
+let retryTimer = null;
 
 function handleReconnectStateChanged(event) {
-    if (event.detail.state === "show") {
-        reconnectModal.showModal();
-    } else if (event.detail.state === "hide") {
+    const state = event.detail.state;
+    if (state === "show") {
+        if (!reconnectModal.open) reconnectModal.showModal();
+    } else if (state === "hide") {
+        stopRetrying();
         reconnectModal.close();
-    } else if (event.detail.state === "failed") {
-        document.addEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
-    } else if (event.detail.state === "rejected") {
+    } else if (state === "failed") {
+        startRetrying();
+    } else if (state === "rejected") {
         location.reload();
+    } else if (state === "paused") {
+        // Sunucu oturumu duraklattı (ör. uzun süre arka planda): beklemeden sürdür.
+        if (!reconnectModal.open) reconnectModal.showModal();
+        resume();
     }
 }
 
-async function retry() {
-    document.removeEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
+function startRetrying() {
+    if (retryTimer) return;
+    retryTimer = setInterval(retry, RetryIntervalMs);
+    document.addEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
+}
 
+function stopRetrying() {
+    if (retryTimer) clearInterval(retryTimer);
+    retryTimer = null;
+    document.removeEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
+}
+
+async function retry() {
     try {
-        // Reconnect will asynchronously return:
-        // - true to mean success
-        // - false to mean we reached the server, but it rejected the connection (e.g., unknown circuit ID)
-        // - exception to mean we didn't reach the server (this can be sync or async)
+        // true: bağlandı; false: sunucuya ulaşıldı ama oturum yok; hata: sunucuya ulaşılamadı.
         const successful = await Blazor.reconnect();
-        if (!successful) {
-            // We have been able to reach the server, but the circuit is no longer available.
-            // We'll reload the page so the user can continue using the app as quickly as possible.
-            const resumeSuccessful = await Blazor.resumeCircuit();
-            if (!resumeSuccessful) {
-                location.reload();
-            } else {
-                reconnectModal.close();
-            }
+        if (successful) {
+            stopRetrying();
+            return;
         }
-    } catch (err) {
-        // We got an exception, server is currently unavailable
-        document.addEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
+        stopRetrying();
+        await resume();
+    } catch {
+        // Sunucu hâlâ yok; zamanlayıcı yeniden deneyecek.
     }
 }
 
 async function resume() {
     try {
-        const successful = await Blazor.resumeCircuit();
-        if (!successful) {
+        if (await Blazor.resumeCircuit()) {
+            reconnectModal.close();
+        } else {
             location.reload();
         }
     } catch {
         reconnectModal.classList.replace("components-reconnect-paused", "components-reconnect-resume-failed");
+        location.reload();
     }
 }
 
 async function retryWhenDocumentBecomesVisible() {
-    if (document.visibilityState === "visible") {
-        await retry();
-    }
+    if (document.visibilityState === "visible") await retry();
 }
