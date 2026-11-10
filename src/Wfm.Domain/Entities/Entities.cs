@@ -166,6 +166,19 @@ public class TaskComment : TenantEntity
     public string Body { get; set; } = "";
 }
 
+/// <summary>Push bildirimi alacak telefon. Anahtar telefona özgüdür; telefona kim giriş yaptıysa ona aittir.</summary>
+public class DeviceRegistration : TenantEntity
+{
+    public Guid UserId { get; set; }
+    public string Platform { get; set; } = DevicePlatforms.Ios;
+    public string Token { get; set; } = "";
+}
+
+public static class DevicePlatforms
+{
+    public const string Ios = "ios";
+}
+
 /// <summary>Saha çalışanının mesai oturumu. Konum takibi yalnızca açık mesai süresince yapılır.</summary>
 public class WorkShift : TenantEntity
 {

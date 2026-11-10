@@ -481,3 +481,7 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 uploads/
+
+# APNs anahtarı ve diğer sunucu sırları
+deploy/secrets/
+*.p8

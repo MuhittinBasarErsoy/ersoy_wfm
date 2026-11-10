@@ -45,6 +45,18 @@ public interface IExternalActions
     Task CallAsync(string phone);
 }
 
+/// <summary>Push kaydı (yalnızca mobilde gerçek; web'de boş).</summary>
+public interface IPushRegistrar
+{
+    /// <summary>Çıkıştan önce çağrılır: telefon artık bu kişinin bildirimlerini almaz.</summary>
+    Task UnregisterAsync();
+}
+
+public sealed class NoPushRegistrar : IPushRegistrar
+{
+    public Task UnregisterAsync() => Task.CompletedTask;
+}
+
 /// <summary>Sistem bildirimi gösterimi (mobilde yerel bildirim; web'de uygulama içi snackbar yeterli).</summary>
 public interface INotificationPresenter
 {

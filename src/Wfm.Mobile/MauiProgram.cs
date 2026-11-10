@@ -37,6 +37,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<INotificationPresenter>(sp => sp.GetRequiredService<MauiPlatform>());
         builder.Services.AddSingleton<ILocationTracker, LocationTracker>();
         builder.Services.AddSingleton<LocationPipeline>();
+        builder.Services.AddSingleton<PushRegistration>();
+        builder.Services.AddSingleton<IPushRegistrar>(sp => sp.GetRequiredService<PushRegistration>());
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

@@ -360,6 +360,7 @@ public static class UiServiceCollectionExtensions
             services.AddScoped<NotificationCenter>();
         }
         services.AddScoped<WfmJs>();
+        services.AddSingleton<IPushRegistrar, NoPushRegistrar>(); // mobil kendi kaydını sonradan ekler
         if (singleton)
         {
             services.AddSingleton<ThemeState>();

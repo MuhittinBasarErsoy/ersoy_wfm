@@ -84,6 +84,8 @@ public class MauiPlatform : IGeolocationService, ICameraService, IExternalAction
     {
         // Uygulama açıkken UI içi snackbar yeterli; arka plandayken sistem bildirimi göster.
         if (!AppState.IsInBackground) return;
+        // iPhone'a aynı bildirim sunucudan push olarak da geliyor; ikinci kez gösterme.
+        if (PushRegistration.ServerPushActive) return;
         try
         {
             await LocalNotificationCenter.Current.Show(new NotificationRequest

@@ -60,9 +60,17 @@ services:
       Cors__Origins__0: https://${WEB_HOST}
       Seed__DemoData: ${DEMO_DATA:-false}
       Seed__AdminPassword: ${ADMIN_PASSWORD:?ADMIN_PASSWORD gerekli}
+      # iPhone push (APNs). Anahtar dosyası repoda değil: deploy/secrets/apns.p8 (bkz. deploy/README.md).
+      Apns__Enabled: ${APNS_ENABLED:-false}
+      Apns__KeyId: ${APNS_KEY_ID:-}
+      Apns__TeamId: ${APNS_TEAM_ID:-}
+      Apns__BundleId: ${APNS_BUNDLE_ID:-com.wfm.saha}
+      Apns__UseSandbox: ${APNS_SANDBOX:-true}
+      Apns__KeyPath: /run/secrets/wfm/apns.p8
       TZ: Europe/Istanbul
     volumes:
       - uploads:/app/uploads
+      - ./secrets:/run/secrets/wfm:ro
 
   web:
     build:

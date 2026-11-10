@@ -23,6 +23,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<LocationPing> LocationPings => Set<LocationPing>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<WorkShift> Shifts => Set<WorkShift>();
+    public DbSet<DeviceRegistration> DeviceRegistrations => Set<DeviceRegistration>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
@@ -201,6 +202,13 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
             e.Property(x => x.Kind).HasMaxLength(30);
         });
         b.Entity<WorkShift>(e => e.HasIndex(x => new { x.UserId, x.EndedAt }));
+        b.Entity<DeviceRegistration>(e =>
+        {
+            e.Property(x => x.Platform).HasMaxLength(20);
+            e.Property(x => x.Token).HasMaxLength(200);
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => x.UserId);
+        });
         b.Entity<RefreshToken>(e => e.HasIndex(x => x.TokenHash).IsUnique());
 
         // Id'ler uygulamada üretilir; yeni nesneler navigation üzerinden eklendiğinde de Added sayılsın.

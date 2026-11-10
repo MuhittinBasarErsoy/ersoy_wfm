@@ -12,7 +12,10 @@ namespace Wfm.Mobile.Services;
 public class LocationPipeline(WfmRealtime realtime, WfmApiClient api, LocalDb local, AuthSession session, ArrivalDetector arrival)
 {
     private const int FlushThreshold = 20;
+    /// <summary>Kuyruk dolmasa da en geç bu sürede gönderilir; canlı bağlantı yokken konum dakikalarca beklemesin.</summary>
+    private static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(60);
     private static readonly SemaphoreSlim FlushLock = new(1, 1);
+    private static DateTime _lastFlushAttempt = DateTime.MinValue;
 
     public static LocationPipeline? Current => IPlatformApplication.Current?.Services.GetService<LocationPipeline>();
 
@@ -29,13 +32,15 @@ public class LocationPipeline(WfmRealtime realtime, WfmApiClient api, LocalDb lo
 
         var db = await local.Db();
         await db.InsertAsync(new PendingPing { Json = JsonSerializer.Serialize(ping, WfmJson.Options) });
-        if (await db.Table<PendingPing>().CountAsync() >= FlushThreshold) await FlushPendingAsync(local, api);
+        if (await db.Table<PendingPing>().CountAsync() >= FlushThreshold || DateTime.UtcNow - _lastFlushAttempt >= FlushInterval)
+            await FlushPendingAsync(local, api);
     }
 
     /// <summary>Kuyruktaki konumları 500'lük paketlerle REST üzerinden gönderir.</summary>
     public static async Task FlushPendingAsync(LocalDb local, WfmApiClient api)
     {
         if (!await FlushLock.WaitAsync(0)) return;
+        _lastFlushAttempt = DateTime.UtcNow;
         try
         {
             var db = await local.Db();

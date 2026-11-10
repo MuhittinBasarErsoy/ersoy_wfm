@@ -6,10 +6,11 @@ public partial class App : Microsoft.Maui.Controls.Application
 {
     private readonly OfflineFieldService _field;
 
-    public App(OfflineFieldService field)
+    public App(OfflineFieldService field, PushRegistration push)
     {
         InitializeComponent();
         _field = field;
+        push.Start(); // girişte bildirim izni ister, iPhone'u push için kaydeder
     }
 
     protected override Window CreateWindow(IActivationState? activationState)

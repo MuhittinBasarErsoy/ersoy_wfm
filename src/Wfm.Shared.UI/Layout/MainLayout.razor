@@ -15,6 +15,7 @@
 @inject IDialogService Dialogs
 @inject WfmJs Js
 @inject ArrivalDetector Arrival
+@inject IPushRegistrar Push
 
 <MudThemeProvider @ref="_themeProvider" Theme="ThemeState.Theme" IsDarkMode="ThemeState.IsDark" />
 <MudPopoverProvider />
@@ -288,6 +289,7 @@ else
     private async Task LogoutAsync()
     {
         var refresh = Session.Current?.RefreshToken;
+        await Push.UnregisterAsync(); // oturum kapanmadan: istek hâlâ kimlik doğrulamalı
         await Notifications.StopAsync();
         await Field.ClearAsync();
         ThemeState.SetTenant(null);
