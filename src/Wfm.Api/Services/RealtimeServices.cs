@@ -57,7 +57,7 @@ public class TrackingService(WfmDbContext db, IHubContext<TrackingHub> hub)
 }
 
 /// <summary>Bildirim kaydı + SignalR ile kullanıcıya iletim; görev değişikliklerini izleyicilere yayar.</summary>
-public class NotificationService(WfmDbContext db, IHubContext<NotificationHub> hub)
+public class NotificationService(WfmDbContext db, IHubContext<NotificationHub> hub, PushQueue push)
 {
     public async Task NotifyAsync(Guid tenantId, Guid userId, string title, string body, Guid? taskId, string kind = NotificationKinds.General)
     {
@@ -65,6 +65,8 @@ public class NotificationService(WfmDbContext db, IHubContext<NotificationHub> h
         db.Notifications.Add(n);
         await db.SaveChangesAsync();
         await hub.Clients.Group(HubGroups.User(userId)).SendAsync(HubMethods.NotificationReceived, n.ToDto());
+        // Kilitli ya da kapalı iPhone'a da ulaşsın; gönderim arka planda (PushDispatcher).
+        push.Enqueue(new PushMessage(userId, title, body, taskId, kind));
     }
 
     /// <summary>Yeni yorumu görevi izleyen yöneticilere ve atanan çalışana yayar.</summary>

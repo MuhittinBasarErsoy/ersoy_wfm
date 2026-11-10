@@ -386,6 +386,11 @@ public record WorkerLocationDto(Guid UserId, string FullName, double Latitude, d
 
 public record ShiftDto(Guid Id, DateTime StartedAt, DateTime? EndedAt);
 
+// ---------- Push (telefon kaydı) ----------
+public record RegisterDeviceRequest(string Platform, string Token);
+/// <param name="PushEnabled">Sunucuda push açık mı; açıksa telefon kendi yerel bildirimini göstermez (çift bildirim olmasın).</param>
+public record DeviceRegistrationDto(bool PushEnabled);
+
 // ---------- Notifications ----------
 public record NotificationDto(Guid Id, string Title, string Body, Guid? WorkTaskId, DateTime CreatedAt, DateTime? ReadAt,
     string Kind = "general");

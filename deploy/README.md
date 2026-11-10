@@ -50,6 +50,38 @@ Sertifika sorunu olursa: `docker compose logs caddy`.
 Telefonlar API'ye `https://API_HOST` üzerinden bağlanır. Release derlemesi `MauiProgram.ProductionApiUrl`
 adresini kullanır; `Preferences["api_base_url"]` ayarlanmışsa her zaman o kullanılır.
 
+## iPhone push bildirimi (APNs)
+
+Telefon kilitliyken ya da uygulama kapalıyken iPhone'a bildirim Apple'ın push servisiyle gider. Ayar yoksa push kapalı
+kalır; bildirimler uygulama içinde ve uygulama açıkken çalışmaya devam eder.
+
+1. Apple Developer hesabında bir APNs anahtarı (`AuthKey_XXXX.p8`) oluşturun. Anahtarı **repoya veya mesaja koymayın**,
+   doğrudan sunucuya kopyalayın:
+
+   ```bash
+   mkdir -p ~/apps/wfm/deploy/secrets
+   # Kendi bilgisayarınızdan:
+   scp AuthKey_XXXX.p8 ilkeradm@31.186.24.89:~/apps/wfm/deploy/secrets/apns.p8
+   # Sunucuda:
+   chmod 600 ~/apps/wfm/deploy/secrets/apns.p8
+   ```
+
+2. `.env` içine anahtar kimliği, ekip kimliği ve uygulamanın Bundle ID'sini yazın (bunlar gizli değildir):
+
+   ```bash
+   APNS_ENABLED=true
+   APNS_KEY_ID=XXXXXXXXXX
+   APNS_TEAM_ID=YYYYYYYYYY
+   APNS_BUNDLE_ID=com.wfm.saha
+   APNS_SANDBOX=true   # Xcode/geliştirme imzalı sürüm; TestFlight/App Store için false
+   ```
+
+3. `docker compose up -d api` ile API'yi yeniden başlatın. Kayıtta `APNs hazır (sandbox, ...)` satırı görünmeli:
+   `docker compose logs api | grep APNs`.
+
+iPhone sürümü, Push Notifications yetkisi açık bir profille imzalanmalıdır. `Platforms/iOS/Entitlements.plist` içindeki
+`aps-environment` geliştirme için `development`, TestFlight/App Store için `production` olmalı ve `APNS_SANDBOX` ile uyumlu olmalıdır.
+
 ## Güncelleme
 
 ```bash

@@ -220,6 +220,10 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<ShiftDto> StartShiftAsync() => Post<ShiftDto>("/api/tracking/shift/start", null);
     public Task<ShiftDto?> EndShiftAsync() => PostOrNull<ShiftDto>("/api/tracking/shift/end");
 
+    // ---------- Push ----------
+    public Task<DeviceRegistrationDto> RegisterDeviceAsync(RegisterDeviceRequest req) => Post<DeviceRegistrationDto>("/api/devices", req);
+    public Task UnregisterDeviceAsync(string token) => Send(HttpMethod.Delete, $"/api/devices/{Uri.EscapeDataString(token)}", null);
+
     // ---------- Notifications / Sync / Reports ----------
     public Task<List<NotificationDto>> GetNotificationsAsync(bool unreadOnly = false) =>
         Get<List<NotificationDto>>($"/api/notifications?unreadOnly={unreadOnly}");
