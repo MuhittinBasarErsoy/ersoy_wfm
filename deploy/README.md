@@ -59,11 +59,11 @@ kalır; bildirimler uygulama içinde ve uygulama açıkken çalışmaya devam ed
    doğrudan sunucuya kopyalayın:
 
    ```bash
-   mkdir -p ~/apps/wfm/deploy/secrets
    # Kendi bilgisayarınızdan:
    scp AuthKey_XXXX.p8 ilkeradm@31.186.24.89:~/apps/wfm/deploy/secrets/apns.p8
-   # Sunucuda:
-   chmod 600 ~/apps/wfm/deploy/secrets/apns.p8
+   # Sunucuda: API konteyneri "app" kullanıcısıyla (uid 1654) çalışır; dosyayı okuyabilmeli ama klasörü listeleyememeli.
+   chmod 711 ~/apps/wfm/deploy/secrets
+   chmod 604 ~/apps/wfm/deploy/secrets/apns.p8
    ```
 
 2. `.env` içine anahtar kimliği, ekip kimliği ve uygulamanın Bundle ID'sini yazın (bunlar gizli değildir):
