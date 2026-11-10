@@ -134,9 +134,11 @@ const mapStyleKey = 'wfm.mapStyle';
 
 function baseLayers() {
     return {
+        // Koyu tema filtresi yalnızca bu katmana uygulanır (wfm.css); uydu fotoğrafı tersine çevrilmemeli.
         'Harita': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
+            attribution: '&copy; OpenStreetMap',
+            className: 'wfm-tiles-street'
         }),
         // Esri uydu görüntüsü + üzerine yer adları; anahtar gerektirmez, atıf zorunlu.
         'Uydu': L.layerGroup([

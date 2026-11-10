@@ -8,7 +8,8 @@ using Wfm.Web.Components;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    // Telefon kısa süre arka plana alınınca bağlantı düşer; oturum 15 dakika saklanır, kaldığı yerden devam eder.
+    .AddInteractiveServerComponents(o => o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(15));
 
 // Ortak istemci ve UI servisleri (her tarayıcı bağlantısı için ayrı oturum).
 var apiBase = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5211";
