@@ -3,6 +3,7 @@
 @inject IFieldService Field
 @inject IGeolocationService Geo
 @inject ICameraService Camera
+@inject WfmJs PhotoJs
 @inject IExternalActions External
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
@@ -499,6 +500,28 @@ else
         {
             _busy = true;
             if (await Camera.CapturePhotoAsync(_task.RequireLocationPhoto) is not { } photo) return;
+            if (photo.LocationPhoto is { } capture)
+            {
+                var culture = System.Globalization.CultureInfo.InvariantCulture;
+                var capturedAt = new DateTimeOffset(DateTime.SpecifyKind(capture.CapturedAt, DateTimeKind.Utc)).ToLocalTime();
+                var lines = new[]
+                {
+                    "Blue WFM · Çekim konumu",
+                    capture.Address ?? "Adres çözümlenemedi; çekim koordinatları aşağıdadır.",
+                    $"Enlem {capture.Latitude.ToString("F6", culture)} · Boylam {capture.Longitude.ToString("F6", culture)}",
+                    $"{capturedAt:dd.MM.yyyy HH:mm:ss} (UTC{capturedAt:zzz})"
+                };
+                try
+                {
+                    // JS interop must use the current component's WebView scope, never the native singleton.
+                    var stamped = await PhotoJs.Invoke<string>("stampLocationPhoto", Convert.ToBase64String(photo.Data), lines);
+                    photo = photo with { Data = Convert.FromBase64String(stamped) };
+                }
+                catch (Exception ex) when (ex is Microsoft.JSInterop.JSException or InvalidOperationException or FormatException)
+                {
+                    throw new InvalidOperationException("Fotoğrafa konum damgası eklenemedi. Tekrar deneyin.", ex);
+                }
+            }
             var location = photo.LocationPhoto is { } stamp
                 ? new GeoPoint(stamp.Latitude, stamp.Longitude, stamp.Accuracy)
                 : await Geo.GetCurrentAsync();
