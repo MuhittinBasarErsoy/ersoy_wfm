@@ -66,7 +66,8 @@ public class OnlineFieldService(WfmApiClient api) : IFieldService
     {
         using var ms = new MemoryStream(file.Data);
         await api.UploadAttachmentAsync(taskId, ms, file.FileName, file.ContentType, kind, location?.Latitude, location?.Longitude,
-            DateTime.UtcNow, Guid.NewGuid());
+            file.LocationPhoto?.CapturedAt ?? DateTime.UtcNow, Guid.NewGuid(),
+            file.LocationPhoto is not null, file.LocationPhoto?.Address, file.LocationPhoto?.Accuracy);
         Changed?.Invoke();
     }
 

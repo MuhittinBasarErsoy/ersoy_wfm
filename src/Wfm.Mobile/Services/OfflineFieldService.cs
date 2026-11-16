@@ -161,10 +161,12 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
         // Yerelde hemen göster (data: URL), arka planda yükle.
         var local = new AttachmentDto(clientId, kind, file.FileName, file.ContentType,
             $"data:{file.ContentType};base64,{Convert.ToBase64String(file.Data)}",
-            location?.Latitude, location?.Longitude, DateTime.UtcNow, _session.Current?.User.Id ?? Guid.Empty);
+            location?.Latitude, location?.Longitude, file.LocationPhoto?.CapturedAt ?? DateTime.UtcNow, _session.Current?.User.Id ?? Guid.Empty,
+            file.LocationPhoto is not null, file.LocationPhoto?.Address, file.LocationPhoto?.Accuracy);
         await UpdateCachedTaskAsync(taskId, t => t with { Attachments = [.. t.Attachments, local] });
 
-        var meta = new AttachmentMeta(clientId, kind, file.FileName, file.ContentType, location?.Latitude, location?.Longitude, DateTime.UtcNow);
+        var meta = new AttachmentMeta(clientId, kind, file.FileName, file.ContentType, location?.Latitude, location?.Longitude,
+            file.LocationPhoto?.CapturedAt ?? DateTime.UtcNow, file.LocationPhoto is not null, file.LocationPhoto?.Address, file.LocationPhoto?.Accuracy);
         await EnqueueAsync(new OutboxItem
         {
             Kind = OutboxKind.Attachment, TaskId = taskId, Payload = JsonSerializer.Serialize(meta, Json), FilePath = path
@@ -339,7 +341,7 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
                 await using (var fs = File.OpenRead(item.FilePath))
                 {
                     var uploaded = await _api.UploadAttachmentAsync(item.TaskId, fs, meta.FileName, meta.ContentType, meta.Kind,
-                        meta.Latitude, meta.Longitude, meta.CapturedAt, meta.ClientId);
+                        meta.Latitude, meta.Longitude, meta.CapturedAt, meta.ClientId, meta.IsLocationPhoto, meta.CaptureAddress, meta.LocationAccuracy);
                     // Yerel data: URL yerine sunucu URL'ini kullan (önbellek şişmesin).
                     await UpdateCachedTaskAsync(item.TaskId, t => t with
                     {
@@ -447,5 +449,6 @@ public sealed class OfflineFieldService : IFieldService, IDisposable
     }
 
     private record AttachmentMeta(Guid ClientId, AttachmentKind Kind, string FileName, string ContentType,
-        double? Latitude, double? Longitude, DateTime CapturedAt);
+        double? Latitude, double? Longitude, DateTime CapturedAt,
+        bool IsLocationPhoto = false, string? CaptureAddress = null, double? LocationAccuracy = null);
 }

@@ -48,6 +48,7 @@ public static class Mapping
         ScheduledEnd = t.ScheduledEnd,
         StartedAt = t.StartedAt,
         CompletedAt = t.CompletedAt,
+        RequireLocationPhoto = t.RequireLocationPhoto,
         CompletionNote = t.CompletionNote,
         CustomFieldValues = t.CustomFieldValues,
         CreatedAt = t.CreatedAt,
@@ -74,6 +75,7 @@ public static class Mapping
             Address = dto.Address, Latitude = dto.Latitude, Longitude = dto.Longitude, CustomerName = dto.CustomerName,
             CustomerPhone = dto.CustomerPhone, ScheduledStart = dto.ScheduledStart, ScheduledEnd = dto.ScheduledEnd,
             StartedAt = dto.StartedAt, CompletedAt = dto.CompletedAt, CompletionNote = dto.CompletionNote,
+            RequireLocationPhoto = dto.RequireLocationPhoto,
             CustomFieldValues = dto.CustomFieldValues, CreatedAt = dto.CreatedAt, UpdatedAt = dto.UpdatedAt,
             RowVersion = dto.RowVersion, TrackingToken = dto.TrackingToken,
             JobId = dto.JobId, StepOrder = dto.StepOrder, PlannedAssigneeId = dto.PlannedAssigneeId,
@@ -88,7 +90,7 @@ public static class Mapping
                 e.Latitude, e.Longitude, e.CreatedAt, e.Stage)).ToList(),
             // Anket fotoğrafları kanıt değildir; eski mobil sürümler bu türü okuyamadığı için listeye de girmez.
             Attachments = t.Attachments.Where(a => a.Kind != AttachmentKind.SurveyPhoto).OrderBy(a => a.CapturedAt).Select(a => new AttachmentDto(a.Id, a.Kind, a.FileName,
-                a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById)).ToList()
+                a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById, a.IsLocationPhoto, a.CaptureAddress, a.LocationAccuracy)).ToList()
         };
     }
 

@@ -195,7 +195,8 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     }
 
     public async Task<AttachmentDto> UploadAttachmentAsync(Guid taskId, Stream content, string fileName, string contentType,
-        AttachmentKind kind, double? lat, double? lng, DateTime? capturedAt, Guid? clientId)
+        AttachmentKind kind, double? lat, double? lng, DateTime? capturedAt, Guid? clientId,
+        bool locationStamped = false, string? captureAddress = null, double? accuracy = null)
     {
         using var form = new MultipartFormDataContent();
         var file = new StreamContent(content);
@@ -206,6 +207,9 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
         if (lng is { } lo) form.Add(new StringContent(lo.ToString(System.Globalization.CultureInfo.InvariantCulture)), "longitude");
         if (capturedAt is { } c) form.Add(new StringContent(c.ToUniversalTime().ToString("O")), "capturedAt");
         if (clientId is { } id) form.Add(new StringContent(id.ToString()), "clientId");
+        if (locationStamped) form.Add(new StringContent("true"), "locationStamped");
+        if (captureAddress is not null) form.Add(new StringContent(captureAddress), "captureAddress");
+        if (accuracy is { } ac) form.Add(new StringContent(ac.ToString(System.Globalization.CultureInfo.InvariantCulture)), "accuracy");
         return await Read<AttachmentDto>(() => http.PostAsync($"/api/tasks/{taskId}/attachments", form));
     }
     public Task DeleteAttachmentAsync(Guid taskId, Guid attachmentId) =>

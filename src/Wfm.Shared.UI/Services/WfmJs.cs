@@ -40,7 +40,7 @@ public class BrowserPlatform(WfmJs js) : IGeolocationService, ICameraService, IE
     }
 
     public bool IsSupported => false;
-    public Task<CapturedFile?> CapturePhotoAsync() => Task.FromResult<CapturedFile?>(null);
+    public Task<CapturedFile?> CapturePhotoAsync(bool includeLocation = false) => Task.FromResult<CapturedFile?>(null);
 
     public Task OpenDirectionsAsync(double lat, double lng, string label, bool walking = false) =>
         js.Run("openUrl", $"https://www.google.com/maps/dir/?api=1&destination={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)},{lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}" +

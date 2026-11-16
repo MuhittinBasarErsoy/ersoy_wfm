@@ -49,6 +49,7 @@ public class WorkTask : TenantEntity
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
 
+    public bool RequireLocationPhoto { get; set; }
     public string? CompletionNote { get; set; }
     public Dictionary<string, string?> CustomFieldValues { get; set; } = [];
 

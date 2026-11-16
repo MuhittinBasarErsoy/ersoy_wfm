@@ -189,6 +189,7 @@ public static class JobEndpoints
                 target = NewStep(job, new JobStepInput { TaskTypeId = task.TaskTypeId, Title = task.Title, Description = task.Description },
                     task.StepOrder.Value, task.Priority, task.ScheduledEnd, userId);
                 target.TaskType = task.TaskType;
+                target.RequireLocationPhoto = task.RequireLocationPhoto;
                 target.CustomFieldValues = task.TaskType!.Fields.Where(f => !f.FilledOnCompletion)
                     .Where(f => task.CustomFieldValues.ContainsKey(f.Key)).ToDictionary(f => f.Key, f => task.CustomFieldValues[f.Key]);
                 task.StepOrder = null; // eski deneme geçmişte kalır

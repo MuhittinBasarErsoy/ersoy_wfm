@@ -169,6 +169,10 @@ else
             <MudText Typo="Typo.subtitle2" Class="mt-2">
                 Fotoğraflar @(MinPhotos > 0 ? $"(en az {MinPhotos})" : "")
             </MudText>
+            @if (t.RequireLocationPhoto)
+            {
+                <MudAlert Severity="Severity.Info" Dense Class="mb-2">Konumlu fotoğraf zorunlu. Fotoğraf çek düğmesiyle konum ve tarih/saat damgalı fotoğraf ekleyin. Galeri fotoğrafları bu koşulu karşılamaz.</MudAlert>
+            }
             <AttachmentGallery Attachments="t.Attachments.Where(a => a.Kind == AttachmentKind.Photo).ToList()" OnRemove="RemoveAttachmentAsync" Empty="Henüz fotoğraf yok." />
             <div class="d-flex gap-2 mt-2 mb-3 flex-wrap">
                 @if (Camera.IsSupported)
@@ -286,6 +290,7 @@ else
 
     private bool HasSignature => _task?.Attachments.Any(a => a.Kind == AttachmentKind.Signature) == true;
     private int PhotoCount => _task?.Attachments.Count(a => a.Kind == AttachmentKind.Photo) ?? 0;
+    private int LocationPhotoCount => _task?.Attachments.Count(a => a.Kind == AttachmentKind.Photo && a.IsLocationPhoto) ?? 0;
     private int MinPhotos => Type is null ? 0 : Math.Max(Type.Completion.RequirePhoto ? 1 : 0, Type.Completion.MinPhotoCount);
     private bool Arrived => _distance is { } d && d <= ArrivalMeters;
     /// <summary>Saha ziyareti gerektirmeyen (masa başı) görev: harita, varış ve mesafe kuralı yok.</summary>
@@ -305,6 +310,7 @@ else
             foreach (var f in Type.Fields.Where(f => f.FilledOnCompletion && f.Required).OrderBy(f => f.Order))
                 list.Add(new($"{f.Label}", f.Type == FieldType.Checkbox ? _completionValues.GetValueOrDefault(f.Key) == "true" : !string.IsNullOrWhiteSpace(_completionValues.GetValueOrDefault(f.Key))));
             if (MinPhotos > 0) list.Add(new($"Fotoğraf: {PhotoCount} / {MinPhotos}", PhotoCount >= MinPhotos));
+            if (_task?.RequireLocationPhoto == true) list.Add(new($"Konumlu fotoğraf: {LocationPhotoCount} / 1", LocationPhotoCount > 0));
             if (c.RequireSignature) list.Add(new("Müşteri imzası", HasSignature || _signed));
             if (c.RequireNote) list.Add(new("Tamamlama notu", !string.IsNullOrWhiteSpace(_note)));
             if (c.MaxDistanceMeters > 0 && !IsDesk)
@@ -474,7 +480,7 @@ else
 
         double? distance = location is null ? null : Wfm.Domain.Entities.Geo.DistanceMeters(location.Latitude, location.Longitude, _task.Latitude, _task.Longitude);
         _errors = TaskRules.ValidateCompletion(new TaskType { Fields = Type.Fields, Completion = Type.Completion, RequiresVisit = Type.RequiresVisit }, _completionValues,
-            PhotoCount, HasSignature, _note, distance);
+            PhotoCount, HasSignature, _note, distance, _task.RequireLocationPhoto, LocationPhotoCount);
         return _errors.Count == 0;
     }
 
@@ -491,9 +497,12 @@ else
         if (_task is null) return;
         try
         {
-            if (await Camera.CapturePhotoAsync() is not { } photo) return;
             _busy = true;
-            await Field.AddAttachmentAsync(_task.Id, photo, AttachmentKind.Photo, await Geo.GetCurrentAsync());
+            if (await Camera.CapturePhotoAsync(_task.RequireLocationPhoto) is not { } photo) return;
+            var location = photo.LocationPhoto is { } stamp
+                ? new GeoPoint(stamp.Latitude, stamp.Longitude, stamp.Accuracy)
+                : await Geo.GetCurrentAsync();
+            await Field.AddAttachmentAsync(_task.Id, photo, AttachmentKind.Photo, location);
             await LoadAsync();
         }
         catch (Exception ex) when (ex is ApiException or InvalidOperationException)

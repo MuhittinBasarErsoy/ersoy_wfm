@@ -49,7 +49,7 @@ public static class MauiProgram
     }
 
     /// <summary>Canlı sunucu (Caddy + Let's Encrypt, bkz. deploy/README.md).</summary>
-    private const string ProductionApiUrl = "https://wfm-api.31-186-24-89.sslip.io";
+    private const string ProductionApiUrl = "https://wfm.fyblueenerji.com.tr";
 
     /// <summary>
     /// API adresi. "api_base_url" tercihi her zaman önceliklidir. Release derlemeleri canlı sunucuya,
