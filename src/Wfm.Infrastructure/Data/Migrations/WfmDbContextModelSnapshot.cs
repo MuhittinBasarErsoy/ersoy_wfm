@@ -776,6 +776,10 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CaptureAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("CapturedAt")
                         .HasColumnType("datetime2");
 
@@ -795,10 +799,16 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
+                    b.Property<bool>("IsLocationPhoto")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Kind")
                         .HasColumnType("int");
 
                     b.Property<double?>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("LocationAccuracy")
                         .HasColumnType("float");
 
                     b.Property<double?>("Longitude")
@@ -1139,6 +1149,9 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.Property<int>("Priority")
                         .HasColumnType("int");
+
+                    b.Property<bool>("RequireLocationPhoto")
+                        .HasColumnType("bit");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()

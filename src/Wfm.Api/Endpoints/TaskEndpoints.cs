@@ -173,7 +173,8 @@ public static class TaskEndpoints
                     ? Geo.DistanceMeters(lat, lng, task.Latitude, task.Longitude) : null;
                 var errors = TaskRules.ValidateCompletion(task.TaskType!, task.CustomFieldValues,
                     task.Attachments.Count(a => a.Kind == AttachmentKind.Photo),
-                    task.Attachments.Any(a => a.Kind == AttachmentKind.Signature), req.Note, distance);
+                    task.Attachments.Any(a => a.Kind == AttachmentKind.Signature), req.Note, distance,
+                    task.RequireLocationPhoto, task.Attachments.Count(a => a.Kind == AttachmentKind.Photo && a.IsLocationPhoto));
                 if (task.SurveyId is not null && task.SurveyResponseCount < task.SurveyTargetCount)
                     errors.Add($"Anket eksik: {task.SurveyResponseCount} / {task.SurveyTargetCount}.");
                 if (errors.Count > 0) return Results.BadRequest(new ApiError(string.Join(" ", errors)));
@@ -401,6 +402,7 @@ public static class TaskEndpoints
     private static void Apply(WorkTask t, SaveWorkTaskRequest r)
     {
         t.TaskTypeId = r.TaskTypeId;
+        t.RequireLocationPhoto = r.RequireLocationPhoto;
         t.Title = r.Title.Trim();
         t.Description = r.Description;
         t.Priority = r.Priority;

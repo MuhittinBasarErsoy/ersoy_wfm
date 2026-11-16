@@ -5,7 +5,8 @@ using Wfm.Domain.Enums;
 namespace Wfm.Shared.UI.Services;
 
 public record GeoPoint(double Latitude, double Longitude, double? Accuracy = null);
-public record CapturedFile(byte[] Data, string FileName, string ContentType);
+public record PhotoLocation(double Latitude, double Longitude, double? Accuracy, DateTime CapturedAt, string? Address);
+public record CapturedFile(byte[] Data, string FileName, string ContentType, PhotoLocation? LocationPhoto = null);
 public record AddressResult(string Address, double Latitude, double Longitude);
 /// <summary>Doldurulan anket. Fotoğraflar gönderime kadar bellekte durur; cevaptaki değer ekin istemci kimliğidir.</summary>
 public record SurveySubmission(List<SurveyAnswer> Answers, IReadOnlyDictionary<Guid, CapturedFile> Photos,
@@ -25,7 +26,7 @@ public interface IGeolocationService
 public interface ICameraService
 {
     bool IsSupported { get; }
-    Task<CapturedFile?> CapturePhotoAsync();
+    Task<CapturedFile?> CapturePhotoAsync(bool includeLocation = false);
 }
 
 /// <summary>Arka planda periyodik konum gönderimi (yalnızca mobilde gerçek implementasyonu vardır).</summary>

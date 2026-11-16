@@ -21,6 +21,7 @@ public static class FieldEndpoints
         // ---------- Ekler ----------
         app.MapPost("/api/tasks/{id:guid}/attachments", async (Guid id, [FromForm] IFormFile file, [FromForm] AttachmentKind kind,
             [FromForm] double? latitude, [FromForm] double? longitude, [FromForm] DateTime? capturedAt, [FromForm] Guid? clientId,
+            [FromForm] bool? locationStamped, [FromForm] string? captureAddress, [FromForm] double? accuracy,
             HttpContext ctx, WfmDbContext db, IFileStorage storage, FileUrlSigner signer) =>
         {
             var user = ctx.User;
@@ -34,13 +35,25 @@ public static class FieldEndpoints
             if (clientId is { } cid && await db.Attachments.FirstOrDefaultAsync(a => a.ClientId == cid && a.WorkTaskId == id) is { } existing)
                 return Results.Ok(ToDto(existing, signer)); // offline tekrar gönderimi
 
+            if (locationStamped == true &&
+                (kind != AttachmentKind.Photo || file.ContentType != "image/jpeg" ||
+                 latitude is null || longitude is null || !double.IsFinite(latitude.Value) || !double.IsFinite(longitude.Value) ||
+                 latitude is < -90 or > 90 || longitude is < -180 or > 180 || capturedAt is null ||
+                 capturedAt == default(DateTime) || capturedAt.Value.ToUniversalTime() > DateTime.UtcNow.AddMinutes(5) ||
+                 accuracy is { } a && (!double.IsFinite(a) || a < 0)))
+                return Results.BadRequest(new ApiError("Konumlu fotoğrafın çekim konumu veya zamanı geçersiz."));
+            if (captureAddress?.Length > 500)
+                return Results.BadRequest(new ApiError("Çekim adresi en fazla 500 karakter olabilir."));
+
             var ext = file.ContentType switch { "image/png" => ".png", "image/webp" => ".webp", "image/heic" => ".heic", "application/pdf" => ".pdf", _ => ".jpg" };
             var att = new TaskAttachment
             {
                 TenantId = task.TenantId, WorkTaskId = id, UploadedById = user.UserId(), Kind = kind,
                 FileName = Path.GetFileName(file.FileName), ContentType = file.ContentType, SizeBytes = file.Length,
                 Latitude = latitude, Longitude = longitude, CapturedAt = capturedAt?.ToUniversalTime() ?? DateTime.UtcNow,
-                ClientId = clientId
+                ClientId = clientId, IsLocationPhoto = locationStamped == true,
+                CaptureAddress = locationStamped == true ? captureAddress : null,
+                LocationAccuracy = locationStamped == true ? accuracy : null
             };
             await using (var s = file.OpenReadStream())
                 att.StoragePath = await storage.SaveAsync(s, $"{task.TenantId:N}/{id:N}/{att.Id:N}{ext}");
@@ -57,6 +70,7 @@ public static class FieldEndpoints
             if (!task.IsOpen) return Results.BadRequest(new ApiError("Kapanmış görevin eki silinemez."));
             if (!ctx.User.HasPolicy(Policies.ManageTasks) && att.UploadedById != ctx.User.UserId())
                 return Results.Json(new ApiError("Bu eki silemezsiniz."), statusCode: 403);
+            task.UpdatedAt = DateTime.UtcNow;
             db.Attachments.Remove(att);
             await db.SaveChangesAsync();
             await storage.DeleteAsync(att.StoragePath);
@@ -201,5 +215,5 @@ public static class FieldEndpoints
     }
 
     private static AttachmentDto ToDto(TaskAttachment a, FileUrlSigner signer) =>
-        new(a.Id, a.Kind, a.FileName, a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById);
+        new(a.Id, a.Kind, a.FileName, a.ContentType, signer.CreateUrl(a.Id), a.Latitude, a.Longitude, a.CapturedAt, a.UploadedById, a.IsLocationPhoto, a.CaptureAddress, a.LocationAccuracy);
 }

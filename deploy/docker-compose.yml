@@ -84,7 +84,7 @@ services:
     environment:
       # Sunucu tarafı çağrılar Docker ağı içinden; tarayıcıdaki dosya bağlantıları dış adresten.
       Api__BaseUrl: http://api:8080
-      Api__PublicUrl: https://${API_HOST}
+      Api__PublicUrl: https://${WEB_HOST}
       DataProtection__KeysPath: /app/keys
       TZ: Europe/Istanbul
     volumes:

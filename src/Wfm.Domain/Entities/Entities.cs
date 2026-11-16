@@ -95,6 +95,9 @@ public class TaskAttachment : TenantEntity
     public string ContentType { get; set; } = "";
     public string StoragePath { get; set; } = "";
     public long SizeBytes { get; set; }
+    public bool IsLocationPhoto { get; set; }
+    public string? CaptureAddress { get; set; }
+    public double? LocationAccuracy { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     /// <summary>Cihazda çekildiği an (offline yüklemelerde CreatedAt'ten farklı olabilir).</summary>

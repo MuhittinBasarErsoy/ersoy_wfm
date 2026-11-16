@@ -483,3 +483,43 @@ export function downloadBytes(fileName, base64, mime) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// The stamp is burned into the JPEG so it remains visible after downloading.
+export async function stampLocationPhoto(base64, lines) {
+    const image = new Image();
+    image.src = `data:image/jpeg;base64,${base64}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Fotoğraf işlenemedi.');
+    ctx.drawImage(image, 0, 0);
+    const fontSize = Math.max(12, Math.round(canvas.width / 40));
+    const padding = Math.round(fontSize * 0.8);
+    const lineHeight = Math.round(fontSize * 1.4);
+    ctx.font = `500 ${fontSize}px sans-serif`;
+    const wrapped = [];
+    for (const text of lines) {
+        let line = '';
+        for (const word of text.split(/\s+/)) {
+            const next = line ? `${line} ${word}` : word;
+            if (line && ctx.measureText(next).width > canvas.width - padding * 2) {
+                wrapped.push(line);
+                line = word;
+            } else {
+                line = next;
+            }
+        }
+        wrapped.push(line);
+    }
+    const height = padding * 2 + wrapped.length * lineHeight;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+    ctx.fillRect(0, canvas.height - height, canvas.width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'top';
+    wrapped.forEach((line, index) => {
+        ctx.fillText(line, padding, canvas.height - height + padding + index * lineHeight);
+    });
+    return canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+}

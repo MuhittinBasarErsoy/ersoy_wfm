@@ -186,6 +186,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         b.Entity<TaskAttachment>(e =>
         {
             e.Property(x => x.FileName).HasMaxLength(260);
+            e.Property(x => x.CaptureAddress).HasMaxLength(500);
             e.Property(x => x.ContentType).HasMaxLength(100);
             e.HasIndex(x => x.ClientId);
         });

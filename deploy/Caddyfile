@@ -2,7 +2,16 @@
 # Alan adlarının A kaydı sunucunun IP'sini göstermeli ve 80/443 portları açık olmalı.
 {$WEB_HOST} {
 	encode zstd gzip
-	reverse_proxy web:8080
+	@wfm_api path /api /api/* /hubs /hubs/* /files /files/*
+	handle @wfm_api {
+		request_body {
+			max_size 50MB
+		}
+		reverse_proxy api:8080
+	}
+	handle {
+		reverse_proxy web:8080
+	}
 }
 
 {$API_HOST} {

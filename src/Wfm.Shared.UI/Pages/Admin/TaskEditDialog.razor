@@ -57,6 +57,8 @@
                                              HelperText="Bu kadar yanıt olmadan görev tamamlanamaz" />
                         }
                     </div>
+                    <MudCheckBox T="bool" @bind-Value="_model.RequireLocationPhoto" Label="Konumlu fotoğraf zorunlu" Class="mt-3" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Açıkken, konum ve tarih/saat damgalı kamera fotoğrafı olmadan görev tamamlanamaz.</MudText>
                     @if (SelectedType is { } type && type.Fields.Any(f => !f.FilledOnCompletion))
                     {
                         <MudText Typo="Typo.overline" Color="Color.Secondary" Class="mt-4 d-block">@type.Name bilgileri</MudText>
@@ -281,6 +283,7 @@
         {
             _model = new SaveWorkTaskRequest
             {
+                RequireLocationPhoto = t.RequireLocationPhoto,
                 TaskTypeId = t.TaskTypeId, Title = t.Title, Description = t.Description, Priority = t.Priority,
                 AssigneeId = t.AssigneeId, TeamId = t.TeamId, Address = t.Address, Latitude = t.Latitude, Longitude = t.Longitude,
                 CustomerName = t.CustomerName, CustomerPhone = t.CustomerPhone,

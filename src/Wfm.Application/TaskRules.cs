@@ -13,7 +13,8 @@ public static class TaskRules
 
     /// <summary>Görev tamamlanırken gereksinimleri doğrular.</summary>
     public static List<string> ValidateCompletion(TaskType type, IDictionary<string, string?> values,
-        int photoCount, bool hasSignature, string? note, double? distanceMeters)
+        int photoCount, bool hasSignature, string? note, double? distanceMeters,
+        bool requireLocationPhoto = false, int locationPhotoCount = 0)
     {
         var errors = ValidateFields(type.Fields.Where(f => f.FilledOnCompletion), values);
         var c = type.Completion;
@@ -21,6 +22,8 @@ public static class TaskRules
         if (c.RequireSignature && !hasSignature) errors.Add("Müşteri imzası zorunlu.");
         var minPhotos = Math.Max(c.RequirePhoto ? 1 : 0, c.MinPhotoCount);
         if (photoCount < minPhotos) errors.Add($"En az {minPhotos} fotoğraf gerekli (mevcut: {photoCount}).");
+        if (requireLocationPhoto && locationPhotoCount < 1)
+            errors.Add("Konum ve çekim zamanı damgalı en az bir kamera fotoğrafı gerekli.");
         if (c.RequireNote && string.IsNullOrWhiteSpace(note)) errors.Add("Tamamlama notu zorunlu.");
         if (c.MaxDistanceMeters > 0 && type.RequiresVisit)
         {

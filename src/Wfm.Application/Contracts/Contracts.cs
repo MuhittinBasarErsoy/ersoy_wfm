@@ -72,6 +72,7 @@ public record WorkTaskDto
     public DateTime? ScheduledEnd { get; init; }
     public DateTime? StartedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
+    public bool RequireLocationPhoto { get; init; }
     public string? CompletionNote { get; init; }
     public Dictionary<string, string?> CustomFieldValues { get; init; } = [];
     public DateTime CreatedAt { get; init; }
@@ -117,10 +118,12 @@ public record TaskEventDto(Guid Id, Guid UserId, string? UserName, WorkTaskStatu
     string? Note, double? Latitude, double? Longitude, DateTime CreatedAt, string? Stage = null);
 
 public record AttachmentDto(Guid Id, AttachmentKind Kind, string FileName, string ContentType, string Url,
-    double? Latitude, double? Longitude, DateTime CapturedAt, Guid UploadedById);
+    double? Latitude, double? Longitude, DateTime CapturedAt, Guid UploadedById,
+    bool IsLocationPhoto = false, string? CaptureAddress = null, double? LocationAccuracy = null);
 
 public record SaveWorkTaskRequest
 {
+    public bool RequireLocationPhoto { get; set; }
     public Guid TaskTypeId { get; set; }
     public string Title { get; set; } = "";
     public string? Description { get; set; }
