@@ -34,6 +34,8 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
     public DbSet<PatrolRoute> PatrolRoutes => Set<PatrolRoute>();
     public DbSet<PatrolRound> PatrolRounds => Set<PatrolRound>();
+    public DbSet<VehicleObserverAccess> VehicleObserverAccesses => Set<VehicleObserverAccess>();
+    public DbSet<VehicleObserverVehicle> VehicleObserverVehicles => Set<VehicleObserverVehicle>();
     public DbSet<PatrolVisit> PatrolVisits => Set<PatrolVisit>();
 
     // Global filtre bu alanlara bakar; EF her sorguda güncel değeri kullanır.
@@ -49,8 +51,23 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         b.Entity<AppUser>(e =>
         {
             e.Property(x => x.FullName).HasMaxLength(200);
+            e.Property(x => x.VehiclePlate).HasMaxLength(30);
+            e.Property(x => x.VehicleLabel).HasMaxLength(100);
             e.HasIndex(x => x.TenantId);
         });
+
+        b.Entity<VehicleObserverAccess>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.UserId }).IsUnique();
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<VehicleObserverVehicle>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.ObserverId, x.VehicleUserId }).IsUnique();
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.VehicleUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<LocationPing>().Property(x => x.VehiclePlate).HasMaxLength(30);
+        b.Entity<LocationPing>().HasIndex(x => new { x.TenantId, x.IsVehicleLocation, x.UserId, x.RecordedAt });
 
         b.Entity<Tenant>(e =>
         {

@@ -26,10 +26,10 @@ public record CreateTenantRequest(string Name, string Slug, string AdminEmail, s
 
 // ---------- Users / Teams ----------
 public record UserDto(Guid Id, string Email, string FullName, string? Phone, Guid TenantId, string TenantName,
-    IReadOnlyList<string> Roles, bool IsActive, Guid? TeamId);
+    IReadOnlyList<string> Roles, bool IsActive, Guid? TeamId, bool VehicleTrackingEnabled = false, string? VehiclePlate = null, string? VehicleLabel = null);
 
-public record CreateUserRequest(string Email, string Password, string FullName, string? Phone, string Role, Guid? TeamId);
-public record UpdateUserRequest(string FullName, string? Phone, string Role, bool IsActive, Guid? TeamId, string? NewPassword);
+public record CreateUserRequest(string Email, string Password, string FullName, string? Phone, string Role, Guid? TeamId, bool VehicleTrackingEnabled = false, string? VehiclePlate = null, string? VehicleLabel = null);
+public record UpdateUserRequest(string FullName, string? Phone, string Role, bool IsActive, Guid? TeamId, string? NewPassword, bool VehicleTrackingEnabled = false, string? VehiclePlate = null, string? VehicleLabel = null);
 
 public record TeamDto(Guid Id, string Name, string? Description);
 public record SaveTeamRequest(string Name, string? Description);

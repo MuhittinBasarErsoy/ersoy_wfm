@@ -8,7 +8,7 @@ namespace Wfm.Api.Services;
 public static class Mapping
 {
     public static UserDto ToDto(AppUser u, IEnumerable<string> roles, string tenantName) =>
-        new(u.Id, u.Email!, u.FullName, u.PhoneNumber, u.TenantId, tenantName, roles.ToList(), u.IsActive, u.TeamId);
+        new(u.Id, u.Email!, u.FullName, u.PhoneNumber, u.TenantId, tenantName, roles.ToList(), u.IsActive, u.TeamId, u.VehicleTrackingEnabled, u.VehiclePlate, u.VehicleLabel);
 
     public static TaskTypeDto ToDto(this TaskType t) =>
         new(t.Id, t.Name, t.Description, t.Icon, t.Color, t.IsActive, t.Fields.OrderBy(f => f.Order).ToList(), t.Completion,

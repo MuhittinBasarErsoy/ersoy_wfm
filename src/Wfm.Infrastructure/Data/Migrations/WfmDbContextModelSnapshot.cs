@@ -279,6 +279,9 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<double?>("Heading")
                         .HasColumnType("float");
 
+                    b.Property<bool>("IsVehicleLocation")
+                        .HasColumnType("bit");
+
                     b.Property<double>("Latitude")
                         .HasColumnType("float");
 
@@ -300,11 +303,17 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("VehiclePlate")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "RecordedAt");
 
                     b.HasIndex("UserId", "RecordedAt");
+
+                    b.HasIndex("TenantId", "IsVehicleLocation", "UserId", "RecordedAt");
 
                     b.ToTable("LocationPings");
                 });
@@ -1062,6 +1071,72 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.ToTable("Tenants");
                 });
 
+            modelBuilder.Entity("Wfm.Domain.Entities.VehicleObserverAccess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllVehicles")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("VehicleObserverAccesses");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.VehicleObserverVehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ObserverId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VehicleUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleUserId");
+
+                    b.HasIndex("TenantId", "ObserverId", "VehicleUserId")
+                        .IsUnique();
+
+                    b.ToTable("VehicleObserverVehicles");
+                });
+
             modelBuilder.Entity("Wfm.Domain.Entities.WorkShift", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1328,6 +1403,20 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("VehicleLabel")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("VehiclePlate")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("VehicleTrackingEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("VehicleTrackingEnabledAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedEmail")
@@ -1451,6 +1540,24 @@ namespace Wfm.Infrastructure.Data.Migrations
                         .WithMany("Events")
                         .HasForeignKey("WorkTaskId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.VehicleObserverAccess", b =>
+                {
+                    b.HasOne("Wfm.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.VehicleObserverVehicle", b =>
+                {
+                    b.HasOne("Wfm.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

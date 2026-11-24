@@ -45,7 +45,8 @@ public class UserContext(AuthSession session)
 {
     public UserDto? User => session.Current?.User;
     public bool IsAuthenticated => User is not null;
-    public bool Can(string policy) => User is not null && Policies.Map[policy].Any(r => User.Roles.Contains(r));
+    public bool Can(string policy) => User is not null && (!IsVehicleObserver || policy == Policies.ViewVehicles) && Policies.Map[policy].Any(r => User.Roles.Contains(r));
+    public bool IsVehicleObserver => User?.Roles.Contains(Roles.VehicleObserver) == true;
     public bool IsFieldWorker => User?.Roles.Contains(Roles.FieldWorker) == true;
     public bool IsSuperAdmin => User?.Roles.Contains(Roles.SuperAdmin) == true;
     public string RoleName => User?.Roles.FirstOrDefault() is { } r ? Roles.DisplayName(r) : "";

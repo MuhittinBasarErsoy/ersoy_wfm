@@ -108,6 +108,8 @@ public class TaskAttachment : TenantEntity
 
 public class LocationPing : ITenantOwned
 {
+    public bool IsVehicleLocation { get; set; }
+    public string? VehiclePlate { get; set; }
     public long Id { get; set; }
     public Guid TenantId { get; set; }
     public Guid UserId { get; set; }

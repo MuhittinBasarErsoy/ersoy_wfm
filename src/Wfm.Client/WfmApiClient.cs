@@ -76,6 +76,13 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<TeamDto> UpdateTeamAsync(Guid id, SaveTeamRequest req) => Put<TeamDto>($"/api/teams/{id}", req);
     public Task DeleteTeamAsync(Guid id) => Send(HttpMethod.Delete, $"/api/teams/{id}", null);
 
+    // ---------- Vehicle tracking ----------
+    public Task<VehicleSnapshotDto> GetVehiclesAsync() => Get<VehicleSnapshotDto>("/api/vehicles");
+    public Task<VehicleHistoryDto> GetVehicleHistoryAsync(Guid id, DateTimeOffset from, DateTimeOffset to) =>
+        Get<VehicleHistoryDto>($"/api/vehicles/{id}/history?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}");
+    public Task<List<VehicleAccessDto>> GetVehicleAccessAsync() => Get<List<VehicleAccessDto>>("/api/vehicle-access");
+    public Task SaveVehicleAccessAsync(Guid userId, SaveVehicleAccessRequest req) => Send(HttpMethod.Put, $"/api/vehicle-access/{userId}", req);
+
     // ---------- Task types ----------
     public Task<List<TaskTypeDto>> GetTaskTypesAsync(bool includeInactive = false) =>
         Get<List<TaskTypeDto>>($"/api/task-types?includeInactive={includeInactive}");

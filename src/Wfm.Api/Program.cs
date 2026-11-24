@@ -33,6 +33,7 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddSingleton<FileUrlSigner>();
 builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<TrackingService>();
+builder.Services.AddScoped<VehicleAccessService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.Configure<ApnsOptions>(config.GetSection("Apns"));
 builder.Services.AddSingleton<PushQueue>();
@@ -60,6 +61,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     // SignalR WebSocket bağlantıları token'ı sorgu dizesinde gönderir.
     o.Events = new JwtBearerEvents
     {
+        OnTokenValidated = async ctx =>
+        {
+            // Recheck account/roles on every request: revocation must not wait for JWT expiry.
+            var users = ctx.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
+            var principal = ctx.Principal!;
+            var user = await users.FindByIdAsync(principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "");
+            if (user is null || !user.IsActive || user.TenantId.ToString() != principal.FindFirst(WfmClaims.TenantId)?.Value)
+            { ctx.Fail("Hesap erişimi kapalı."); return; }
+            var db = ctx.HttpContext.RequestServices.GetRequiredService<WfmDbContext>();
+            if (!await db.Tenants.AnyAsync(t => t.Id == user.TenantId && t.IsActive))
+            { ctx.Fail("Şirket erişimi kapalı."); return; }
+            var currentRoles = await users.GetRolesAsync(user);
+            var tokenRoles = principal.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToHashSet();
+            if (!tokenRoles.SetEquals(currentRoles)) ctx.Fail("Yetkiler değişti; oturumu yenileyin.");
+        },
         OnMessageReceived = ctx =>
         {
             var token = ctx.Request.Query["access_token"];
@@ -115,6 +131,7 @@ if (app.Environment.IsDevelopment() && config.GetValue<bool>("Debug:LogRequests"
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.Use(VehicleObserverBoundary.InvokeAsync);
 
 app.MapGet("/", () => "WFM API").AllowAnonymous();
 app.MapAuthEndpoints();
@@ -125,6 +142,7 @@ app.MapJobEndpoints();
 app.MapPatrolEndpoints();
 app.MapSurveyEndpoints();
 app.MapDeviceEndpoints();
+app.MapVehicleEndpoints();
 app.MapFieldEndpoints();
 app.MapReportEndpoints();
 app.MapPublicEndpoints();

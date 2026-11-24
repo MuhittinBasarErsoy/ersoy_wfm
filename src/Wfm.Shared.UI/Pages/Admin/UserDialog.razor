@@ -29,6 +29,20 @@
             <MudSwitch T="bool" @bind-Value="_active" Color="Color.Primary" Label="Hesap aktif" Disabled="IsSelf" />
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">@(IsSelf ? "Kendi hesabınızı pasifleştiremez veya rolünüzü değiştiremezsiniz." : "Pasif kullanıcı giriş yapamaz; geçmiş kayıtları korunur.")</MudText>
         }
+        @if (_role == Roles.FieldWorker)
+        {
+            <MudSwitch T="bool" @bind-Value="_vehicleEnabled" Label="Araç takibinde göster" Color="Color.Primary" />
+            @if (_vehicleEnabled)
+            {
+                <MudTextField T="string" @bind-Value="_plate" Label="Plaka *" Variant="Variant.Outlined" MaxLength="30" Class="mb-2" />
+                <MudTextField T="string" @bind-Value="_vehicleLabel" Label="Araç adı (isteğe bağlı)" Variant="Variant.Outlined" MaxLength="100" />
+                <MudAlert Severity="Severity.Info" Dense Class="mt-2">Telefon araçta olmalı. Araç konumu yalnızca açık mesai sırasında kaydedilir; bu seçenek açılmadan önceki konumlar denetçilere gösterilmez.</MudAlert>
+            }
+        }
+        @if (_role == Roles.VehicleObserver)
+        {
+            <MudAlert Severity="Severity.Info" Dense>Bu hesap yalnızca araç takip ekranını görebilir. Kaydettikten sonra Araç Takip → Denetçi erişimleri üzerinden araçları ve erişim süresini belirleyin.</MudAlert>
+        }
         @if (_error is not null) { <MudAlert Severity="Severity.Error" Dense Class="mt-2">@_error</MudAlert> }
     </DialogContent>
     <DialogActions>
@@ -46,6 +60,8 @@
     private string _name = "", _email = "", _role = Roles.FieldWorker;
     private string? _phone, _password, _error;
     private Guid? _teamId;
+    private bool _vehicleEnabled;
+    private string? _plate, _vehicleLabel;
     private bool _active = true, _busy, _showPassword;
 
     private string RoleHelp => _role switch
@@ -53,6 +69,7 @@
         Roles.TenantAdmin => "Tüm yetkiler: kullanıcılar, görev tipleri, görevler, raporlar.",
         Roles.Dispatcher => "Görev oluşturur, atar ve sahayı canlı izler.",
         Roles.FieldWorker => "Mobil uygulamadan kendisine atanan görevleri yürütür; mesaideyken konumu izlenir.",
+        Roles.VehicleObserver => "Sadece izin verilen araçları ve rotalarını görüntüler; varsayılan olarak araç erişimi kapalıdır.",
         Roles.Viewer => "Harita, görevler ve raporları yalnızca görüntüler.",
         _ => ""
     };
@@ -62,6 +79,7 @@
         if (Existing is { } u)
         {
             (_name, _email, _phone, _teamId, _active) = (u.FullName, u.Email, u.Phone, u.TeamId, u.IsActive);
+            (_vehicleEnabled, _plate, _vehicleLabel) = (u.VehicleTrackingEnabled, u.VehiclePlate, u.VehicleLabel);
             _role = u.Roles.FirstOrDefault() ?? Roles.FieldWorker;
         }
     }
@@ -71,13 +89,16 @@
         _error = null;
         if (string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_email)) { _error = "Ad ve e-posta zorunlu."; return; }
         if (Existing is null && string.IsNullOrWhiteSpace(_password)) { _error = "Parola zorunlu."; return; }
+        var enabled = _role == Roles.FieldWorker && _vehicleEnabled;
+        if (VehicleTrackingRules.ValidateProfile(_role, enabled, _plate, _vehicleLabel) is { } vehicleError)
+        { _error = vehicleError; return; }
         _busy = true;
         try
         {
             if (Existing is null)
-                await Api.CreateUserAsync(new CreateUserRequest(_email, _password!, _name, _phone, _role, _teamId));
+                await Api.CreateUserAsync(new CreateUserRequest(_email, _password!, _name, _phone, _role, _teamId, enabled, _plate, _vehicleLabel));
             else
-                await Api.UpdateUserAsync(Existing.Id, new UpdateUserRequest(_name, _phone, _role, _active, _teamId, _password));
+                await Api.UpdateUserAsync(Existing.Id, new UpdateUserRequest(_name, _phone, _role, _active, _teamId, _password, enabled, _plate, _vehicleLabel));
             Snackbar.Add("Kullanıcı kaydedildi.", Severity.Success);
             Dialog.Close(DialogResult.Ok(true));
         }
