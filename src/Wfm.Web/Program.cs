@@ -30,6 +30,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 });
 builder.Services.AddWfmUi(singleton: false);
 builder.Services.AddScoped<ITokenStore, BrowserTokenStore>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, VehicleObserverCircuitHandler>();
 builder.Services.AddScoped<IFieldService, OnlineFieldService>();
 builder.Services.AddSingleton<IPlatformInfo, WebPlatformInfo>();
 builder.Services.AddScoped<BrowserPlatform>();

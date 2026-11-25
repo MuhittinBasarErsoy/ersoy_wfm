@@ -30,6 +30,7 @@ var jwt = config.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 if (jwt.Key.Length < 32) throw new InvalidOperationException("Jwt:Key en az 32 karakter olmalı.");
 builder.Services.AddSingleton(jwt);
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<VehicleObserverSessionService>();
 builder.Services.AddSingleton<FileUrlSigner>();
 builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<TrackingService>();
@@ -74,7 +75,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             { ctx.Fail("Şirket erişimi kapalı."); return; }
             var currentRoles = await users.GetRolesAsync(user);
             var tokenRoles = principal.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToHashSet();
-            if (!tokenRoles.SetEquals(currentRoles)) ctx.Fail("Yetkiler değişti; oturumu yenileyin.");
+            if (!tokenRoles.SetEquals(currentRoles)) { ctx.Fail("Yetkiler değişti; oturumu yenileyin."); return; }
+            if (currentRoles.Contains(Roles.VehicleObserver))
+            {
+                var sessions = ctx.HttpContext.RequestServices.GetRequiredService<VehicleObserverSessionService>();
+                if (!Guid.TryParse(principal.FindFirst(VehicleObserverSessionService.ClaimName)?.Value, out var sessionId) ||
+                    await sessions.FindActiveAsync(sessionId, user.TenantId, user.Id) is null)
+                    ctx.Fail("Denetçi oturumu sonlandı. Yeniden giriş yapın.");
+            }
         },
         OnMessageReceived = ctx =>
         {

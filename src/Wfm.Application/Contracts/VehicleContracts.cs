@@ -16,7 +16,14 @@ public record VehicleHistoryDto(List<VehicleTrackPoint> Points, List<VehicleStop
     double ApproximateDistanceKm, double MovingMinutes, double? MaxSpeedKmh, bool Truncated);
 
 public record SaveVehicleAccessRequest(bool IsEnabled, bool AllVehicles, DateTimeOffset? ExpiresAt,
-    List<Guid> VehicleUserIds);
+    List<Guid> VehicleUserIds, bool? RestrictWeeklyAccess = null, List<VehicleAccessWindow>? WeeklySchedule = null,
+    int? SessionDurationMinutes = null);
 
 public record VehicleAccessDto(Guid UserId, string FullName, bool IsEnabled, bool AllVehicles,
-    DateTime? ExpiresAt, List<Guid> VehicleUserIds);
+    DateTime? ExpiresAt, List<Guid> VehicleUserIds, bool RestrictWeeklyAccess = false, List<VehicleAccessWindow>? WeeklySchedule = null,
+    int SessionDurationMinutes = 30);
+
+public record VehicleAccessWindow(DayOfWeek Day, int StartMinute, int EndMinute);
+
+public record VehicleObserverSessionDto(Guid Id, string FullName, DateTime LoginAt, DateTime ExpiresAt,
+    DateTime? EndedAt, string? EndReason);

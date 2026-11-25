@@ -6,6 +6,7 @@ namespace Wfm.Application.Contracts;
 // ---------- Auth ----------
 public record LoginRequest(string Email, string Password);
 public record RefreshRequest(string RefreshToken);
+public record LogoutRequest(string RefreshToken, bool ConnectionClosed = false);
 public record AuthResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserDto User);
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record UpdateProfileRequest(string FullName, string? Phone);
@@ -20,8 +21,9 @@ public record PublicTenantBrandDto(string Name, string Slug, string? BrandColor,
 
 // ---------- Tenants ----------
 public record TenantDto(Guid Id, string Name, string Slug, bool IsActive, double DefaultLatitude, double DefaultLongitude,
-    string? BrandColor = null, string? LogoUrl = null);
-public record UpdateTenantSettingsRequest(string Name, double DefaultLatitude, double DefaultLongitude, string? BrandColor, string? LogoUrl);
+    string? BrandColor = null, string? LogoUrl = null, int LocationRetentionDays = 30);
+public record UpdateTenantSettingsRequest(string Name, double DefaultLatitude, double DefaultLongitude, string? BrandColor, string? LogoUrl,
+    int? LocationRetentionDays = null);
 public record CreateTenantRequest(string Name, string Slug, string AdminEmail, string AdminPassword, string AdminFullName);
 
 // ---------- Users / Teams ----------

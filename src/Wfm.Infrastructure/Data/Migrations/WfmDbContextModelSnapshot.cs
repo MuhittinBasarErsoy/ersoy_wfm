@@ -570,6 +570,9 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("VehicleObserverSessionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TokenHash")
@@ -1088,6 +1091,55 @@ namespace Wfm.Infrastructure.Data.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("bit");
 
+                    b.Property<int>("SessionDurationMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WeeklyScheduleJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("VehicleObserverAccesses");
+                });
+
+            modelBuilder.Entity("Wfm.Domain.Entities.VehicleObserverSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1099,12 +1151,9 @@ namespace Wfm.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("TenantId", "UserId", "CreatedAt");
 
-                    b.HasIndex("TenantId", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("VehicleObserverAccesses");
+                    b.ToTable("VehicleObserverSessions");
                 });
 
             modelBuilder.Entity("Wfm.Domain.Entities.VehicleObserverVehicle", b =>

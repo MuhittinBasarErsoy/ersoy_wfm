@@ -26,6 +26,62 @@ namespace Wfm.Api.Tests;
 
 public class VehicleTrackingTests
 {
+    [Fact]
+    public async Task Weekly_schedule_blocks_both_live_data_and_history()
+    {
+        await using var host = await Host.StartAsync();
+        using (var scope = host.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WfmDbContext>();
+            var access = await db.VehicleObserverAccesses.IgnoreQueryFilters().SingleAsync();
+            var tomorrow = (DayOfWeek)(((int)DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).DayOfWeek + 1) % 7);
+            access.WeeklyScheduleJson = VehicleAccessScheduleRules.Write([new(tomorrow, 480, 1080)]);
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("/api/vehicles")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync(HistoryUrl(Host.Vehicle))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Schedule_and_session_duration_roundtrip_and_old_clients_preserve_them()
+    {
+        await using var host = await Host.StartAsync();
+        host.Client.DefaultRequestHeaders.Add("Test-Role", Roles.TenantAdmin);
+        var url = $"/api/vehicle-access/{Host.Observer}";
+        var body = new SaveVehicleAccessRequest(true, true, null, [], true, [new(DayOfWeek.Monday, 480, 1080)], 45);
+        Assert.Equal(HttpStatusCode.NoContent, (await host.Client.PutAsJsonAsync(url, body)).StatusCode);
+        // An older client omits schedule and duration when saving other grant fields.
+        Assert.Equal(HttpStatusCode.NoContent, (await host.Client.PutAsJsonAsync(url, new SaveVehicleAccessRequest(true, false, null, [Host.Vehicle]))).StatusCode);
+        var saved = Assert.Single((await host.Client.GetFromJsonAsync<List<VehicleAccessDto>>("/api/vehicle-access"))!);
+        Assert.True(saved.RestrictWeeklyAccess);
+        Assert.Equal(45, saved.SessionDurationMinutes);
+        Assert.Equal(body.WeeklySchedule![0], Assert.Single(saved.WeeklySchedule!));
+        Assert.Equal(HttpStatusCode.BadRequest, (await host.Client.PutAsJsonAsync(url, body with { WeeklySchedule = [] })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await host.Client.PutAsJsonAsync(url, body with { SessionDurationMinutes = 0 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Only_company_admin_can_read_its_observer_sessions()
+    {
+        await using var host = await Host.StartAsync();
+        using (var scope = host.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WfmDbContext>();
+            db.VehicleObserverSessions.AddRange(
+                new VehicleObserverSession { TenantId = Host.Tenant, UserId = Host.Observer, FullName = "Denetçi", ExpiresAt = DateTime.UtcNow.AddMinutes(-1) },
+                new VehicleObserverSession { TenantId = Host.OtherTenant, UserId = Host.Observer, FullName = "Private", ExpiresAt = DateTime.UtcNow.AddMinutes(30) });
+            await db.SaveChangesAsync();
+        }
+        var url = $"/api/vehicle-access/{Host.Observer}/sessions";
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync(url)).StatusCode);
+        host.Client.DefaultRequestHeaders.Add("Test-Role", Roles.TenantAdmin);
+        var row = Assert.Single((await host.Client.GetFromJsonAsync<List<VehicleObserverSessionDto>>(url))!);
+        Assert.Equal("Denetçi", row.FullName);
+        Assert.Equal("Expired", row.EndReason);
+        Assert.Equal(row.ExpiresAt, row.EndedAt);
+        Assert.Equal(HttpStatusCode.NotFound, (await host.Client.GetAsync($"/api/vehicle-access/{Host.OtherTenantVehicle}/sessions")).StatusCode);
+    }
+
     [Theory]
     [InlineData("GET", "/api/tasks")]
     [InlineData("GET", "/api/users")]

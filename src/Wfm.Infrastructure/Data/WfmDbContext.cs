@@ -25,6 +25,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
     public DbSet<WorkShift> Shifts => Set<WorkShift>();
     public DbSet<DeviceRegistration> DeviceRegistrations => Set<DeviceRegistration>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<VehicleObserverSession> VehicleObserverSessions => Set<VehicleObserverSession>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
     public DbSet<Job> Jobs => Set<Job>();
@@ -58,6 +59,7 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
 
         b.Entity<VehicleObserverAccess>(e =>
         {
+            e.Property(x => x.WeeklyScheduleJson).HasMaxLength(2000);
             e.HasIndex(x => new { x.TenantId, x.UserId }).IsUnique();
             e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -65,6 +67,12 @@ public class WfmDbContext(DbContextOptions<WfmDbContext> options, ITenantContext
         {
             e.HasIndex(x => new { x.TenantId, x.ObserverId, x.VehicleUserId }).IsUnique();
             e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.VehicleUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<VehicleObserverSession>(e =>
+        {
+            e.Property(x => x.FullName).HasMaxLength(200);
+            e.Property(x => x.EndReason).HasMaxLength(30);
+            e.HasIndex(x => new { x.TenantId, x.UserId, x.CreatedAt });
         });
         b.Entity<LocationPing>().Property(x => x.VehiclePlate).HasMaxLength(30);
         b.Entity<LocationPing>().HasIndex(x => new { x.TenantId, x.IsVehicleLocation, x.UserId, x.RecordedAt });
