@@ -6,6 +6,6 @@
     protected override void OnInitialized()
     {
         if (Me.User is null) return; // MainLayout giriş sayfasına yönlendirir
-        Nav.NavigateTo(Me.IsSuperAdmin ? "/tenants" : Me.IsFieldWorker ? "/field" : "/dashboard", replace: true);
+        Nav.NavigateTo(Me.IsVehicleObserver ? "/vehicles" : Me.IsSuperAdmin ? "/tenants" : Me.IsFieldWorker ? "/field" : "/dashboard", replace: true);
     }
 }

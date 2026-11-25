@@ -1,0 +1,69 @@
+@inject WfmApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1">@Access.FullName</MudText>
+        <MudSwitch T="bool" @bind-Value="_enabled" Label="Araç takip erişimi açık" Color="Color.Primary" />
+        <MudCheckBox T="bool" @bind-Value="_all" Label="Tüm araçlar (sonradan eklenenler dahil)" />
+        @if (!_all)
+        {
+            <MudText Typo="Typo.subtitle2">İzin verilen araçlar</MudText>
+            <div style="max-height:260px;overflow:auto">
+                @foreach (var vehicle in Vehicles)
+                {
+                    <MudCheckBox T="bool" Value="_selected.Contains(vehicle.Id)" ValueChanged="@(v => Toggle(vehicle.Id, v))"
+                                 Label="@($"{vehicle.VehiclePlate} · {vehicle.FullName}")" />
+                }
+            </div>
+            @if (_selected.Count == 0) { <MudText Typo="Typo.caption">Araç seçilmezse denetçi hiçbir araç göremez.</MudText> }
+        }
+        <MudCheckBox T="bool" @bind-Value="_unlimited" Label="Süre sınırı yok" Class="mt-2" />
+        @if (!_unlimited)
+        {
+            <MudDatePicker @bind-Date="_expiresDate" Label="Erişim bitiş günü (Türkiye saati)" DateFormat="dd.MM.yyyy" Culture="Ui.Tr" Variant="Variant.Outlined" Class="mb-2" />
+            <MudTimePicker @bind-Time="_expiresTime" Label="Bitiş saati" AmPm="false" Variant="Variant.Outlined" />
+        }
+        @if (_error is not null) { <MudAlert Severity="Severity.Error" Dense Class="mt-2">@_error</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Vazgeç</MudButton>
+        <MudButton OnClick="SaveAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public VehicleAccessDto Access { get; set; } = default!;
+    [Parameter] public List<UserDto> Vehicles { get; set; } = [];
+    private bool _enabled, _all, _unlimited, _busy;
+    private HashSet<Guid> _selected = [];
+    private DateTime? _expiresDate;
+    private TimeSpan? _expiresTime;
+    private string? _error;
+    protected override void OnInitialized()
+    {
+        _enabled = Access.IsEnabled; _all = Access.AllVehicles;
+        _selected = Access.VehicleUserIds.Where(id => Vehicles.Any(v => v.Id == id)).ToHashSet();
+        // New grants default to one week; unlimited access always requires an explicit choice.
+        _unlimited = Access.IsEnabled && Access.ExpiresAt is null;
+        var until = Access.ExpiresAt?.AddHours(3) ?? DateTime.UtcNow.AddHours(3).AddDays(7);
+        _expiresDate = until.Date; _expiresTime = until.TimeOfDay;
+    }
+    private void Toggle(Guid id, bool value) { if (value) _selected.Add(id); else _selected.Remove(id); }
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (!_unlimited && (_expiresDate is null || _expiresTime is null)) { _error = "Bitiş günü ve saatini seçin."; return; }
+        DateTimeOffset? until = _unlimited ? null : new DateTimeOffset(
+            DateTime.SpecifyKind(_expiresDate!.Value.Date + _expiresTime!.Value, DateTimeKind.Unspecified), TimeSpan.FromHours(3));
+        if (_enabled && until <= DateTimeOffset.UtcNow) { _error = "Bitiş zamanı gelecekte olmalı."; return; }
+        _busy = true;
+        try
+        {
+            await Api.SaveVehicleAccessAsync(Access.UserId, new(_enabled, _all, until, _selected.ToList()));
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

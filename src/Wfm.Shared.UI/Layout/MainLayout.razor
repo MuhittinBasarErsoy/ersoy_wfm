@@ -27,6 +27,31 @@
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
 }
+else if (Me.IsVehicleObserver)
+{
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Class="mr-2" />
+            <MudText Typo="Typo.h6">Araç Takip</MudText>
+            <MudSpacer />
+            <MudText Typo="Typo.body2" Class="mr-3">@Me.User.FullName</MudText>
+            <MudButton Color="Color.Inherit" OnClick="LogoutAsync">Çıkış yap</MudButton>
+        </MudAppBar>
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="pa-4">
+                @if (Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Trim('/') == "vehicles")
+                {
+                    @Body
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">Bu hesabın erişimi araç takip ekranıyla sınırlı.</MudAlert>
+                    <MudButton Href="/vehicles" Color="Color.Primary">Araç takibe git</MudButton>
+                }
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+}
 else if (Me.IsFieldWorker)
 {
     @* Saha çalışanı arayüzü: sade, mobil öncelikli. *@
@@ -116,6 +141,10 @@ else
                 }
                 else
                 {
+                    @if (Me.Can(Policies.ViewVehicles))
+                    {
+                        <MudNavLink Href="/vehicles" Icon="@Icons.Material.Filled.DirectionsCar">Araç Takip</MudNavLink>
+                    }
                     <MudNavLink Href="/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">Genel bakış</MudNavLink>
                     @if (Me.Can(Policies.ViewTracking))
                     {
@@ -190,6 +219,11 @@ else
         Field.Changed += Refresh;
         Arrival.Arrived += OnArrived;
         _ready = true;
+        if (Me.IsVehicleObserver)
+        {
+            if (Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Trim('/') == "") Nav.NavigateTo("/vehicles", replace: true);
+            return;
+        }
         // Canlı bağlantı arka planda kurulur; sayfa beklemez.
         _ = Notifications.StartAsync().ContinueWith(_ => InvokeAsync(StateHasChanged));
         if (!Me.IsSuperAdmin) _ = LoadBrandAsync();
@@ -211,7 +245,7 @@ else
             }
         }
         // Kısayollar oturum doğrulandıktan sonra (ilk render'dan sonra olabilir) bir kez kaydedilir.
-        if (_ready && _ref is null && Me.User is not null && !Me.IsFieldWorker && !Me.IsSuperAdmin)
+        if (_ready && _ref is null && Me.User is not null && !Me.IsFieldWorker && !Me.IsSuperAdmin && !Me.IsVehicleObserver)
         {
             _ref = DotNetObjectReference.Create(this);
             await Js.Run("registerHotkeys", _ref);
@@ -282,6 +316,7 @@ else
     private void OnSessionChanged(AuthResponse? auth)
     {
         if (auth is null) _ = InvokeAsync(() => Nav.NavigateTo("/login", replace: true));
+        else _ = InvokeAsync(StateHasChanged);
     }
 
     private void Refresh() => _ = InvokeAsync(StateHasChanged);

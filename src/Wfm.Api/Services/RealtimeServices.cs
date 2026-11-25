@@ -27,9 +27,23 @@ public class TrackingService(WfmDbContext db, IHubContext<TrackingHub> hub)
         if (pings.Count == 0) return;
 
         var valid = pings.Where(p => p.Latitude is >= -90 and <= 90 && p.Longitude is >= -180 and <= 180).ToList();
+        var vehicle = await db.Users.AsNoTracking().Where(u => u.Id == userId && u.TenantId == tenantId && u.IsActive)
+            .Select(u => new { u.VehicleTrackingEnabled, u.VehiclePlate, u.VehicleTrackingEnabledAt }).FirstOrDefaultAsync();
+        var now = DateTime.UtcNow;
+        var shifts = await db.Shifts.IgnoreQueryFilters().AsNoTracking()
+            .Where(s => s.TenantId == tenantId && s.UserId == userId && s.StartedAt >= now.AddDays(-90))
+            .Select(s => new { s.StartedAt, s.EndedAt }).ToListAsync();
+        bool IsVehiclePing(LocationPingDto p)
+        {
+            var at = p.RecordedAt == default ? now : p.RecordedAt.ToUniversalTime();
+            return vehicle?.VehicleTrackingEnabled == true && !string.IsNullOrEmpty(vehicle.VehiclePlate) &&
+                vehicle.VehicleTrackingEnabledAt is { } enabledAt && at >= enabledAt && at <= now.AddMinutes(5) &&
+                shifts.Any(s => at >= s.StartedAt && (s.EndedAt is null || at <= s.EndedAt));
+        }
         db.LocationPings.AddRange(valid.Select(p => new LocationPing
         {
             TenantId = tenantId, UserId = userId,
+            IsVehicleLocation = IsVehiclePing(p), VehiclePlate = IsVehiclePing(p) ? vehicle!.VehiclePlate : null,
             Latitude = p.Latitude, Longitude = p.Longitude, Accuracy = p.Accuracy, Speed = p.Speed,
             Heading = p.Heading, BatteryLevel = p.BatteryLevel,
             RecordedAt = p.RecordedAt == default ? DateTime.UtcNow : p.RecordedAt.ToUniversalTime()

@@ -35,6 +35,8 @@ public static class UserEndpoints
         g.MapPost("/", async (CreateUserRequest req, HttpContext ctx, UserManager<AppUser> users, WfmDbContext db) =>
         {
             if (!Roles.TenantAssignable.Contains(req.Role)) return Results.BadRequest(new ApiError("Geçersiz rol."));
+            if (VehicleTrackingRules.ValidateProfile(req.Role, req.VehicleTrackingEnabled, req.VehiclePlate, req.VehicleLabel) is { } error)
+                return Results.BadRequest(new ApiError(error));
             var tid = ctx.User.TenantId();
             if (req.TeamId is { } team && !await db.Teams.AnyAsync(t => t.Id == team))
                 return Results.BadRequest(new ApiError("Ekip bulunamadı."));
@@ -42,7 +44,11 @@ public static class UserEndpoints
             var u = new AppUser
             {
                 TenantId = tid, Email = req.Email.Trim(), UserName = req.Email.Trim(), FullName = req.FullName.Trim(),
-                PhoneNumber = req.Phone, TeamId = req.TeamId, EmailConfirmed = true
+                PhoneNumber = req.Phone, TeamId = req.TeamId, EmailConfirmed = true,
+                VehicleTrackingEnabled = req.VehicleTrackingEnabled,
+                VehiclePlate = req.VehicleTrackingEnabled ? VehicleTrackingRules.NormalizePlate(req.VehiclePlate) : null,
+                VehicleLabel = req.VehicleTrackingEnabled ? req.VehicleLabel?.Trim() : null,
+                VehicleTrackingEnabledAt = req.VehicleTrackingEnabled ? DateTime.UtcNow : null
             };
             var res = await users.CreateAsync(u, req.Password);
             if (!res.Succeeded) return Results.BadRequest(new ApiError(string.Join(" ", res.Errors.Select(e => e.Description))));
@@ -54,6 +60,8 @@ public static class UserEndpoints
         g.MapPut("/{id:guid}", async (Guid id, UpdateUserRequest req, HttpContext ctx, UserManager<AppUser> users, WfmDbContext db) =>
         {
             if (!Roles.TenantAssignable.Contains(req.Role)) return Results.BadRequest(new ApiError("Geçersiz rol."));
+            if (VehicleTrackingRules.ValidateProfile(req.Role, req.VehicleTrackingEnabled, req.VehiclePlate, req.VehicleLabel) is { } error)
+                return Results.BadRequest(new ApiError(error));
             var tid = ctx.User.TenantId();
             var u = await users.FindByIdAsync(id.ToString());
             if (u is null || u.TenantId != tid) return Results.NotFound();
@@ -64,6 +72,13 @@ public static class UserEndpoints
             u.PhoneNumber = req.Phone;
             u.IsActive = req.IsActive;
             u.TeamId = req.TeamId;
+            var plate = req.VehicleTrackingEnabled ? VehicleTrackingRules.NormalizePlate(req.VehiclePlate) : null;
+            if (req.VehicleTrackingEnabled && (!u.VehicleTrackingEnabled || u.VehiclePlate != plate))
+                u.VehicleTrackingEnabledAt = DateTime.UtcNow;
+            if (!req.VehicleTrackingEnabled) u.VehicleTrackingEnabledAt = null;
+            u.VehicleTrackingEnabled = req.VehicleTrackingEnabled;
+            u.VehiclePlate = plate;
+            u.VehicleLabel = req.VehicleTrackingEnabled ? req.VehicleLabel?.Trim() : null;
             await users.UpdateAsync(u);
 
             var current = await users.GetRolesAsync(u);

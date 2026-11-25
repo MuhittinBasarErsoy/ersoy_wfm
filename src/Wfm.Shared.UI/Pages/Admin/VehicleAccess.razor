@@ -1,0 +1,57 @@
+@page "/vehicle-access"
+@inject WfmApiClient Api
+@inject UserContext Me
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<RequirePolicy Policy="@Policies.ManageUsers">
+    <PageHeader Title="Denetçi erişimleri" Subtitle="Yalnızca araç takip ekranını görüntüleyen dış kullanıcılar" BackHref="/vehicles">
+        <Actions><MudButton Href="/users" Variant="Variant.Outlined">Denetçi hesabı oluştur</MudButton></Actions>
+    </PageHeader>
+    <MudAlert Severity="Severity.Info" Class="mb-3">Kullanıcılar bölümünde “Araç Takip İzleyicisi” rolüyle hesap oluşturun. Buradan erişimi açın ve tüm araçları veya seçili araçları belirleyin. Kapatma ve süre bitimi sonraki veri isteğinde uygulanır.</MudAlert>
+    @if (_error is not null) { <MudAlert Severity="Severity.Error">@_error</MudAlert> }
+    @if (!_loaded) { <MudProgressLinear Indeterminate /> }
+    else
+    {
+        <MudTable Items="_access" Dense Hover Elevation="1">
+            <HeaderContent><MudTh>Denetçi</MudTh><MudTh>Erişim</MudTh><MudTh>Kapsam</MudTh><MudTh>Bitiş (Türkiye saati)</MudTh><MudTh /></HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Denetçi">@context.FullName</MudTd>
+                <MudTd DataLabel="Erişim">@(!context.IsEnabled ? "Kapalı" : context.ExpiresAt <= DateTime.UtcNow ? "Süresi dolmuş" : "Açık")</MudTd>
+                <MudTd DataLabel="Kapsam">@(context.AllVehicles ? "Tüm araçlar (sonradan eklenenler dahil)" : $"{context.VehicleUserIds.Count} seçili araç")</MudTd>
+                <MudTd DataLabel="Bitiş">@(context.ExpiresAt?.AddHours(3).ToString("dd.MM.yyyy HH:mm") ?? "Süresiz")</MudTd>
+                <MudTd><MudButton Size="Size.Small" OnClick="@(() => EditAsync(context))">Düzenle</MudButton></MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText>Henüz denetçi hesabı yok.</MudText></NoRecordsContent>
+        </MudTable>
+    }
+</RequirePolicy>
+
+@code {
+    private List<VehicleAccessDto> _access = [];
+    private List<UserDto> _vehicles = [];
+    private bool _loaded;
+    private string? _error;
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Me.Can(Policies.ManageUsers)) return;
+        await LoadAsync();
+    }
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _access = await Api.GetVehicleAccessAsync();
+            _vehicles = (await Api.GetUsersAsync()).Where(u => u.IsActive && u.VehicleTrackingEnabled).OrderBy(u => u.VehiclePlate).ToList();
+            _error = null;
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        _loaded = true;
+    }
+    private async Task EditAsync(VehicleAccessDto access)
+    {
+        var p = new DialogParameters<VehicleAccessDialog> { { x => x.Access, access }, { x => x.Vehicles, _vehicles } };
+        var dialog = await Dialogs.ShowAsync<VehicleAccessDialog>("Denetçi erişimi", p, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small });
+        if (await dialog.Result is { Canceled: false }) await LoadAsync();
+    }
+}

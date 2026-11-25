@@ -112,3 +112,38 @@ Yedekleri sunucu dışında da saklayın; sunucu kaybolursa volume'lar da gider.
   için bunu yalnızca sunum süresince kullanın. Kapatmak yeni demo kaydı oluşturmayı durdurur ama mevcut demo
   hesapları silmez. Gerçek kullanıma geçmeden önce veritabanını sıfırlayın
   (`docker compose down -v`, **tüm veriyi siler**) ya da demo şirketleri pasifleştirin.
+
+
+## Araç Takip (telefon konumuyla)
+
+API ve Web birlikte yeniden derlenir. API açılırken `VehicleTracking` migration'ı uygulanır;
+rol seed'i `VehicleObserver` (Araç Takip İzleyicisi) rolünü ekler. Önce veritabanı yedeği alın.
+Mevcut kullanıcılar varsayılan olarak araç takibine **kapalıdır** ve hiçbir denetçi izni kendiliğinden açılmaz.
+
+1. Kullanıcılar ve ekipler → saha çalışanını düzenle → **Araç takibinde göster** → plaka ve isteğe bağlı araç adı.
+2. Çalışan telefonda mesaiye başlar. Yeni bir mobil paket gerekmez; mevcut konum gönderimi kullanılır.
+   Eski Android/iOS uygulamasının arka plan konum izinlerinin çalıştığı gerçek telefonda doğrulanmalıdır.
+3. `/vehicles` sayfası 15 saniyede güncellenir. Araç seçilince Türkiye saatine göre günlük rota, en az 5 dk
+   duraklamalar ve yaklaşık GPS mesafesi gösterilir. Beş dakikayı aşan veri boşlukları ve imkânsız
+   sıçramalar çizgiyle birleştirilmez. Hız m/sn'den km/sa'ye çevrilir; veri yokluğu duruş sayılmaz.
+4. Dış denetçi için **Araç Takip İzleyicisi** rolünde ayrı hesap oluşturun. Araç Takip → **Denetçi erişimleri**
+   üzerinden erişimi açın; tüm araçlar (gelecekte eklenenler dahil) veya seçili araçları ve bitiş zamanını belirleyin.
+   Yeni erişimde arayüz bir hafta önerir. Süresiz erişim ayrıca seçilir. Araç seçilmezse hiçbir araç gösterilmez.
+5. Denetçi web'de girişten sonra yalnızca `/vehicles` ekranına yönlendirilir. Kapsam ve süre her veri
+   isteğinde sunucuda kontrol edilir; diğer API'ler ve SignalR hub'ları rol sınırı tarafından reddedilir.
+   Hesap pasifleştirme ve rol değişiklikleri yeni HTTP isteklerinde tekrar doğrulanır.
+
+Konum kayıtları yalnızca özellik açıldıktan sonra ve mesai aralığı içindeyken araç kaydı olarak işaretlenir.
+Önceki personel konumları geriye dönük açılmaz. Takibi kapatmak veya plakayı değiştirmek mevcut araç
+geçmişinin görünmesini sonlandırır; bu ilk sürümde araç kimliği kullanıcı hesabına bağlıdır, sürücüler
+arasında kalıcı araç aktarımı yoktur. Konum saklama süresi mevcut şirket ayarı ve temizleme servisiyle aynıdır.
+
+Konumlar telefondan gelir; telefon araçtan ayrılırsa gerçek araç konumunu göstermez. Kontak/yakıt/OBD
+ölçümü, 24 saat mesai dışı takip, otomatik hız/bölge bildirimleri ve dışa aktarım bu ilk sürümde yoktur.
+Harita yenileme aralığı telefonun konum gönderme aralığı değildir. Canlı mesafe/rota sonuçları gerçek
+cihazla mesai başlatma, bitirme, çevrimdışı kayıtların sonradan gönderimi ve izin iptali senaryolarında
+sahada doğrulanmadan kesin ölçüm olarak kullanılmamalıdır.
+
+Doğrulama: izole InMemory veritabanı üstünde gerçek HTTP uç noktaları için erişim/şirket izolasyonu,
+iptal/süre bitimi, mesai kaydı; SQL Server sorgu çevirisi; rota boşlukları ve mevcut UI/fotoğraf birim testleri.
+InMemory testleri SQL Server üstünde migration uygulanmasının yerine geçmez. Canlı sistem değiştirilmez.

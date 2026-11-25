@@ -1,0 +1,243 @@
+@page "/vehicles"
+@implements IAsyncDisposable
+@inject WfmApiClient Api
+@inject UserContext Me
+
+<RequirePolicy Policy="@Policies.ViewVehicles">
+    <PageHeader Title="Araç Takip" Subtitle="Telefon konumu · yalnızca mesai sırasında">
+        <Actions>
+            @if (Me.Can(Policies.ManageUsers))
+            {
+                <MudButton Href="/vehicle-access" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Lock">Denetçi erişimleri</MudButton>
+                <MudButton Href="/users" Variant="Variant.Text">Araç / sürücü ayarları</MudButton>
+            }
+            <MudButton OnClick="RefreshAsync" Disabled="_refreshing" StartIcon="@Icons.Material.Filled.Refresh">Yenile</MudButton>
+        </Actions>
+    </PageHeader>
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3">@_error</MudAlert>
+    }
+    @if (_snapshot is null && _error is null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    @if (_snapshot is { } snapshot)
+    {
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <MudChip T="string" Color="Color.Primary">@snapshot.Vehicles.Count araç</MudChip>
+            <MudChip T="string" Color="Color.Success">@snapshot.Vehicles.Count(v => State(v) == "Hareket ediyor") hareketli</MudChip>
+            <MudChip T="string" Color="Color.Warning">@snapshot.Vehicles.Count(v => State(v) == "Konum gelmiyor") konum gelmiyor</MudChip>
+            <MudText Typo="Typo.caption" Class="align-self-center">Son yenileme @TrTime(snapshot.ServerTime) · 15 saniyede yenilenir</MudText>
+        </div>
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="4" lg="3">
+                <MudPaper Class="pa-3" Elevation="1">
+                    <MudTextField T="string" @bind-Value="_search" Immediate Clearable Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Placeholder="Plaka veya sürücü ara" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+                    <div style="max-height:420px;overflow:auto" class="mt-3">
+                        @foreach (var v in Visible)
+                        {
+                            <Tap OnClick="@(() => SelectAsync(v.UserId))" AriaLabel="@($"{v.Plate}, {State(v)}")" Class="mb-2">
+                                <MudPaper Outlined Class="pa-3" Style="@(v.UserId == _selected ? "border-color:var(--mud-palette-primary);background:var(--mud-palette-action-default-hover)" : null)">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Style="@($"color:{VehicleColor(v)}")" />
+                                        <MudText Typo="Typo.subtitle2">@v.Plate</MudText>
+                                    </div>
+                                    <MudText Typo="Typo.body2">@v.Driver @(!string.IsNullOrWhiteSpace(v.Label) ? $"· {v.Label}" : "")</MudText>
+                                    <MudText Typo="Typo.caption" Style="@($"color:{VehicleColor(v)}")">@State(v) · @(v.SpeedKmh is { } s ? $"{s:0} km/sa" : "Hız bilgisi yok")</MudText>
+                                    <MudText Typo="Typo.caption" Class="d-block">Son konum: @(v.RecordedAt is { } at ? TrTime(at) : "Henüz konum yok")</MudText>
+                                    @if (v.Accuracy is { } accuracy)
+                                    {
+                                        <MudText Typo="Typo.caption">GPS doğruluğu ±@($"{accuracy:0}") m</MudText>
+                                    }
+                                </MudPaper>
+                            </Tap>
+                        }
+                        @if (!Visible.Any())
+                        {
+                            <MudAlert Severity="Severity.Info" Dense>Gösterilecek araç yok. Araç yetkisini ve kullanıcıdaki “Araç takibinde göster” seçeneğini kontrol edin.</MudAlert>
+                        }
+                    </div>
+                    @if (_selected is not null)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle2">Rota geçmişi · @snapshot.Vehicles.FirstOrDefault(v => v.UserId == _selected)?.Plate</MudText>
+                        <MudDatePicker @bind-Date="_date" @bind-Date:after="LoadHistoryAsync" Label="Gün (Türkiye saati)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                       DateFormat="dd.MM.yyyy" Culture="Ui.Tr" MaxDate="Today" />
+                        <MudText Typo="Typo.caption">Konum saklama süresi: @snapshot.RetentionDays gün.</MudText>
+                        @if (_historyLoading) { <MudProgressLinear Indeterminate Class="my-2" /> }
+                        @if (_historyError is not null) { <MudAlert Severity="Severity.Warning" Dense>@_historyError</MudAlert> }
+                        @if (_history is { } history)
+                        {
+                            <MudText Typo="Typo.body2" Class="mt-2">Yaklaşık @history.ApproximateDistanceKm.ToString("0.0", Ui.Tr) km · @history.MovingMinutes.ToString("0", Ui.Tr) dk hareket</MudText>
+                            <MudText Typo="Typo.caption">En yüksek ölçülen hız: @(history.MaxSpeedKmh is { } max ? $"{max:0} km/sa" : "—") · @history.Points.Count nokta</MudText>
+                            @if (history.Truncated) { <MudAlert Severity="Severity.Warning" Dense>Bu günün ilk 20.000 noktası gösteriliyor; özet eksik olabilir.</MudAlert> }
+                            @if (history.Points.Count == 0) { <MudAlert Severity="Severity.Info" Dense Class="mt-2">Seçilen gün için araç konumu kaydı yok.</MudAlert> }
+                            <MudText Typo="Typo.subtitle2" Class="mt-3">Duraklamalar (en az 5 dk)</MudText>
+                            @foreach (var stop in history.Stops)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => FocusStopAsync(stop))">
+                                    @TrTime(stop.From) – @TrTime(stop.To) · @((stop.To - stop.From).TotalMinutes.ToString("0")) dk
+                                </MudButton>
+                            }
+                            @if (history.Stops.Count == 0) { <MudText Typo="Typo.caption">Tespit edilen duraklama yok.</MudText> }
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="8" lg="9">
+                <MudPaper Class="pa-2" Elevation="1">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                        <MudText Typo="Typo.subtitle2">Araçların son bildirilen konumları</MudText>
+                        <MudButton Size="Size.Small" OnClick="FitAsync">Tüm araçları göster</MudButton>
+                    </div>
+                    <LeafletMap @ref="_map" Latitude="snapshot.CenterLatitude" Longitude="snapshot.CenterLongitude" Zoom="11" Height="65vh"
+                                AddressSearch="false" OnReady="MapReadyAsync" OnMarkerClick="MarkerClickedAsync" />
+                    <MudText Typo="Typo.caption" Class="mt-2 d-block">Yeşil: hareketli · mavi: duruyor · turuncu: konum gelmiyor · gri: mesai dışı. Konum gelmemesi durduğu anlamına gelmez.</MudText>
+                </MudPaper>
+                <MudAlert Severity="Severity.Info" Dense Class="mt-3">Telefon araçta olmalı. Mesafe ve duraklamalar GPS kayıtlarından yaklaşık hesaplanır. Beş dakikayı aşan veri boşlukları rotada birleştirilmez; kontak ve yakıt bilgisi ölçülmez.</MudAlert>
+            </MudItem>
+        </MudGrid>
+    }
+</RequirePolicy>
+
+@code {
+    private VehicleSnapshotDto? _snapshot;
+    private VehicleHistoryDto? _history;
+    private LeafletMap? _map;
+    private Guid? _selected;
+    private string? _search, _error, _historyError;
+    private DateTime? _date = Today;
+    private bool _refreshing, _historyLoading;
+    private int _historyVersion;
+    private readonly CancellationTokenSource _stop = new();
+    private Task? _poll;
+    private readonly List<string> _segments = [];
+    private static DateTime Today => DateTime.UtcNow.AddHours(3).Date;
+    private static string TrTime(DateTime utc) => new DateTimeOffset(AsUtc(utc)).ToOffset(TimeSpan.FromHours(3)).ToString("dd.MM HH:mm:ss");
+    private IEnumerable<VehicleLocationDto> Visible => (_snapshot?.Vehicles ?? []).Where(v => string.IsNullOrWhiteSpace(_search) ||
+        $"{v.Plate} {v.Driver} {v.Label}".Contains(_search.Trim(), StringComparison.CurrentCultureIgnoreCase));
+    private static DateTime AsUtc(DateTime value) => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+    private bool Stale(VehicleLocationDto v) => v.RecordedAt is null ||
+        AsUtc(_snapshot?.ServerTime ?? DateTime.UtcNow) - AsUtc(v.RecordedAt.Value) > TimeSpan.FromMinutes(5);
+    private string State(VehicleLocationDto v) => !v.OnShift ? "Mesai dışı" : Stale(v) ? "Konum gelmiyor" : v.SpeedKmh is >= 5 ? "Hareket ediyor" : v.SpeedKmh is not null ? "Duruyor" : "Hız bilinmiyor";
+    private string VehicleColor(VehicleLocationDto v) => !v.OnShift ? "#78909c" : Stale(v) ? "#ed6c02" : v.SpeedKmh is >= 5 ? "#00897b" : "#1565c0";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Me.Can(Policies.ViewVehicles)) return;
+        await RefreshAsync();
+        _poll = PollAsync();
+    }
+
+    private async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_stop.Token))
+                await InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); });
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_refreshing || _stop.IsCancellationRequested) return;
+        _refreshing = true;
+        try
+        {
+            _snapshot = await Api.GetVehiclesAsync();
+            if (_stop.IsCancellationRequested) return;
+            _error = null;
+            if (_selected is { } id && !_snapshot.Vehicles.Any(v => v.UserId == id))
+            {
+                _selected = null; _history = null; _historyVersion++;
+                await ClearHistoryAsync();
+            }
+            if (_map?.IsReady == true) await DrawAsync();
+        }
+        catch (ApiException ex)
+        {
+            // Never leave old vehicle positions visible after access is revoked or a request fails.
+            _snapshot = null; _history = null; _selected = null; _historyVersion++;
+            _map = null; _segments.Clear();
+            _error = ex.IsNetworkError ? "Sunucuya ulaşılamadı. Bağlantı geldiğinde tekrar denenecek." : ex.Message;
+        }
+        finally { _refreshing = false; }
+    }
+
+    private async Task MapReadyAsync() { await DrawAsync(); await FitAsync(); }
+    private async Task DrawAsync()
+    {
+        if (_map?.IsReady != true || _snapshot is null) return;
+        await _map.SetMarkersAsync("vehicles", _snapshot.Vehicles.Where(v => v.Latitude is not null && v.Longitude is not null)
+            .Select(v => new MapMarker(v.UserId.ToString(), v.Latitude!.Value, v.Longitude!.Value, VehicleColor(v), "🚗", v.Plate,
+                $"<b>{MapMarker.E(v.Plate)}</b><br>{MapMarker.E(v.Driver)}<br>{State(v)}<br>{MapMarker.E(v.RecordedAt is { } at ? TrTime(at) : "Konum yok")}")));
+    }
+    private async Task FitAsync() { if (_map?.IsReady == true) await _map.FitAllAsync(); }
+    private Task MarkerClickedAsync(MarkerClick click) => Guid.TryParse(click.Id, out var id) ? SelectAsync(id) : Task.CompletedTask;
+    private async Task SelectAsync(Guid id)
+    {
+        _selected = id;
+        var v = _snapshot?.Vehicles.FirstOrDefault(v => v.UserId == id);
+        if (_map is not null && v?.Latitude is { } lat && v.Longitude is { } lng) await _map.SetViewAsync(lat, lng, 15);
+        await LoadHistoryAsync();
+    }
+    private async Task ClearHistoryAsync()
+    {
+        if (_map?.IsReady == true)
+        {
+            foreach (var name in _segments) await _map.SetPolylineAsync(name, [], fit: false);
+            await _map.SetMarkersAsync("stops", []);
+        }
+        _segments.Clear();
+    }
+    private async Task LoadHistoryAsync()
+    {
+        var version = ++_historyVersion;
+        _history = null; _historyError = null;
+        await ClearHistoryAsync();
+        if (_selected is not { } id || _date is not { } day) return;
+        _historyLoading = true;
+        try
+        {
+            var from = new DateTimeOffset(DateTime.SpecifyKind(day.Date, DateTimeKind.Unspecified), TimeSpan.FromHours(3));
+            var data = await Api.GetVehicleHistoryAsync(id, from, from.AddDays(1));
+            if (version != _historyVersion || _stop.IsCancellationRequested) return;
+            _history = data;
+            if (_map?.IsReady == true)
+            {
+                foreach (var segment in data.Points.GroupBy(p => p.Segment))
+                {
+                    var name = $"history-{segment.Key}"; _segments.Add(name);
+                    await _map.SetPolylineAsync(name, segment.Select(p => new GeoPoint(p.Latitude, p.Longitude)), fit: false);
+                }
+                await _map.SetMarkersAsync("stops", data.Stops.Select((s, i) => new MapMarker($"stop-{i}", s.Latitude, s.Longitude,
+                    "#ed6c02", "P", $"Duraklama: {TrTime(s.From)} – {TrTime(s.To)}")));
+            }
+        }
+        catch (ApiException ex)
+        {
+            if (version == _historyVersion)
+            {
+                _historyError = ex.Message;
+                if (ex.Status is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
+                {
+                    _snapshot = null; _history = null; _selected = null; _map = null; _segments.Clear();
+                    _error = ex.Message;
+                }
+            }
+        }
+        finally { if (version == _historyVersion) _historyLoading = false; }
+    }
+    private async Task FocusStopAsync(VehicleStopDto stop) { if (_map is not null) await _map.SetViewAsync(stop.Latitude, stop.Longitude, 17); }
+    public async ValueTask DisposeAsync()
+    {
+        _stop.Cancel(); _historyVersion++;
+        // Polling exits on cancellation; do not await a renderer callback from its own disposal.
+        if (_poll?.IsCompleted == true) await _poll;
+        _stop.Dispose();
+    }
+}
