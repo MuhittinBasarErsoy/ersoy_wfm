@@ -28,6 +28,13 @@
                                   HelperText="Üst barda ve müşteri takip sayfasında görünür" />
                     <MudTextField T="string" Value="_tenant.Slug" Label="Kısa ad" Variant="Variant.Outlined" ReadOnly HelperText="Sistem yöneticisi tarafından belirlenir" />
                 </MudPaper>
+                <MudPaper Elevation="1" Class="pa-4 mb-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3"><b>Konum ve rota geçmişi</b></MudText>
+                    <MudNumericField T="int" @bind-Value="_retentionDays" Label="Saklama süresi (gün)" Variant="Variant.Outlined"
+                                     Min="1" Max="3650" Immediate
+                                     Error="@(_retentionDays is < 1 or > 3650)" ErrorText="1 ile 3650 gün arasında girin."
+                                     HelperText="Araç ve personel konumları için geçerlidir." />
+                </MudPaper>
                 <MudPaper Elevation="1" Class="pa-4">
                     <MudText Typo="Typo.subtitle1" Class="mb-1"><b>Marka</b></MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">Uygulamanın ana rengi ve logosu tüm kullanıcılarınız için değişir.</MudText>
@@ -97,6 +104,7 @@
     private LeafletMap? _map;
     private string? _name, _brand, _logo;
     private double _lat, _lng;
+    private int _retentionDays = 30;
     private bool _busy, _uploading;
     private bool Uploaded => _logo?.StartsWith("/api/public/tenant-logo/") == true;
 
@@ -123,12 +131,14 @@
 
     private bool Dirty => _tenant is not null &&
         (_name != _tenant.Name || (_brand ?? "") != (_tenant.BrandColor ?? "") || (_logo ?? "") != (_tenant.LogoUrl ?? "") ||
-         Math.Abs(_lat - _tenant.DefaultLatitude) > 1e-7 || Math.Abs(_lng - _tenant.DefaultLongitude) > 1e-7);
+         Math.Abs(_lat - _tenant.DefaultLatitude) > 1e-7 || Math.Abs(_lng - _tenant.DefaultLongitude) > 1e-7 ||
+         _retentionDays != _tenant.LocationRetentionDays);
 
     protected override async Task OnInitializedAsync()
     {
         _tenant = await Api.MyTenantAsync();
         (_name, _brand, _logo, _lat, _lng) = (_tenant.Name, _tenant.BrandColor, _tenant.LogoUrl, _tenant.DefaultLatitude, _tenant.DefaultLongitude);
+        _retentionDays = _tenant.LocationRetentionDays;
     }
 
     private async Task MapReady()
@@ -151,11 +161,17 @@
 
     private async Task SaveAsync()
     {
+        if (_retentionDays is < 1 or > 3650)
+        {
+            Snackbar.Add("Konum saklama süresi 1 ile 3650 gün arasında olmalı.", Severity.Warning);
+            return;
+        }
         _busy = true;
         try
         {
-            _tenant = await Api.UpdateMyTenantAsync(new UpdateTenantSettingsRequest(_name ?? "", _lat, _lng, _brand, _logo));
+            _tenant = await Api.UpdateMyTenantAsync(new UpdateTenantSettingsRequest(_name ?? "", _lat, _lng, _brand, _logo, _retentionDays));
             (_name, _brand, _logo) = (_tenant.Name, _tenant.BrandColor, _tenant.LogoUrl);
+            _retentionDays = _tenant.LocationRetentionDays;
             await ThemeState.SetTenantAsync(Js, _tenant);
             Snackbar.Add("Şirket ayarları kaydedildi.", Severity.Success);
         }

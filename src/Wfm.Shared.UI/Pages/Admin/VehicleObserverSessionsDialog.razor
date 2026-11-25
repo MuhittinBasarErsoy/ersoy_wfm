@@ -1,0 +1,41 @@
+@inject WfmApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1">@Access.FullName</MudText>
+        @if (_error is not null) { <MudAlert Severity="Severity.Error">@_error</MudAlert> }
+        @if (_sessions is null && _error is null) { <MudProgressLinear Indeterminate /> }
+        @if (_sessions is not null)
+        {
+            <MudTable Items="_sessions" Dense Hover>
+                <HeaderContent><MudTh>Giriş (Türkiye saati)</MudTh><MudTh>Çıkış / bitiş</MudTh><MudTh>Durum</MudTh></HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Giriş">@Stamp(context.LoginAt)</MudTd>
+                    <MudTd DataLabel="Çıkış / bitiş">@(context.EndedAt is { } end ? Stamp(end) : "—")</MudTd>
+                    <MudTd DataLabel="Durum">@Reason(context)</MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText>Henüz giriş kaydı yok.</MudText></NoRecordsContent>
+            </MudTable>
+            <MudText Typo="Typo.caption">Son 200 oturum · Bağlantı kesilmesi, sunucunun kesintiyi tespit ettiği saattir.</MudText>
+        }
+    </DialogContent>
+    <DialogActions><MudButton OnClick="@(() => Dialog.Close())">Kapat</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public VehicleAccessDto Access { get; set; } = default!;
+    private List<VehicleObserverSessionDto>? _sessions;
+    private string? _error;
+    protected override async Task OnInitializedAsync()
+    {
+        try { _sessions = await Api.GetVehicleObserverSessionsAsync(Access.UserId); }
+        catch (ApiException ex) { _error = ex.Message; }
+    }
+    private static string Stamp(DateTime value) => (value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value.ToUniversalTime())
+        .AddHours(3).ToString("dd.MM.yyyy HH:mm:ss", Ui.Tr);
+    private static string Reason(VehicleObserverSessionDto s) => s.EndReason switch
+    {
+        "Logout" => "Çıkış yapıldı", "ConnectionClosed" => "Bağlantı kesildi", "Expired" => "Oturum süresi doldu", _ => "Çıkış kaydı yok"
+    };
+}

@@ -16,7 +16,7 @@ public static class VehicleEndpoints
         g.MapGet("/", async (HttpContext ctx, VehicleAccessService access, WfmDbContext db, CancellationToken ct) =>
         {
             var visible = await access.VisibleUsersAsync(ctx, ct);
-            if (visible is null) return Results.Json(new ApiError("Araç takip erişiminiz kapalı veya süresi dolmuş."), statusCode: 403);
+            if (visible is null) return Results.Json(new ApiError("Araç takip erişiminiz kapalı, süresi dolmuş veya izin verilen gün/saat dışındasınız."), statusCode: 403);
             var tid = ctx.User.TenantId();
             var tenant = await db.Tenants.AsNoTracking().SingleAsync(t => t.Id == tid, ct);
             var users = await visible.OrderBy(u => u.VehiclePlate).ToListAsync(ct);
@@ -43,7 +43,7 @@ public static class VehicleEndpoints
             if (to <= from || to - from > TimeSpan.FromDays(7))
                 return Results.BadRequest(new ApiError("Rota aralığı en fazla 7 gün olmalı."));
             var visible = await access.VisibleUsersAsync(ctx, ct);
-            if (visible is null) return Results.Json(new ApiError("Araç takip erişiminiz kapalı veya süresi dolmuş."), statusCode: 403);
+            if (visible is null) return Results.Json(new ApiError("Araç takip erişiminiz kapalı, süresi dolmuş veya izin verilen gün/saat dışındasınız."), statusCode: 403);
             var user = await visible.SingleOrDefaultAsync(u => u.Id == userId, ct);
             if (user is null) return Results.NotFound();
             var tid = ctx.User.TenantId();
@@ -77,7 +77,8 @@ public static class VehicleEndpoints
             {
                 var a = grants.SingleOrDefault(g => g.UserId == u.Id);
                 return new VehicleAccessDto(u.Id, u.FullName, a?.IsEnabled ?? false, a?.AllVehicles ?? false, a?.ExpiresAt,
-                    vehicles.Where(v => v.ObserverId == u.Id).Select(v => v.VehicleUserId).ToList());
+                    vehicles.Where(v => v.ObserverId == u.Id).Select(v => v.VehicleUserId).ToList(),
+                    a?.WeeklyScheduleJson is not null, VehicleAccessScheduleRules.Read(a?.WeeklyScheduleJson), a?.SessionDurationMinutes ?? 30);
             }).ToList();
         });
         admin.MapPut("/{userId:guid}", async (Guid userId, SaveVehicleAccessRequest req, HttpContext ctx, WfmDbContext db, CancellationToken ct) =>
@@ -88,6 +89,10 @@ public static class VehicleEndpoints
                                     join role in db.Roles on ur.RoleId equals role.Id
                                     where u.Id == userId && u.TenantId == tid && role.Name == Roles.VehicleObserver select u.Id).AnyAsync(ct);
             if (!isObserver) return Results.NotFound();
+            if (req.SessionDurationMinutes is < 1 or > 1440)
+                return Results.BadRequest(new ApiError("Oturum süresi 1 ile 1440 dakika arasında olmalı."));
+            if (req.RestrictWeeklyAccess == true && !VehicleAccessScheduleRules.IsValid(req.WeeklySchedule))
+                return Results.BadRequest(new ApiError("Haftalık erişim için en az bir gün ve geçerli başlangıç/bitiş saatleri seçin."));
             if (req.VehicleUserIds is null || req.VehicleUserIds.Count > 1000 || req.IsEnabled && req.ExpiresAt <= DateTimeOffset.UtcNow)
                 return Results.BadRequest(new ApiError("Geçerli bir erişim süresi ve araç listesi seçin."));
             var ids = req.AllVehicles ? [] : req.VehicleUserIds.Distinct().ToList();
@@ -96,12 +101,27 @@ public static class VehicleEndpoints
             var a = await db.VehicleObserverAccesses.SingleOrDefaultAsync(x => x.TenantId == tid && x.UserId == userId, ct);
             if (a is null) { a = new VehicleObserverAccess { TenantId = tid, UserId = userId }; db.VehicleObserverAccesses.Add(a); }
             a.IsEnabled = req.IsEnabled; a.AllVehicles = req.AllVehicles; a.ExpiresAt = req.ExpiresAt?.UtcDateTime;
+            if (req.SessionDurationMinutes is { } duration) a.SessionDurationMinutes = duration;
+            // Older clients omit the new option and must not erase an existing restriction.
+            if (req.RestrictWeeklyAccess is { } restrict)
+                a.WeeklyScheduleJson = restrict ? VehicleAccessScheduleRules.Write(req.WeeklySchedule!) : null;
             var old = await db.VehicleObserverVehicles.Where(v => v.TenantId == tid && v.ObserverId == userId).ToListAsync(ct);
             db.VehicleObserverVehicles.RemoveRange(old.Where(v => !ids.Contains(v.VehicleUserId)));
             db.VehicleObserverVehicles.AddRange(ids.Except(old.Select(v => v.VehicleUserId))
                 .Select(id => new VehicleObserverVehicle { TenantId = tid, ObserverId = userId, VehicleUserId = id }));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
+        });
+        admin.MapGet("/{userId:guid}/sessions", async (Guid userId, HttpContext ctx, WfmDbContext db, CancellationToken ct) =>
+        {
+            var tid = ctx.User.TenantId();
+            if (!await db.Users.AnyAsync(u => u.Id == userId && u.TenantId == tid, ct)) return Results.NotFound();
+            ctx.Response.Headers.CacheControl = "no-store";
+            var now = DateTime.UtcNow;
+            var sessions = await db.VehicleObserverSessions.AsNoTracking().Where(s => s.TenantId == tid && s.UserId == userId)
+                .OrderByDescending(s => s.CreatedAt).Take(200).ToListAsync(ct);
+            return Results.Ok(sessions.Select(s => new VehicleObserverSessionDto(s.Id, s.FullName, s.CreatedAt, s.ExpiresAt,
+                s.EndedAt ?? (s.ExpiresAt <= now ? s.ExpiresAt : null), s.EndReason ?? (s.ExpiresAt <= now ? "Expired" : null))).ToList());
         });
     }
 }

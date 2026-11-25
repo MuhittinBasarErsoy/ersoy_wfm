@@ -17,7 +17,26 @@
             </div>
             @if (_selected.Count == 0) { <MudText Typo="Typo.caption">Araç seçilmezse denetçi hiçbir araç göremez.</MudText> }
         }
-        <MudCheckBox T="bool" @bind-Value="_unlimited" Label="Süre sınırı yok" Class="mt-2" />
+        <MudSwitch T="bool" @bind-Value="_restrictWeekly" Label="Haftanın günleri ve saatleriyle sınırla" Color="Color.Primary" Class="mt-2" />
+        @if (_restrictWeekly)
+        {
+            <MudText Typo="Typo.caption">Türkiye saati</MudText>
+            @foreach (var day in _days)
+            {
+                <div class="d-flex flex-wrap align-center gap-2 mb-2" @key="day.Day">
+                    <div style="width:110px"><MudCheckBox T="bool" @bind-Value="day.Enabled" Label="@day.Name" /></div>
+                    @if (day.Enabled)
+                    {
+                        <div style="width:130px"><MudTimePicker @bind-Time="day.Start" Label="Başlangıç" AmPm="false" Variant="Variant.Outlined" Margin="Margin.Dense" /></div>
+                        <div style="width:130px"><MudTimePicker @bind-Time="day.End" Label="Bitiş" AmPm="false" Variant="Variant.Outlined" Margin="Margin.Dense" /></div>
+                    }
+                </div>
+            }
+            <MudText Typo="Typo.caption">Bitiş başlangıçtan erkense erişim ertesi güne devam eder.</MudText>
+        }
+        <MudNumericField T="int" @bind-Value="_sessionMinutes" Label="Oturum süresi (dakika)" Min="1" Max="1440" Variant="Variant.Outlined" Class="mt-3"
+                         HelperText="Girişten itibaren işler. Değişiklik bir sonraki girişte uygulanır." />
+        <MudCheckBox T="bool" @bind-Value="_unlimited" Label="Bitiş tarihi yok" Class="mt-2" />
         @if (!_unlimited)
         {
             <MudDatePicker @bind-Date="_expiresDate" Label="Erişim bitiş günü (Türkiye saati)" DateFormat="dd.MM.yyyy" Culture="Ui.Tr" Variant="Variant.Outlined" Class="mb-2" />
@@ -35,7 +54,19 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
     [Parameter, EditorRequired] public VehicleAccessDto Access { get; set; } = default!;
     [Parameter] public List<UserDto> Vehicles { get; set; } = [];
-    private bool _enabled, _all, _unlimited, _busy;
+    private bool _enabled, _all, _unlimited, _busy, _restrictWeekly;
+    private int _sessionMinutes = 30;
+    private readonly List<DayRow> _days = [new(DayOfWeek.Monday, "Pazartesi"), new(DayOfWeek.Tuesday, "Salı"),
+        new(DayOfWeek.Wednesday, "Çarşamba"), new(DayOfWeek.Thursday, "Perşembe"), new(DayOfWeek.Friday, "Cuma"),
+        new(DayOfWeek.Saturday, "Cumartesi"), new(DayOfWeek.Sunday, "Pazar")];
+    private sealed class DayRow(DayOfWeek day, string name)
+    {
+        public DayOfWeek Day { get; } = day;
+        public string Name { get; } = name;
+        public bool Enabled { get; set; }
+        public TimeSpan? Start { get; set; } = TimeSpan.FromHours(8);
+        public TimeSpan? End { get; set; } = TimeSpan.FromHours(18);
+    }
     private HashSet<Guid> _selected = [];
     private DateTime? _expiresDate;
     private TimeSpan? _expiresTime;
@@ -43,6 +74,14 @@
     protected override void OnInitialized()
     {
         _enabled = Access.IsEnabled; _all = Access.AllVehicles;
+        _sessionMinutes = Access.SessionDurationMinutes;
+        _restrictWeekly = Access.RestrictWeeklyAccess;
+        foreach (var window in Access.WeeklySchedule ?? [])
+        {
+            var day = _days.FirstOrDefault(d => d.Day == window.Day);
+            if (day is null) continue;
+            day.Enabled = true; day.Start = TimeSpan.FromMinutes(window.StartMinute); day.End = TimeSpan.FromMinutes(window.EndMinute);
+        }
         _selected = Access.VehicleUserIds.Where(id => Vehicles.Any(v => v.Id == id)).ToHashSet();
         // New grants default to one week; unlimited access always requires an explicit choice.
         _unlimited = Access.IsEnabled && Access.ExpiresAt is null;
@@ -53,6 +92,13 @@
     private async Task SaveAsync()
     {
         _error = null;
+        if (_sessionMinutes is < 1 or > 1440) { _error = "Oturum süresi 1 ile 1440 dakika arasında olmalı."; return; }
+        var selectedDays = _days.Where(d => d.Enabled).ToList();
+        if (_restrictWeekly && (selectedDays.Count == 0 || selectedDays.Any(d => d.Start is null || d.End is null)))
+        { _error = "En az bir gün ve o günün başlangıç/bitiş saatlerini seçin."; return; }
+        var schedule = _restrictWeekly ? selectedDays.Select(d => new VehicleAccessWindow(d.Day, (int)d.Start!.Value.TotalMinutes, (int)d.End!.Value.TotalMinutes)).ToList() : null;
+        if (_restrictWeekly && !VehicleAccessScheduleRules.IsValid(schedule))
+        { _error = "Başlangıç ve bitiş saatleri farklı olmalı."; return; }
         if (!_unlimited && (_expiresDate is null || _expiresTime is null)) { _error = "Bitiş günü ve saatini seçin."; return; }
         DateTimeOffset? until = _unlimited ? null : new DateTimeOffset(
             DateTime.SpecifyKind(_expiresDate!.Value.Date + _expiresTime!.Value, DateTimeKind.Unspecified), TimeSpan.FromHours(3));
@@ -60,7 +106,7 @@
         _busy = true;
         try
         {
-            await Api.SaveVehicleAccessAsync(Access.UserId, new(_enabled, _all, until, _selected.ToList()));
+            await Api.SaveVehicleAccessAsync(Access.UserId, new(_enabled, _all, until, _selected.ToList(), _restrictWeekly, schedule, _sessionMinutes));
             Dialog.Close(DialogResult.Ok(true));
         }
         catch (ApiException ex) { _error = ex.Message; }

@@ -14,13 +14,23 @@
     else
     {
         <MudTable Items="_access" Dense Hover Elevation="1">
-            <HeaderContent><MudTh>Denetçi</MudTh><MudTh>Erişim</MudTh><MudTh>Kapsam</MudTh><MudTh>Bitiş (Türkiye saati)</MudTh><MudTh /></HeaderContent>
+            <HeaderContent><MudTh>Denetçi</MudTh><MudTh>Erişim</MudTh><MudTh>Kapsam</MudTh><MudTh>Gün / saat (Türkiye)</MudTh><MudTh>Oturum süresi</MudTh><MudTh>Bitiş (Türkiye saati)</MudTh><MudTh /></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Denetçi">@context.FullName</MudTd>
                 <MudTd DataLabel="Erişim">@(!context.IsEnabled ? "Kapalı" : context.ExpiresAt <= DateTime.UtcNow ? "Süresi dolmuş" : "Açık")</MudTd>
                 <MudTd DataLabel="Kapsam">@(context.AllVehicles ? "Tüm araçlar (sonradan eklenenler dahil)" : $"{context.VehicleUserIds.Count} seçili araç")</MudTd>
+                <MudTd DataLabel="Gün / saat">
+                    @if (!context.RestrictWeeklyAccess) { <span>Her gün, tüm saatler</span> }
+                    else
+                    {
+                        @foreach (var window in (context.WeeklySchedule ?? []).OrderBy(w => ((int)w.Day + 6) % 7))
+                        { <div>@Ui.Tr.DateTimeFormat.GetDayName(window.Day) @Clock(window.StartMinute)–@Clock(window.EndMinute)@(window.StartMinute > window.EndMinute ? " (ertesi gün)" : "")</div> }
+                    }
+                </MudTd>
+                <MudTd DataLabel="Oturum süresi">@context.SessionDurationMinutes dk</MudTd>
                 <MudTd DataLabel="Bitiş">@(context.ExpiresAt?.AddHours(3).ToString("dd.MM.yyyy HH:mm") ?? "Süresiz")</MudTd>
-                <MudTd><MudButton Size="Size.Small" OnClick="@(() => EditAsync(context))">Düzenle</MudButton></MudTd>
+                <MudTd><MudButton Size="Size.Small" OnClick="@(() => EditAsync(context))">Düzenle</MudButton>
+                    <MudButton Size="Size.Small" OnClick="@(() => SessionsAsync(context))">Giriş / çıkış kayıtları</MudButton></MudTd>
             </RowTemplate>
             <NoRecordsContent><MudText>Henüz denetçi hesabı yok.</MudText></NoRecordsContent>
         </MudTable>
@@ -32,6 +42,13 @@
     private List<UserDto> _vehicles = [];
     private bool _loaded;
     private string? _error;
+    private static string Clock(int minute) => $"{minute / 60:00}:{minute % 60:00}";
+    private async Task SessionsAsync(VehicleAccessDto access)
+    {
+        var p = new DialogParameters<VehicleObserverSessionsDialog> { { x => x.Access, access } };
+        await Dialogs.ShowAsync<VehicleObserverSessionsDialog>("Denetçi giriş / çıkış kayıtları", p,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Medium });
+    }
     protected override async Task OnInitializedAsync()
     {
         if (!Me.Can(Policies.ManageUsers)) return;

@@ -4,7 +4,7 @@
 @inject UserContext Me
 
 <RequirePolicy Policy="@Policies.ViewVehicles">
-    <PageHeader Title="Araç Takip" Subtitle="Telefon konumu · yalnızca mesai sırasında">
+    <PageHeader Title="Araç Takip" Subtitle="Yalnızca mesai sırasında">
         <Actions>
             @if (Me.Can(Policies.ManageUsers))
             {
@@ -96,7 +96,6 @@
                                 AddressSearch="false" OnReady="MapReadyAsync" OnMarkerClick="MarkerClickedAsync" />
                     <MudText Typo="Typo.caption" Class="mt-2 d-block">Yeşil: hareketli · mavi: duruyor · turuncu: konum gelmiyor · gri: mesai dışı. Konum gelmemesi durduğu anlamına gelmez.</MudText>
                 </MudPaper>
-                <MudAlert Severity="Severity.Info" Dense Class="mt-3">Telefon araçta olmalı. Mesafe ve duraklamalar GPS kayıtlarından yaklaşık hesaplanır. Beş dakikayı aşan veri boşlukları rotada birleştirilmez; kontak ve yakıt bilgisi ölçülmez.</MudAlert>
             </MudItem>
         </MudGrid>
     }

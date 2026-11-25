@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wfm.Application;
 using Wfm.Domain;
 using Wfm.Domain.Entities;
 using Wfm.Infrastructure.Data;
@@ -25,6 +26,7 @@ public class VehicleAccessService(WfmDbContext db)
         var access = await db.VehicleObserverAccesses.AsNoTracking()
             .SingleOrDefaultAsync(a => a.TenantId == tid && a.UserId == uid, ct);
         if (access is null || !access.IsEnabled || access.ExpiresAt <= DateTime.UtcNow) return null;
+        if (!VehicleAccessScheduleRules.Allows(access.WeeklyScheduleJson, DateTimeOffset.UtcNow)) return null;
         if (!access.AllVehicles)
         {
             var ids = db.VehicleObserverVehicles.Where(v => v.TenantId == tid && v.ObserverId == uid).Select(v => v.VehicleUserId);

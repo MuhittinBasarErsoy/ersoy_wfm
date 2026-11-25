@@ -147,3 +147,15 @@ sahada doğrulanmadan kesin ölçüm olarak kullanılmamalıdır.
 Doğrulama: izole InMemory veritabanı üstünde gerçek HTTP uç noktaları için erişim/şirket izolasyonu,
 iptal/süre bitimi, mesai kaydı; SQL Server sorgu çevirisi; rota boşlukları ve mevcut UI/fotoğraf birim testleri.
 InMemory testleri SQL Server üstünde migration uygulanmasının yerine geçmez. Canlı sistem değiştirilmez.
+
+### Denetçi gün/saat ve oturum ayarları
+
+- API ve Web birlikte güncellenir. API başlangıcında `20261125122859_VehicleObserverScheduleAndSessions` uygulanır; önce yedek alın.
+- Denetçi erişiminde haftalık günler ve her gün için bir saat aralığı seçilebilir. Türkiye saati kullanılır; bitiş saati erkense aralık ertesi güne uzanır. Başlangıç dahildir, bitiş hariçtir. Mevcut izinler haftalık sınıra otomatik geçirilmez.
+- Haftalık sınır canlı konum ve geçmiş isteklerinin yapıldığı zamanı sınırlar; izinli saatte geçmiş kayıtların saatlerini ayrıca filtrelemez. Araç kapsamı ve erişim bitiş tarihi de her istekte kontrol edilir.
+- Her denetçi için oturum süresi 1–1440 dakika, başlangıç değeri 30 dakikadır. Süre girişten itibaren işler; token yenileme süreyi uzatmaz. Değiştirilen süre yeni girişlerde uygulanır.
+- Denetçinin web oturumu kalıcı tarayıcı deposuna yazılmaz. Sekme kapatma, sayfa yenileme veya bağlantı kesilmesi yeniden giriş gerektirir. Diğer rollerin oturum saklama davranışı değişmez.
+- Bağlantı kesilmesi web sunucusu tarafından tespit edilince API'ye çıkış iletilir. Ağ/API erişilemiyorsa bildirim gecikebilir; sunucudaki mutlak oturum süresi yine geçerlidir. Bağlantı kesilme kaydı tarayıcının kesin kapatılma saati değildir.
+- Başarılı denetçi girişleri, açık çıkış, bağlantı kesilmesi ve süre dolması oturum kayıtlarında ayrılır. Yönetici, Denetçi erişimleri → Giriş / çıkış kayıtları üzerinden son 200 oturumu görebilir. Giriş bildirimi bu değişiklikte gönderilmez.
+- Önceden verilmiş denetçi token'ları güncellemeden sonra yeniden giriş gerektirir. Yeni tablo ve alanlar mevcut konum kayıtlarını silmez.
+- Şirket ayarlarında konum ve rota saklama süresi düzenlenebilir. Mevcut şirketin süresi otomatik değişmez; 180 gün seçilip kaydedilmelidir. Eski istemcilerin ayar kaydı mevcut saklama süresini korur. Silinmiş konumlar geri gelmez.

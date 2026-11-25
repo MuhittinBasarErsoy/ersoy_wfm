@@ -65,9 +65,9 @@ public static class AuthEndpoints
                 ? Results.Ok(res)
                 : Results.Json(new ApiError("Oturum süresi doldu."), statusCode: 401)).AllowAnonymous();
 
-        g.MapPost("/logout", async (RefreshRequest req, TokenService tokens) =>
+        g.MapPost("/logout", async (LogoutRequest req, TokenService tokens) =>
         {
-            await tokens.RevokeAsync(req.RefreshToken);
+            await tokens.RevokeAsync(req.RefreshToken, req.ConnectionClosed);
             return Results.NoContent();
         }).AllowAnonymous();
 
@@ -113,6 +113,8 @@ public static class AuthEndpoints
         g.MapPut("/tenant", async (UpdateTenantSettingsRequest req, HttpContext ctx, WfmDbContext db, IFileStorage storage) =>
         {
             if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest(new ApiError("Şirket adı zorunlu."));
+            if (req.LocationRetentionDays is < 1 or > 3650)
+                return Results.BadRequest(new ApiError("Konum saklama süresi 1 ile 3650 gün arasında olmalı."));
             if (req.DefaultLatitude is < -90 or > 90 || req.DefaultLongitude is < -180 or > 180)
                 return Results.BadRequest(new ApiError("Geçerli bir harita merkezi seçin."));
             if (!string.IsNullOrWhiteSpace(req.BrandColor) && !System.Text.RegularExpressions.Regex.IsMatch(req.BrandColor, "^#[0-9a-fA-F]{6}$"))
@@ -123,6 +125,7 @@ public static class AuthEndpoints
             var tid = ctx.User.TenantId();
             var t = await db.Tenants.FirstAsync(x => x.Id == tid);
             t.Name = req.Name.Trim();
+            if (req.LocationRetentionDays is { } retentionDays) t.LocationRetentionDays = retentionDays;
             t.DefaultLatitude = req.DefaultLatitude;
             t.DefaultLongitude = req.DefaultLongitude;
             t.BrandColor = string.IsNullOrWhiteSpace(req.BrandColor) ? null : req.BrandColor.ToLowerInvariant();
@@ -163,7 +166,7 @@ public static class AuthEndpoints
 
         g.MapGet("/", async (WfmDbContext db) =>
             await db.Tenants.Where(t => t.Slug != "system").OrderBy(t => t.Name)
-                .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude, t.BrandColor, t.LogoUrl))
+                .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude, t.BrandColor, t.LogoUrl, t.LocationRetentionDays))
                 .ToListAsync());
 
         g.MapPost("/", async (CreateTenantRequest req, WfmDbContext db, UserManager<AppUser> users) =>

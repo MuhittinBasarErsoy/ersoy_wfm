@@ -19,7 +19,7 @@ public static class Mapping
     public static NotificationDto ToDto(this Notification n) => new(n.Id, n.Title, n.Body, n.WorkTaskId, n.CreatedAt, n.ReadAt, n.Kind);
 
     public static TenantDto ToDto(this Tenant t) =>
-        new(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude, t.BrandColor, t.LogoUrl);
+        new(t.Id, t.Name, t.Slug, t.IsActive, t.DefaultLatitude, t.DefaultLongitude, t.BrandColor, t.LogoUrl, t.LocationRetentionDays);
 
     public static TaskCommentDto ToDto(this TaskComment c, IReadOnlyDictionary<Guid, string> userNames) =>
         new(c.Id, c.WorkTaskId, c.UserId, userNames.TryGetValue(c.UserId, out var n) ? n : null, c.Body, c.CreatedAt);

@@ -81,6 +81,7 @@ public class WfmApiClient(HttpClient http, WfmClientOptions options)
     public Task<VehicleHistoryDto> GetVehicleHistoryAsync(Guid id, DateTimeOffset from, DateTimeOffset to) =>
         Get<VehicleHistoryDto>($"/api/vehicles/{id}/history?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}");
     public Task<List<VehicleAccessDto>> GetVehicleAccessAsync() => Get<List<VehicleAccessDto>>("/api/vehicle-access");
+    public Task<List<VehicleObserverSessionDto>> GetVehicleObserverSessionsAsync(Guid userId) => Get<List<VehicleObserverSessionDto>>($"/api/vehicle-access/{userId}/sessions");
     public Task SaveVehicleAccessAsync(Guid userId, SaveVehicleAccessRequest req) => Send(HttpMethod.Put, $"/api/vehicle-access/{userId}", req);
 
     // ---------- Task types ----------
